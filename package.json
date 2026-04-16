@@ -1,0 +1,57 @@
+{
+  "name": "video-creator-skill",
+  "version": "1.0.0",
+  "description": "自动化视频创作技能，整合宝玉技能生态",
+  "main": "cli.js",
+  "bin": {
+    "video-creator": "./cli.js"
+  },
+  "scripts": {
+    "start": "node cli.js --help",
+    "demo": "node examples/demo/scripts/run-demo.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint scripts/*.js",
+    "format": "prettier --write scripts/*.js"
+  },
+  "keywords": [
+    "video",
+    "creator",
+    "remotion",
+    "tailwind",
+    "baoyu",
+    "skill",
+    "automation",
+    "content",
+    "social-media"
+  ],
+  "author": "Video Creator Team",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^9.4.1",
+    "figlet": "^1.5.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.26.0",
+    "prettier": "^2.7.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/video-creator-skill.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/video-creator-skill/issues"
+  },
+  "homepage": "https://github.com/your-org/video-creator-skill#readme",
+  "files": [
+    "SKILL.md",
+    "cli.js",
+    "scripts/",
+    "templates/",
+    "references/",
+    "examples/"
+  ]
+}

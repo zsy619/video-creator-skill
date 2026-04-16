@@ -1,0 +1,33 @@
+{
+  "china": {
+    "tailwind": "https://cdn.bootcss.com/tailwindcss/2.2.19/tailwind.min.css",
+    "fonts": {
+      "inter": "https://fonts.googleapis.cn/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap",
+      "jetbrains": "https://fonts.googleapis.cn/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap",
+      "pingfang": "local('PingFang SC')"
+    },
+    "icons": "https://cdn.bootcss.com/font-awesome/5.15.4/css/all.min.css",
+    "animate": "https://cdn.bootcss.com/animate.css/4.1.1/animate.min.css"
+  },
+  "global": {
+    "tailwind": "https://cdn.tailwindcss.com",
+    "fonts": {
+      "inter": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap",
+      "jetbrains": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    },
+    "icons": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css",
+    "animate": "https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
+  },
+  "fallback": {
+    "fonts": {
+      "sans": "'PingFang SC', 'Microsoft YaHei', 'Arial', sans-serif",
+      "mono": "'Menlo', 'Monaco', 'Courier New', monospace"
+    }
+  },
+  "recommended": {
+    "forChina": true,
+    "primaryCDN": "china",
+    "backupCDN": "global",
+    "useFallback": true
+  }
+}

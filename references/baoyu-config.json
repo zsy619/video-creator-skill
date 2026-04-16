@@ -1,0 +1,198 @@
+{
+  "skills": {
+    "baoyu-url-to-markdown": {
+      "enabled": true,
+      "description": "网页转Markdown技能",
+      "usage": "自动抓取网页内容并转换为结构化Markdown",
+      "options": {
+        "timeout": 30000,
+        "retry": 3,
+        "includeImages": true,
+        "cleanHtml": true
+      },
+      "output": {
+        "format": "markdown",
+        "includeMetadata": true,
+        "preserveLinks": true
+      }
+    },
+    "baoyu-cover-image": {
+      "enabled": true,
+      "description": "封面图生成技能",
+      "usage": "根据文章内容生成吸引人的封面图",
+      "dimensions": {
+        "type": ["hero", "conceptual", "typography", "metaphor", "scene", "minimal"],
+        "palette": ["warm", "elegant", "cool", "dark", "earth", "vivid", "pastel", "mono", "retro", "duotone"],
+        "rendering": ["flat-vector", "hand-drawn", "painterly", "digital", "pixel", "chalk", "screen-print"],
+        "aspect": ["16:9", "2.35:1", "4:3", "3:2", "1:1", "3:4", "9:16"]
+      },
+      "videoOptimized": {
+        "aspect": "9:16",
+        "resolution": "1080x1920",
+        "recommendedStyles": ["digital", "flat-vector", "painterly"]
+      }
+    },
+    "baoyu-article-illustrator": {
+      "enabled": true,
+      "description": "文章插图生成技能",
+      "usage": "分析文章结构，在关键位置生成插图",
+      "analysis": {
+        "minParagraphLength": 50,
+        "maxIllustrations": 10,
+        "positionStrategy": "semantic"
+      },
+      "types": {
+        "infographic": "数据、指标、技术内容",
+        "scene": "叙述性、情感性内容",
+        "flowchart": "流程、工作流",
+        "comparison": "对比分析",
+        "framework": "模型、架构",
+        "timeline": "时间线、历史"
+      },
+      "styles": {
+        "notion": "Notion风格，简洁现代",
+        "warm": "温暖风格，亲和力强",
+        "minimal": "极简风格，清晰明了",
+        "blueprint": "蓝图风格，技术感强",
+        "watercolor": "水彩风格，艺术感强",
+        "elegant": "优雅风格，高端大气"
+      }
+    },
+    "baoyu-infographic": {
+      "enabled": true,
+      "description": "信息图生成技能",
+      "usage": "从内容中提取关键数据，生成可视化信息图",
+      "dataExtraction": {
+        "patterns": ["\\d+%", "\\d+个", "\\d{4}年", "排名第\\d+", "增长\\d+"],
+        "minDataPoints": 3,
+        "maxDataPoints": 10
+      },
+      "layouts": {
+        "vertical": "垂直布局，适合竖屏",
+        "horizontal": "水平布局，适合横屏",
+        "comparison": "对比布局",
+        "timeline": "时间线布局",
+        "hierarchical": "层次结构布局"
+      }
+    },
+    "baoyu-format-markdown": {
+      "enabled": true,
+      "description": "Markdown格式化技能",
+      "usage": "优化Markdown结构，添加元数据和平台优化",
+      "formatting": {
+        "addFrontmatter": true,
+        "optimizeHeadings": true,
+        "normalizeLists": true,
+        "addPlatformMetadata": true
+      },
+      "platforms": {
+        "xiaohongshu": {
+          "titleMaxLength": 20,
+          "tagsMinCount": 5,
+          "tagsMaxCount": 10,
+          "summaryLength": 200
+        },
+        "wechat_video": {
+          "titleMaxLength": 30,
+          "tagsMinCount": 3,
+          "tagsMaxCount": 8,
+          "summaryLength": 150
+        }
+      }
+    },
+    "baoyu-markdown-to-html": {
+      "enabled": true,
+      "description": "Markdown转HTML技能",
+      "usage": "将Markdown转换为响应式HTML页面",
+      "themes": {
+        "wechat": "微信文章风格",
+        "xiaohongshu": "小红书风格",
+        "minimal": "极简风格",
+        "tech": "科技风格",
+        "elegant": "优雅风格"
+      },
+      "optimizations": {
+        "responsive": true,
+        "chinaCDN": true,
+        "lazyLoadImages": true,
+        "minifyHtml": true
+      }
+    }
+  },
+  "integration": {
+    "workflow": {
+      "contentProcessing": ["baoyu-url-to-markdown", "baoyu-format-markdown"],
+      "visualGeneration": ["baoyu-cover-image", "baoyu-article-illustrator", "baoyu-infographic"],
+      "outputGeneration": ["baoyu-markdown-to-html"]
+    },
+    "fallbackStrategies": {
+      "skillUnavailable": "useWebSearch",
+      "generationFailed": "usePlaceholder",
+      "timeout": "retryThenSkip"
+    },
+    "performance": {
+      "parallelProcessing": true,
+      "cacheResults": true,
+      "timeout": 60000
+    }
+  },
+  "videoCreatorSpecific": {
+    "themeMapping": {
+      "tech-modern": {
+        "coverStyle": "digital",
+        "illustrationStyle": "blueprint",
+        "infographicLayout": "vertical"
+      },
+      "cyberpunk": {
+        "coverStyle": "digital",
+        "illustrationStyle": "digital",
+        "infographicLayout": "comparison"
+      },
+      "neon-future": {
+        "coverStyle": "digital",
+        "illustrationStyle": "digital",
+        "infographicLayout": "timeline"
+      },
+      "minimal-tech": {
+        "coverStyle": "flat-vector",
+        "illustrationStyle": "minimal",
+        "infographicLayout": "hierarchical"
+      },
+      "gradient-wave": {
+        "coverStyle": "painterly",
+        "illustrationStyle": "watercolor",
+        "infographicLayout": "vertical"
+      }
+    },
+    "platformOptimization": {
+      "xiaohongshu": {
+        "imageStyle": "vivid",
+        "textSize": "large",
+        "durationRange": [15, 60]
+      },
+      "wechat_video": {
+        "imageStyle": "clear",
+        "textSize": "medium",
+        "durationRange": [10, 60]
+      }
+    }
+  },
+  "configuration": {
+    "apiKeys": {
+      "note": "在实际使用时需要配置相应的API密钥",
+      "openai": "YOUR_OPENAI_API_KEY",
+      "stability": "YOUR_STABILITY_API_KEY",
+      "deepseek": "YOUR_DEEPSEEK_API_KEY"
+    },
+    "paths": {
+      "skillsDirectory": "~/.agents/skills",
+      "outputDirectory": "./video-output",
+      "cacheDirectory": "./cache"
+    },
+    "logging": {
+      "level": "info",
+      "file": "video-creator.log",
+      "maxSize": "10MB"
+    }
+  }
+}

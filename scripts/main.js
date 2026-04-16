@@ -1,0 +1,659 @@
+#!/usr/bin/env node
+
+/**
+ * Video Creator 主入口脚本
+ * 自动化视频创作流程
+ * 修复：补全 generateVideo() 和 generateReport() 方法，引用公共 themes 模块
+ */
+
+const fs = require('fs').promises;
+const path = require('path');
+const { exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
+const BaoyuIntegration = require('./baoyu-integration');
+const VideoComposer = require('./video-composer');
+const { THEMES, CONFIG, VALID_STYLES, VALID_PLATFORMS } = require('./themes');
+
+class VideoCreator {
+  constructor(options = {}) {
+    this.options = { ...CONFIG, ...options };
+    this.content = null;
+    this.metadata = {};
+    this.generatedFiles = [];
+    this.baoyu = new BaoyuIntegration({
+      outputDir: this.options.outputDir
+    });
+    this.videoComposer = new VideoComposer({
+      width: this.options.width,
+      height: this.options.height,
+      fps: this.options.fps,
+      duration: this.options.duration || this.options.defaultDuration,
+      quality: this.options.quality,
+      style: this.options.style || CONFIG.defaultStyle,
+      outputDir: this.options.outputDir
+    });
+  }
+
+  /**
+   * 主执行函数
+   */
+  async run() {
+    try {
+      console.log('🎬 开始视频创作流程...');
+
+      await this.createOutputDir();
+      await this.getContent();
+      await this.analyzeContent();
+      await this.generateVisualContent();
+      await this.generateCopywriting();
+      await this.buildHtmlPage();
+      await this.generateVideo();
+      await this.generateReport();
+
+      console.log('✅ 视频创作完成！');
+      console.log(`📁 输出目录: ${this.options.outputDir}`);
+
+    } catch (error) {
+      console.error('❌ 视频创作失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 创建输出目录
+   */
+  async createOutputDir() {
+    const dirs = ['content', 'images', 'html', 'video', 'temp'];
+
+    for (const dir of dirs) {
+      const fullPath = path.join(this.options.outputDir, dir);
+      await fs.mkdir(fullPath, { recursive: true });
+    }
+
+    console.log('📁 创建输出目录结构完成');
+  }
+
+  /**
+   * 获取内容
+   */
+  async getContent() {
+    const { url, topic, content } = this.options;
+
+    if (url) {
+      console.log('🔗 从链接获取内容...');
+      await this.getContentFromUrl(url);
+    } else if (topic) {
+      console.log('🔍 搜索主题内容...');
+      await this.getContentFromTopic(topic);
+    } else if (content) {
+      console.log('📝 使用提供的内容...');
+      // 处理命令行传入的字面 \n 转义序列
+      this.content = content.replace(/\\n/g, '\n');
+    } else {
+      throw new Error('请提供内容来源：--url, --topic, 或 --content');
+    }
+
+    const contentPath = path.join(this.options.outputDir, 'content', 'original.md');
+    await fs.writeFile(contentPath, this.content);
+    this.generatedFiles.push(contentPath);
+
+    console.log(`📄 内容获取完成，长度: ${this.content.length} 字符`);
+  }
+
+  /**
+   * 从链接获取内容
+   */
+  async getContentFromUrl(url) {
+    try {
+      console.log(`🔗 使用宝玉技能获取URL内容: ${url}`);
+
+      const result = await this.baoyu.callBaoyuSkill('baoyu-url-to-markdown', {
+        url,
+        outputPath: path.join(this.options.outputDir, 'content', 'original.md')
+      });
+
+      if (result.success && result.content) {
+        this.content = result.content;
+        console.log(`✅ URL内容获取成功，长度: ${this.content.length} 字符`);
+      } else {
+        throw new Error('宝玉技能返回空内容');
+      }
+    } catch (error) {
+      console.warn(`❌ 宝玉技能调用失败: ${error.message}`);
+      console.log('🔄 使用备用方法获取内容...');
+
+      try {
+        const { web_fetch } = require('./tool-proxy');
+        const response = await web_fetch({ url });
+        this.content = response.content || `# 从 ${url} 获取的内容\n\n备用方法获取的内容...`;
+      } catch (fetchError) {
+        console.warn(`❌ 备用方法也失败: ${fetchError.message}`);
+        this.content = `# 网页内容\n\nURL: ${url}\n\n获取时间: ${new Date().toISOString()}\n\n由于网络或技能问题，无法获取原始内容。`;
+      }
+    }
+  }
+
+  /**
+   * 从主题搜索内容
+   */
+  async getContentFromTopic(topic) {
+    try {
+      const { web_search } = require('./tool-proxy');
+      const results = await web_search({ query: topic, count: 5 });
+
+      if (results && results.length > 0) {
+        let content = `# ${topic}\n\n`;
+        results.forEach((result, index) => {
+          content += `## ${result.title}\n${result.snippet}\n\n`;
+        });
+        content += `\n---\n*以上内容基于对"${topic}"的搜索结果整理*`;
+        this.content = content;
+        return;
+      }
+    } catch (error) {
+      console.warn(`❌ 主题搜索失败: ${error.message}`);
+    }
+
+    this.content = `# ${topic}\n\n这是一篇关于${topic}的详细内容...`;
+  }
+
+  /**
+   * 分析内容
+   */
+  async analyzeContent() {
+    console.log('📊 分析内容...');
+
+    const words = this.content.split(/\s+/).length;
+    const paragraphs = this.content.split('\n\n').length;
+    const lines = this.content.split('\n').length;
+
+    const commonWords = ['的', '了', '在', '是', '和', '与', '或', '等'];
+    const wordsList = this.content.toLowerCase().match(/\b[\u4e00-\u9fa5a-z]+\b/g) || [];
+    const wordFreq = {};
+
+    wordsList.forEach(word => {
+      if (!commonWords.includes(word) && word.length > 1) {
+        wordFreq[word] = (wordFreq[word] || 0) + 1;
+      }
+    });
+
+    const keywords = Object.entries(wordFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([word]) => word);
+
+    const suggestedDuration = Math.max(
+      this.options.minDuration,
+      Math.min(this.options.maxDuration, Math.ceil(words / 50))
+    );
+
+    const titleMatch = this.content.match(/^#\s+(.+?)$/m);
+    const title = titleMatch ? titleMatch[1].trim() : '未命名内容';
+
+    this.metadata = {
+      title,
+      words,
+      paragraphs,
+      lines,
+      keywords,
+      suggestedDuration,
+      analyzedAt: new Date().toISOString()
+    };
+
+    const metadataPath = path.join(this.options.outputDir, 'content', 'metadata.json');
+    await fs.writeFile(metadataPath, JSON.stringify(this.metadata, null, 2));
+    this.generatedFiles.push(metadataPath);
+
+    console.log(`📈 内容分析完成：${words}字，${paragraphs}段，建议时长：${suggestedDuration}秒`);
+  }
+
+  /**
+   * 生成视觉内容
+   */
+  async generateVisualContent() {
+    console.log('🎨 使用宝玉技能生成视觉内容...');
+
+    const theme = THEMES[this.options.style || CONFIG.defaultStyle];
+    const title = this.metadata.title || '未命名内容';
+    const imagesDir = path.join(this.options.outputDir, 'images');
+
+    await fs.mkdir(imagesDir, { recursive: true });
+
+    try {
+      // 1. 生成封面图
+      console.log('  生成封面图...');
+      const coverResult = await this.baoyu.callBaoyuSkill('baoyu-cover-image', {
+        title,
+        content: this.content.substring(0, 500),
+        style: this.options.style || 'tech-modern',
+        outputPath: path.join(imagesDir, 'cover.svg')
+      });
+
+      if (coverResult.success) {
+        this.generatedFiles.push(coverResult.imagePath);
+        this.metadata.coverImage = coverResult.imagePath;
+        console.log(`  ✅ 封面图生成完成: ${coverResult.imagePath}`);
+      }
+
+      // 2. 生成内容插图
+      console.log('  生成内容插图...');
+      const illustrationResult = await this.baoyu.callBaoyuSkill('baoyu-article-illustrator', {
+        content: this.content,
+        style: this.options.style || 'tech-modern',
+        outputDir: imagesDir
+      });
+
+      if (illustrationResult.success && illustrationResult.illustrations.length > 0) {
+        illustrationResult.illustrations.forEach(illus => {
+          this.generatedFiles.push(illus.path);
+        });
+        this.metadata.illustrations = illustrationResult.illustrations;
+        console.log(`  ✅ 插图生成完成: ${illustrationResult.total} 张`);
+      }
+
+      // 3. 生成信息图
+      console.log('  生成信息图...');
+      const infoResult = await this.baoyu.callBaoyuSkill('baoyu-infographic', {
+        content: this.content,
+        style: this.options.style || 'tech-modern',
+        outputPath: path.join(imagesDir, 'infographic.svg')
+      });
+
+      if (infoResult.success) {
+        this.generatedFiles.push(infoResult.imagePath);
+        this.metadata.infographic = infoResult.imagePath;
+        console.log(`  ✅ 信息图生成完成: ${infoResult.dataPoints} 个数据点`);
+      }
+
+      console.log(`🖼️ 视觉内容生成完成，共 ${this.generatedFiles.filter(f => f.includes('images/')).length} 张图片`);
+
+    } catch (error) {
+      console.error(`❌ 视觉内容生成失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 生成文案
+   */
+  async generateCopywriting() {
+    console.log('📝 使用宝玉技能生成文案...');
+
+    const titleMatch = this.content.match(/^#\s+(.+?)$/m);
+    const title = titleMatch ? titleMatch[1].trim() : '未命名内容';
+
+    try {
+      console.log('  格式化Markdown内容...');
+      const formatResult = await this.baoyu.callBaoyuSkill('baoyu-format-markdown', {
+        content: this.content,
+        title: title,
+        addMetadata: true
+      });
+
+      if (!formatResult.success) {
+        throw new Error('Markdown格式化失败');
+      }
+
+      let formattedContent = formatResult.formatted;
+
+      const metadataMatch = formattedContent.match(/^---\n([\s\S]*?)\n---/);
+      let frontmatter = {};
+
+      if (metadataMatch) {
+        try {
+          const yamlContent = metadataMatch[1];
+          yamlContent.split('\n').forEach(line => {
+            const match = line.match(/^(\w+):\s*(.+)$/);
+            if (match) {
+              const key = match[1];
+              let value = match[2].trim();
+              if (value.startsWith('[') && value.endsWith(']')) {
+                try { value = JSON.parse(value); } catch (e) { /* 保持原样 */ }
+              } else if (value.startsWith('"') && value.endsWith('"')) {
+                value = value.slice(1, -1);
+              }
+              frontmatter[key] = value;
+            }
+          });
+          formattedContent = formattedContent.replace(/^---\n[\s\S]*?\n---\n*/, '');
+        } catch (error) {
+          console.warn('  ⚠️  Frontmatter解析失败:', error.message);
+        }
+      }
+
+      const xhsTitle = frontmatter.xiaohongshu?.title || this.generateXhsTitle(title);
+      const wechatTitle = frontmatter.wechat_video?.title || this.generateWechatTitle(title);
+      const tags = frontmatter.tags || this.generateTags();
+      const summary = frontmatter.summary || this.generateSummary();
+
+      this.metadata.xhsTitle = xhsTitle;
+      this.metadata.wechatTitle = wechatTitle;
+      this.metadata.tags = Array.isArray(tags) ? tags : [tags];
+      this.metadata.summary = summary;
+
+      const theme = THEMES[this.options.style || CONFIG.defaultStyle];
+      const processedContent = `# ${title}\n\n${formattedContent}\n\n---\n\n## 平台优化\n\n### 小红书标题\n${xhsTitle}\n\n### 视频号标题\n${wechatTitle}\n\n### 内容摘要\n${summary}\n\n### 标签\n${(Array.isArray(tags) ? tags : [tags]).join(', ')}\n\n### 视频规格\n- 分辨率: 1080×1920 (竖屏)\n- 帧率: 60fps\n- 时长: ${this.metadata.suggestedDuration || 30}秒\n- 主题: ${theme.name}\n\n*由 Video Creator 技能生成*`;
+
+      const processedPath = path.join(this.options.outputDir, 'content', 'processed.md');
+      await fs.writeFile(processedPath, processedContent);
+      this.generatedFiles.push(processedPath);
+
+      console.log('📋 文案生成完成');
+
+    } catch (error) {
+      console.error(`❌ 宝玉技能文案生成失败: ${error.message}`);
+      console.log('🔄 使用备用方法生成文案...');
+      await this.generateFallbackCopywriting(title);
+    }
+  }
+
+  /**
+   * 生成备用文案
+   */
+  async generateFallbackCopywriting(title) {
+    const xhsTitle = this.generateXhsTitle(title);
+    const wechatTitle = this.generateWechatTitle(title);
+    const summary = this.generateSummary();
+    const tags = this.generateTags();
+
+    const formattedContent = this.content
+      .replace(/^#\s+.+$/m, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    const processedPath = path.join(this.options.outputDir, 'content', 'processed.md');
+    const processedContent = `# ${title}\n\n${formattedContent}\n\n---\n\n## 平台优化\n\n### 小红书标题\n${xhsTitle}\n\n### 视频号标题\n${wechatTitle}\n\n### 内容摘要\n${summary}\n\n### 标签\n${tags.join(', ')}\n`;
+
+    await fs.writeFile(processedPath, processedContent);
+    this.generatedFiles.push(processedPath);
+
+    this.metadata.xhsTitle = xhsTitle;
+    this.metadata.wechatTitle = wechatTitle;
+    this.metadata.tags = tags;
+    this.metadata.summary = summary;
+
+    console.log('📋 备用文案生成完成');
+  }
+
+  generateXhsTitle(originalTitle) {
+    const prefixes = ['🔥', '💡', '🎯', '🚀', '🌟', '📈', '🤖', '💻'];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const maxLength = 20;
+    let title = originalTitle;
+    if (title.length > maxLength) {
+      title = title.substring(0, maxLength - 3) + '...';
+    }
+    return `${prefix} ${title}`;
+  }
+
+  generateWechatTitle(originalTitle) {
+    const maxLength = 30;
+    let title = originalTitle;
+    if (title.length > maxLength) {
+      title = title.substring(0, maxLength - 3) + '...';
+    }
+    return `【科技前沿】${title}`;
+  }
+
+  generateSummary() {
+    const maxLength = 200;
+    let summary = this.content.replace(/#+\s+/g, '').replace(/\n+/g, ' ');
+    if (summary.length > maxLength) {
+      summary = summary.substring(0, maxLength) + '...';
+    }
+    return summary;
+  }
+
+  generateTags() {
+    const baseTags = ['科技', '人工智能', '创新', '未来', '数字'];
+    const contentTags = this.metadata.keywords.slice(0, 5);
+    const allTags = [...new Set([...baseTags, ...contentTags])];
+    while (allTags.length < 5) {
+      allTags.push(`标签${allTags.length + 1}`);
+    }
+    return allTags.slice(0, 10);
+  }
+
+  /**
+   * 构建HTML页面
+   */
+  async buildHtmlPage() {
+    console.log('🌐 使用宝玉技能构建HTML页面...');
+
+    const htmlPath = path.join(this.options.outputDir, 'html', 'article-summary.html');
+
+    try {
+      const processedPath = path.join(this.options.outputDir, 'content', 'processed.md');
+      let markdownContent;
+
+      try {
+        markdownContent = await fs.readFile(processedPath, 'utf-8');
+      } catch (error) {
+        markdownContent = this.content;
+      }
+
+      console.log('  转换Markdown为HTML...');
+      const htmlResult = await this.baoyu.callBaoyuSkill('baoyu-markdown-to-html', {
+        markdown: markdownContent,
+        outputPath: htmlPath,
+        style: 'wechat'
+      });
+
+      if (htmlResult.success) {
+        this.generatedFiles.push(htmlPath);
+        console.log(`  ✅ HTML页面生成完成: ${htmlPath}`);
+        await this.optimizeHtmlPage(htmlPath);
+      } else {
+        throw new Error('HTML转换失败');
+      }
+
+    } catch (error) {
+      console.error(`❌ 宝玉技能HTML构建失败: ${error.message}`);
+      console.log('🔄 使用备用方法构建HTML页面...');
+      await this.buildFallbackHtmlPage();
+    }
+  }
+
+  /**
+   * 优化HTML页面
+   */
+  async optimizeHtmlPage(htmlPath) {
+    try {
+      let html = await fs.readFile(htmlPath, 'utf-8');
+
+      if (!html.includes('tailwind')) {
+        const tailwindLink = '<link href="https://cdn.bootcss.com/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">';
+        html = html.replace('</head>', `    ${tailwindLink}\n    </head>`);
+      }
+
+      if (!html.includes('viewport')) {
+        html = html.replace('<head>', `<head>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">`);
+      }
+
+      if (!html.includes('font-family')) {
+        const fontStyle = `<style>\n        body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }\n    </style>`;
+        html = html.replace('</head>', `    ${fontStyle}\n    </head>`);
+      }
+
+      if (!html.includes('Video Creator')) {
+        const footer = `\n    <footer style="text-align: center; padding: 20px; color: #666; font-size: 14px;">\n        <p>🎬 由 Video Creator 技能生成 • ${new Date().getFullYear()}</p>\n    </footer>`;
+        html = html.replace('</body>', `    ${footer}\n</body>`);
+      }
+
+      await fs.writeFile(htmlPath, html);
+      console.log('  ✅ HTML页面优化完成');
+
+    } catch (error) {
+      console.warn('  ⚠️  HTML优化失败:', error.message);
+    }
+  }
+
+  /**
+   * 构建备用HTML页面
+   */
+  async buildFallbackHtmlPage() {
+    console.log('  构建备用HTML页面...');
+
+    const HtmlBuilder = require('./html-builder');
+    const htmlBuilder = new HtmlBuilder({ useChinaCDN: true });
+
+    const title = this.metadata.title || '内容摘要';
+    const summary = this.metadata.summary || this.generateSummary();
+    const tags = this.metadata.tags || this.generateTags();
+
+    const metadata = {
+      title,
+      summary,
+      tags,
+      xhsTitle: this.metadata.xhsTitle,
+      wechatTitle: this.metadata.wechatTitle,
+      words: this.metadata.words,
+      paragraphs: this.metadata.paragraphs,
+      suggestedDuration: this.metadata.suggestedDuration,
+      keywords: this.metadata.keywords
+    };
+
+    const htmlPath = path.join(this.options.outputDir, 'html', 'article-summary.html');
+    await htmlBuilder.buildPage(this.content, metadata, htmlPath);
+
+    this.generatedFiles.push(htmlPath);
+    console.log('  ✅ 备用HTML页面构建完成');
+  }
+
+  /**
+   * 生成视频（之前缺失的方法，现已补全）
+   */
+  async generateVideo() {
+    if (this.options.skipVideo) {
+      console.log('⏭️  跳过视频生成');
+      return;
+    }
+
+    console.log('🎬 开始生成视频...');
+
+    try {
+      const videoPath = await this.videoComposer.generateVideo(
+        this.content,
+        this.metadata,
+        this.generatedFiles.filter(f => f.includes('images/'))
+      );
+
+      if (videoPath) {
+        this.generatedFiles.push(videoPath);
+        this.metadata.videoPath = videoPath;
+        console.log(`✅ 视频生成完成: ${videoPath}`);
+      }
+    } catch (error) {
+      console.error(`❌ 视频生成失败: ${error.message}`);
+      console.log('🔄 创建视频占位信息...');
+
+      const videoInfoPath = path.join(this.options.outputDir, 'video', 'video-info.json');
+      const videoInfo = {
+        status: 'failed',
+        error: error.message,
+        config: {
+          width: this.options.width,
+          height: this.options.height,
+          fps: this.options.fps,
+          duration: this.metadata.suggestedDuration || 30,
+          style: this.options.style || CONFIG.defaultStyle
+        },
+        suggestion: '请确保已安装 Remotion 依赖：cd video-output/temp/remotion-project && npm install',
+        createdAt: new Date().toISOString()
+      };
+
+      await fs.writeFile(videoInfoPath, JSON.stringify(videoInfo, null, 2));
+      this.generatedFiles.push(videoInfoPath);
+      console.log('  ⚠️  视频未生成，已保存配置信息');
+    }
+  }
+
+  /**
+   * 生成报告（之前缺失的方法，现已补全）
+   */
+  async generateReport() {
+    console.log('📊 生成执行报告...');
+
+    const theme = THEMES[this.options.style || CONFIG.defaultStyle];
+    const title = this.metadata.title || '未命名内容';
+
+    const report = {
+      title: '🎬 Video Creator 执行报告',
+      generatedAt: new Date().toISOString(),
+      content: {
+        title,
+        words: this.metadata.words,
+        paragraphs: this.metadata.paragraphs,
+        suggestedDuration: this.metadata.suggestedDuration,
+        keywords: this.metadata.keywords
+      },
+      platform: {
+        xhsTitle: this.metadata.xhsTitle,
+        wechatTitle: this.metadata.wechatTitle,
+        tags: this.metadata.tags,
+        summary: this.metadata.summary
+      },
+      video: {
+        style: this.options.style || CONFIG.defaultStyle,
+        themeName: theme.name,
+        width: this.options.width,
+        height: this.options.height,
+        fps: this.options.fps,
+        duration: this.metadata.suggestedDuration || 30,
+        videoPath: this.metadata.videoPath || null
+      },
+      generatedFiles: this.generatedFiles,
+      statistics: {
+        totalFiles: this.generatedFiles.length,
+        imageFiles: this.generatedFiles.filter(f => f.includes('images/')).length,
+        contentFiles: this.generatedFiles.filter(f => f.includes('content/')).length,
+        htmlFiles: this.generatedFiles.filter(f => f.includes('html/')).length,
+        videoFiles: this.generatedFiles.filter(f => f.includes('video/')).length
+      }
+    };
+
+    const reportPath = path.join(this.options.outputDir, 'report.json');
+    await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
+    this.generatedFiles.push(reportPath);
+
+    const reportMdPath = path.join(this.options.outputDir, 'report.md');
+    const reportMd = `# 🎬 Video Creator 执行报告
+
+## 项目信息
+- **生成时间**: ${new Date().toLocaleString('zh-CN')}
+- **内容主题**: ${title}
+- **输出目录**: ${this.options.outputDir}
+
+## 内容统计
+- **总字数**: ${this.metadata.words}字
+- **段落数**: ${this.metadata.paragraphs}段
+- **建议时长**: ${this.metadata.suggestedDuration}秒
+- **关键词**: ${(this.metadata.keywords || []).slice(0, 5).join(', ')}
+
+## 视频规格
+- **主题风格**: ${theme.name} (${this.options.style || CONFIG.defaultStyle})
+- **分辨率**: ${this.options.width}×${this.options.height}
+- **帧率**: ${this.options.fps}fps
+- **时长**: ${this.metadata.suggestedDuration || 30}秒
+
+## 平台优化
+- **小红书标题**: ${this.metadata.xhsTitle}
+- **视频号标题**: ${this.metadata.wechatTitle}
+- **标签**: ${(this.metadata.tags || []).join(', ')}
+
+## 生成的文件 (${this.generatedFiles.length}个)
+${this.generatedFiles.map(f => `- \`${path.relative(this.options.outputDir, f)}\``).join('\n')}
+
+---
+
+*本报告由 Video Creator 技能自动生成*
+`;
+
+    await fs.writeFile(reportMdPath, reportMd);
+    this.generatedFiles.push(reportMdPath);
+
+    console.log('📊 执行报告生成完成');
+  }
+}
+
+module.exports = VideoCreator;
