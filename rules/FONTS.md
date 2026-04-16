@@ -21,9 +21,88 @@
 | 副标题 |   **44px** |
 | 内容 |   **40px** |
 | 命令行 |   **22px** |
-| 字幕 |   **10px** |
+| 字幕 |   **18px** |
 
-字幕要求在视频底部，距离底部边距30px，可以多行，务必居中显示。
+## 字幕系统规范（必须严格遵守）
+
+### 字幕规格要求
+
+| 属性 | 规范值 | 说明 |
+|------|--------|------|
+| **字体大小** | **18px** | 必须使用18px字体大小 |
+| **字体颜色** | **醒目的黄色** | `&H0000FFFF` (ARGB格式，纯黄色) |
+| **字体** | **PingFang SC** | macOS系统中文字体，确保跨平台兼容 |
+| **位置** | **底部居中** | `Alignment=2` (底部居中) |
+| **距底边距离** | **120px** | `MarginV=120` |
+| **描边** | **1px黑色** | `Outline=1, OutlineColour=&H00000000` |
+| **换行支持** | **支持多行** | `WrapStyle=0` |
+
+### ASS字幕格式模板
+
+```ass
+[Script Info]
+Title: Video Subtitles
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+PlayResX: 1080
+PlayResY: 1920
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,PingFang SC,10,&H0000FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,10,10,30,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,字幕内容（可换行）
+```
+
+### 关键参数说明
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| `Fontsize` | `10` | 10px字体大小 |
+| `PrimaryColour` | `&H0000FFFF` | 醒目的黄色（ARGB格式） |
+| `Fontname` | `PingFang SC` | macOS中文字体，避免STHeiti Medium等不兼容字体 |
+| `Alignment` | `2` | 底部居中（其他值：1=左下，3=右下，5=正中，6=右中，8=中上） |
+| `MarginV` | `30` | 距底边30px |
+| `Outline` | `1` | 1px描边 |
+| `OutlineColour` | `&H00000000` | 黑色描边 |
+
+### 字幕内容要求
+
+1. **内容一致性**：字幕内容必须与视频画面中的文字完全一致，不能有任何遗漏或错误
+2. **清晰简洁**：字幕必须清晰、简洁，易于理解，每行控制在20字以内
+3. **多行支持**：支持多行显示，长句子可换行
+4. **时间同步**：字幕时间轴必须与语音和画面完美同步
+
+### ffmpeg烧录字幕命令
+
+```bash
+# 烧录ASS字幕到视频
+ffmpeg -i input.mp4 -vf "ass=subtitle.ass" -c:v libx264 -crf 18 -preset fast -c:a copy output_with_subtitle.mp4
+```
+
+### 常见问题
+
+| 问题 | 解决方案 |
+|------|---------|
+| 字幕显示为黑块或方块 | 检查Fontname是否为系统可用字体，更换为PingFang SC |
+| 字体太小看不清 | 确认Fontsize=10，可适当调整为12px但不要超过14px |
+| 字幕位置不对 | 检查MarginV和Alignment参数 |
+| 多行字幕重叠 | 调整WrapStyle或控制每行字数 |
+
+### 字体兼容性说明
+
+**必须避免的字体**：
+- `STHeiti Medium` - macOS不存在此字体，会导致渲染失败
+- `SimHei` - 可能不存在
+- `Arial` - 中文字幕不适用
+
+**推荐的字体**：
+- `PingFang SC` - macOS默认中文字体，兼容性最佳
+- `Microsoft YaHei` - Windows中文字体
+- `Noto Sans SC` - 开源跨平台中文字体
 
 #### 居中设计规范
 

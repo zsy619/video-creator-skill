@@ -280,7 +280,54 @@ const generator = new SubtitleGenerator();
 const subtitles = await generator.generateFromText(text, audioDuration);
 ```
 
-### 4. 视频规格问题
+### 4. 字幕轨道丢失（ASS 无法嵌入 MP4）
+**问题**: 使用 `ffmpeg -c:v copy -c:a copy` 混流后，ASS 字幕轨道丢失，MP4 容器不支持嵌入 ASS 字幕。
+**解决方案**: 必须分两步走：先合并视频音频，再烧录字幕。
+
+```bash
+# Step 1: 合并视频 + 音频（不用 -c:s ass，不会生效）
+ffmpeg -y \
+  -i out/video_noaudio.mp4 \
+  -i audio/neural_1_2x.m4a \
+  -c:v copy \
+  -c:a aac -b:a 256k \
+  -map 0:v -map 1:a \
+  -shortest \
+  out/video_with_audio.mp4
+
+# Step 2: 烧录字幕（ASS → 直接烧入画面）
+ffmpeg -y \
+  -i out/video_with_audio.mp4 \
+  -vf "ass=audio/subtitles.ass" \
+  -c:v libx264 -preset fast -crf 22 \
+  -c:a copy \
+  out/final_with_burned_subs.mp4
+```
+
+⚠️ **禁止**在同一步使用 `-c:v copy -c:a copy -c:s ass` 混流 ASS 字幕，MP4 不支持。
+
+### 5. 字幕时间轴与音频语速的关系
+**问题**: 字幕按原文速（58s）生成，但音频被 `atempo=1.4x` 压缩到 49.8s，导致字幕时间戳超出视频时长（如 79s），全部错位。
+
+**原则**: 字幕时间轴必须基于**最终音频时长**生成。
+
+**正确流程**:
+1. 音频后处理（atempo）→ 确定最终时长 T
+2. 字幕生成 → 使用 T 作为总时长生成时间轴
+3. 视频渲染 → 帧数 = T × 60fps
+4. 混流 + 烧录
+
+**时间轴计算示例**（58s → 3490 帧 @ 60fps）:
+```bash
+# 音频 1.2x 处理后时长
+DUR=$(ffprobe -i audio/neural_1_2x.m4a -show_entries format=duration -v quiet -of csv="p=0")
+TOTAL_FRAMES=$(echo "$DUR * 60" | bc | awk '{print int($1+0.5)}')
+
+# 场景比例保持不变，重新计算帧边界
+# 原始比例: cover=6%, pain=14%, features=16%, commands=32%, evolve=20%, outro=12%
+```
+
+### 6. 视频规格问题
 **问题**: 分辨率或帧率不正确
 **解决方案**: 确保使用正确参数
 ```bash
@@ -330,5 +377,32 @@ fi
 3. **自动化修复**：减少手动操作，提高效率
 4. **批量处理能力**：适合管理大量视频项目
 5. **标准化输出**：确保每个视频都符合专业标准
+
+---
+
+## ⚠️ 血泪教训（必须遵守）
+
+> **核心原则**：字幕时间轴必须基于**最终音频时长**，在音频后处理（atempo）完成之前，禁止生成字幕。
+
+| 错误做法 | 正确做法 |
+|---------|---------|
+| 先生成字幕，再调音频语速 | 先调音频语速，确认最终时长，再生成字幕 |
+| 用 `ffmpeg -c:s ass` 嵌入 ASS 到 MP4 | 用 `ffmpeg -vf "ass=xxx.ass"` 烧录到画面 |
+| 音频 1.4x 压缩后用原速字幕 | 音频 1.2x 处理后，用最终时长 58s 生成字幕 |
+
+**标准流程**：
+```
+1. edge-tts 生成原始音频（58s）
+         ↓
+2. atempo 后处理（1.2x）→ 58s → 确认最终时长
+         ↓
+3. Remotion 渲染视频（帧数 = 58 × 60 = 3480帧）
+         ↓
+4. 生成 ASS 字幕（基于 58s 时长）
+         ↓
+5. ffmpeg 合并视频+音频（stream copy）
+         ↓
+6. ffmpeg 烧录字幕（-vf "ass=xxx.ass"）→ 最终视频
+```
 
 通过集成这些功能，video-creator技能现在能够生成更专业、更一致的高质量视频内容。

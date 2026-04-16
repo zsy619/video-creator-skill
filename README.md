@@ -82,20 +82,36 @@ video-creator/
 ├── scripts/                     # 核心脚本目录
 │   ├── main.js                  # 主程序入口
 │   ├── video-composer.js        # 视频合成器
-│   ├── subtitle-generator.js    # 字幕生成器（新增）
-│   ├── quality-checker.js       # 质量检查器（新增）
-│   ├── video-check.js           # 集成CLI工具（新增）
-│   ├── html-builder.js          # HTML页面构建器
+│   ├── subtitle-generator.js    # 字幕生成器
+│   ├── quality-checker.js        # 质量检查器
+│   ├── video-check.js           # 集成CLI工具
+│   ├── html-builder.js           # HTML页面构建器
 │   ├── baoyu-integration.js     # 宝玉技能集成
-│   ├── content-processor.js     # 内容处理器
-│   ├── themes.js                # 主题样式管理
-│   ├── svg-generator.js         # SVG备用图生成
-│   └── tool-proxy.js            # 工具代理
-├── references/                  # 配置文件目录
+│   ├── content-processor.js      # 内容处理器
+│   ├── themes.js                 # 主题样式管理
+│   ├── svg-generator.js          # SVG备用图生成
+│   └── tool-proxy.js             # 工具代理
+├── rules/                       # 规范文档目录
+│   ├── WORKFLOW.md              # 工作流规范
+│   ├── REMOTION.md              # Remotion组件规范
+│   ├── VOICE.md                 # 语音生成规范
+│   ├── HTML.md                  # HTML页面规范
+│   ├── FONTS.md                 # 字体规范
+│   ├── COPY.md                  # 文案生成规范
+│   ├── SUBTITLES.md             # 字幕生成规范
+│   ├── QUALITY.md               # 质量检查规范
+│   ├── INPUT.md                 # 输入处理规范
+│   ├── THEMES.md                # 主题风格规范
+│   ├── PLATFORM.md              # 平台适配规范
+│   ├── PATHS.md                 # 输出结构规范
+│   ├── SCRIPTS.md               # 脚本说明
+│   ├── TROUBLESHOOTING.md       # 故障排除指南
+│   └── INTEGRATION.md           # 集成指南
+├── references/                   # 配置文件目录
 │   ├── baoyu-config.json        # 宝玉技能配置
 │   ├── cdn-mapping.json         # CDN映射配置
 │   └── tailwind-config.json     # Tailwind配置
-├── templates/                   # 模板文件目录
+├── templates/                    # 模板文件目录
 └── examples/                    # 示例项目
     └── demo/                    # 演示项目
 ```
@@ -186,28 +202,28 @@ video-creator/
 
 ### 核心文档
 - **[SKILL.md](SKILL.md)** - 技能主文档（详细说明）
-- **[WORKFLOW.md](WORKFLOW.md)** - 工作流规范
-- **[REMOTION.md](REMOTION.md)** - Remotion视频组件规范
-- **[VOICE.md](VOICE.md)** - 语音生成规范
-- **[HTML.md](HTML.md)** - HTML页面规范
+- **[rules/WORKFLOW.md](rules/WORKFLOW.md)** - 工作流规范
+- **[rules/REMOTION.md](rules/REMOTION.md)** - Remotion视频组件规范
+- **[rules/VOICE.md](rules/VOICE.md)** - 语音生成规范
+- **[rules/HTML.md](rules/HTML.md)** - HTML页面规范
 
-### 新增文档
-- **[SUBTITLES.md](SUBTITLES.md)** - 字幕生成与质量检查系统 ⭐ **新增**
-- **[QUALITY.md](QUALITY.md)** - 质量检查规范
-- **[FONTS.md](FONTS.md)** - 字体规范
-- **[PATHS.md](PATHS.md)** - 输出结构规范
+### 质量保障
+- **[rules/SUBTITLES.md](rules/SUBTITLES.md)** - 字幕生成与质量检查系统
+- **[rules/QUALITY.md](rules/QUALITY.md)** - 质量检查规范
+- **[rules/FONTS.md](rules/FONTS.md)** - 字体规范
 
-### 配置文档
-- **[INPUT.md](INPUT.md)** - 输入处理规范
-- **[THEMES.md](THEMES.md)** - 主题风格规范
-- **[PLATFORM.md](PLATFORM.md)** - 平台适配规范
-- **[COPY.md](COPY.md)** - 公众号文案生成规范
+### 内容规范
+- **[rules/PATHS.md](rules/PATHS.md)** - 输出结构规范
+- **[rules/INPUT.md](rules/INPUT.md)** - 输入处理规范
+- **[rules/THEMES.md](rules/THEMES.md)** - 主题风格规范
+- **[rules/PLATFORM.md](rules/PLATFORM.md)** - 平台适配规范
+- **[rules/COPY.md](rules/COPY.md)** - 公众号文案生成规范
+- **[rules/SCRIPTS.md](rules/SCRIPTS.md)** - 视频脚本说明
 
 ### 实用文档
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - 故障排除指南
-- **[INSTALLATION.md](INSTALLATION.md)** - 安装指南
-- **[INTEGRATION.md](INTEGRATION.md)** - 集成指南
-- **[SCRIPTS.md](SCRIPTS.md)** - 脚本说明
+- **[rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md)** - 故障排除指南
+- **[rules/INTEGRATION.md](rules/INTEGRATION.md)** - 集成指南
+- **[rules/SESSION_LOG.md](rules/SESSION_LOG.md)** - Session 日志追踪（token 消耗）
 
 ## 🛠️ 宝玉技能集成
 

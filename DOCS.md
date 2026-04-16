@@ -10,31 +10,31 @@
 - **[INSTALLATION.md](INSTALLATION.md)** - 安装指南
 
 ### 核心工作流
-- **[WORKFLOW.md](WORKFLOW.md)** - 工作流规范（10步流程）
-- **[INPUT.md](INPUT.md)** - 输入处理规范
-- **[PATHS.md](PATHS.md)** - 输出结构规范
+- **[rules/WORKFLOW.md](rules/WORKFLOW.md)** - 工作流规范（10步流程）
+- **[rules/INPUT.md](rules/INPUT.md)** - 输入处理规范
+- **[rules/PPATHS.md](rules/PPATHS.md)** - 输出结构规范
 
 ### 技术规范
-- **[REMOTION.md](REMOTION.md)** - Remotion视频组件规范
-- **[VOICE.md](VOICE.md)** - 语音生成规范
-- **[HTML.md](HTML.md)** - HTML页面规范
-- **[FONTS.md](FONTS.md)** - 字体规范
+- **[rules/REMOTION.md](rules/REMOTION.md)** - Remotion视频组件规范
+- **[rules/VOICE.md](rules/VOICE.md)** - 语音生成规范
+- **[rules/HTML.md](rules/HTML.md)** - HTML页面规范
+- **[rules/FONTS.md](rules/FONTS.md)** - 字体规范
 
 ### 新增功能 ⭐
-- **[SUBTITLES.md](SUBTITLES.md)** - 字幕生成与质量检查系统
-- **[QUALITY.md](QUALITY.md)** - 质量检查规范
+- **[rules/SUBTITLES.md](rules/SUBTITLES.md)** - 字幕生成与质量检查系统
+- **[rules/QUALITY.md](rules/QUALITY.md)** - 质量检查规范
 
 ### 平台与主题
-- **[PLATFORM.md](PLATFORM.md)** - 平台适配规范
-- **[THEMES.md](THEMES.md)** - 主题风格规范
-- **[COPY.md](COPY.md)** - 公众号文案生成规范
+- **[rules/PLATFORM.md](rules/PLATFORM.md)** - 平台适配规范
+- **[rules/THEMES.md](rules/THEMES.md)** - 主题风格规范
+- **[rules/COPY.md](rules/COPY.md)** - 公众号文案生成规范
 
 ### 集成与开发
-- **[INTEGRATION.md](INTEGRATION.md)** - 集成指南
-- **[SCRIPTS.md](SCRIPTS.md)** - 脚本说明
+- **[rules/INTEGRATION.md](rules/INTEGRATION.md)** - 集成指南
+- **[rules/SCRIPTS.md](rules/SCRIPTS.md)** - 脚本说明
 
 ### 故障排除
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - 故障排除指南
+- **[rul    es/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md)** - 故障排除指南
 
 ## 📋 文档详细说明
 
@@ -57,87 +57,87 @@
 
 ### 2. 核心工作流
 
-#### [WORKFLOW.md](WORKFLOW.md) - 工作流规范
+#### [rules/WORKFLOW.md](rules/WORKFLOW.md) - 工作流规范
 **内容**: 10步工作流详解、执行模式、错误处理、性能优化  
 **适合**: 理解视频创作的全过程  
 **阅读时间**: 10-15分钟
 
-#### [INPUT.md](INPUT.md) - 输入处理规范
+#### [rules/INPUT.md](rules/INPUT.md) - 输入处理规范
 **内容**: 支持的输入类型、格式要求、预处理规则  
 **适合**: 准备输入内容  
 **阅读时间**: 5分钟
 
-#### [PATHS.md](PATHS.md) - 输出结构规范
+#### [rules/PPATHS.md](rules/PPATHS.md) - 输出结构规范
 **内容**: 项目目录结构、文件命名规范、输出格式  
 **适合**: 管理视频项目文件  
 **阅读时间**: 5分钟
 
 ### 3. 技术规范
 
-#### [REMOTION.md](REMOTION.md) - Remotion视频组件规范
+#### [rules/REMOTION.md](rules/REMOTION.md) - Remotion视频组件规范
 **内容**: Remotion配置、组件开发、渲染参数、性能优化  
 **适合**: 开发视频组件  
 **阅读时间**: 15-20分钟
 
-#### [VOICE.md](VOICE.md) - 语音生成规范
+#### [rules/VOICE.md](rules/VOICE.md) - 语音生成规范
 **内容**: 语音合成配置、音频格式、语速控制、质量检查  
 **适合**: 配置音频生成  
 **阅读时间**: 10分钟
 
-#### [HTML.md](HTML.md) - HTML页面规范
+#### [rules/HTML.md](rules/HTML.md) - HTML页面规范
 **内容**: HTML结构、CSS样式、响应式设计、性能优化  
 **适合**: 自定义页面样式  
 **阅读时间**: 10分钟
 
-#### [FONTS.md](FONTS.md) - 字体规范
+#### [rules/FONTS.md](rules/FONTS.md) - 字体规范
 **内容**: 字体兼容性、平台适配、字体回退、性能考虑  
 **适合**: 解决字体问题  
 **阅读时间**: 5分钟
 
 ### 4. 新增功能 ⭐ (v3.0.0)
 
-#### [SUBTITLES.md](SUBTITLES.md) - 字幕生成与质量检查系统
+#### [rules/SUBTITLES.md](rules/SUBTITLES.md) - 字幕生成与质量检查系统
 **内容**: 字幕生成器API、质量检查器配置、批量处理、常见问题  
 **适合**: 使用新增的字幕和质量检查功能  
 **阅读时间**: 10-15分钟
 
-#### [QUALITY.md](QUALITY.md) - 质量检查规范
+#### [rules/QUALITY.md](rules/QUALITY.md) - 质量检查规范
 **内容**: 检查项目、质量标准、自动修复、报告生成  
 **适合**: 确保视频质量  
 **阅读时间**: 10分钟
 
 ### 5. 平台与主题
 
-#### [PLATFORM.md](PLATFORM.md) - 平台适配规范
+#### [rules/PLATFORM.md](rules/PLATFORM.md) - 平台适配规范
 **内容**: 各平台规格要求、优化建议、发布指南  
 **适合**: 多平台发布  
 **阅读时间**: 10分钟
 
-#### [THEMES.md](THEMES.md) - 主题风格规范
+#### [rules/THEMES.md](rules/THEMES.md](rules/THEMES.md) - 主题风格规范
 **内容**: 主题配置、样式变量、动画效果、自定义主题  
 **适合**: 选择或创建主题  
 **阅读时间**: 10分钟
 
-#### [COPY.md](COPY.md) - 公众号文案生成规范
+#### [rules/COPY.md](rules/COPY.md) - 公众号文案生成规范
 **内容**: 文案结构、平台适配、SEO优化、发布格式  
 **适合**: 生成公众号文案  
 **阅读时间**: 5分钟
 
 ### 6. 集成与开发
 
-#### [INTEGRATION.md](INTEGRATION.md) - 集成指南
+#### [rules/INTEGRATION.md](rules/INTEGRATION.md) - 集成指南
 **内容**: 宝玉技能集成、第三方服务、API接口、插件开发  
 **适合**: 扩展功能  
 **阅读时间**: 10-15分钟
 
-#### [SCRIPTS.md](SCRIPTS.md) - 脚本说明
+#### [rules/SCRIPTS.md](rules/SCRIPTS.md) - 脚本说明
 **内容**: 所有脚本文件的功能说明、API文档、使用示例  
 **适合**: 开发者、高级用户  
 **阅读时间**: 15-20分钟
 
 ### 7. 故障排除
 
-#### [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - 故障排除指南
+#### [rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md) - 故障排除指南
 **内容**: 常见问题、解决方案、调试技巧、联系支持  
 **适合**: 解决问题  
 **阅读时间**: 10分钟

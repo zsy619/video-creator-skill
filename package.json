@@ -50,6 +50,7 @@
     "SKILL.md",
     "cli.js",
     "scripts/",
+    "rules/",
     "templates/",
     "references/",
     "examples/"

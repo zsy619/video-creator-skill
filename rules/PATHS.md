@@ -55,7 +55,7 @@
 ```
 workspace/
 └── {project-name}/              # 项目根目录
-    └── docs/                    # 📄 文档目录 (所有文档存储于此)
+    └── docs/                    # 文档目录 (所有文档存储于此)
         ├── README.md           # 文档首页
         ├── video-script.md     # 视频脚本
         ├── copy.md             # 营销文案集
@@ -64,6 +64,7 @@ workspace/
         ├── landing-page.html    # 宣传落地页
         ├── article-page.html    # 文章阅读页
         ├── wechat-page.html    # 公众号适配页
+        ├── session-log.md      # Session 日志（token 消耗追踪）
         └── assets/             # 视觉素材
             ├── cover.png
             └── illustrations/
