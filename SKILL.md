@@ -12,9 +12,9 @@ metadata: {"clawdbot":{"emoji":"🎬","requires":{"bins":["node"],"env":[]}}}
 ## 何时使用
 
 当用户要求以下操作时立即使用本技能：
-- "创建视频" / "生成视频" / "视频创作"
+- "创建视频" / "生成视频" / "视频创作" / "竖屏视频" / "创作视频"
 - "把这篇文章做成视频"
-- "制作竖屏视频" / "小红书视频"
+- "制作竖屏视频" / "小红书视频" / "抖音视频"
 - "make video" / "create video" / "video creator"
 - "检查视频质量" / "修复字幕字体" / "批量处理视频"
 
@@ -88,18 +88,7 @@ video-creator/
 
 ## 主题风格
 
-| 风格 | 说明 | 适用场景 |
-|------|------|----------|
-| tech-modern | 现代科技风 (默认) | 科技/AI/互联网 |
-| cyberpunk | 赛博朋克风 | 游戏/未来/数字 |
-| neon-future | 霓虹未来风 | 创新/前沿/趋势 |
-| minimal-tech | 极简科技风 | 专业/商务/数据 |
-| gradient-wave | 渐变波纹风 | 生活方式/设计 |
-| particle-tech | 粒子科技风 | 数据/科学/研究 |
-| glass-morphism | 玻璃拟态风 | 时尚/品牌/高端 |
-| holographic | 全息投影风 | AR/VR/元宇宙 |
-| data-stream | 数据流风 | 大数据/金融/分析 |
-| quantum-tech | 量子科技风 | 量子/物理/前沿 |
+参考 THEMES.md 规范，根据内容选择合适的主题风格。
 
 ## 目标平台
 
@@ -109,60 +98,316 @@ video-creator/
 
 ## 工作流程
 
-### 完整工作流程
-1. **获取内容** - 从URL/主题/文件/直接内容获取原始素材
-2. **分析内容** - 提取关键词、计算时长、生成摘要
-3. **生成文案** - 平台优化标题、标签、摘要
-4. **构建HTML** - Tailwind CSS 响应式页面
-5. **生成视觉** - 封面图、插图、信息图（调用宝玉技能或生成SVG备用）
-6. **生成音频** - 依据 VOICE.md 要求，生成字幕及语言
-7. **生成字幕** - 智能生成ASS字幕，自动修复字体兼容性
-8. **质量检查** - 检查字体、音频、字幕、视频质量，自动修复问题
-9. **生成视频** - 合成封面及字幕、语音，Remotion 渲染竖屏视频
-10. **生成报告** - 完整的执行报告
+## 完整工作流程
 
-### 字幕生成与质量检查（新增功能）
+### 🎯 概述
+video-creator 采用模块化、可扩展的工作流设计，每个步骤都有明确的输入输出和质量检查点。工作流支持从多种来源创建视频，并集成了完整的质量保障体系。
 
-#### 字幕生成器 (subtitle-generator.js)
-- **智能字体选择**：自动根据操作系统选择兼容字体（macOS: PingFang SC, Windows: Microsoft YaHei）
-- **ASS格式支持**：生成标准ASS字幕文件，支持样式控制
-- **时间轴同步**：自动计算字幕显示时间，确保与音频同步
-- **字体兼容性修复**：自动检测并修复不兼容字体（如STHeiti Medium）
+### 📋 工作流步骤详解
 
-#### 质量检查器 (quality-checker.js)
-- **全面检查**：检查字体、音频、字幕、视频、项目结构
-- **自动修复**：自动修复常见问题（字体兼容性、格式转换等）
-- **批量处理**：支持批量检查多个视频项目
-- **详细报告**：生成JSON格式检查报告，包含问题和解决方案
+#### 1. **获取内容** - 内容输入与预处理
+**输入**: URL / 主题 / 文件 / 直接内容  
+**输出**: 原始文本内容  
+**工具**: `content-processor.js`  
+**质量检查**: 内容完整性、可读性
 
-#### 集成CLI工具 (video-check.js)
-- `generate-subtitles` - 生成字幕文件
-- `check-quality` - 检查项目质量
-- `fix-fonts` - 修复字体兼容性
-- `batch-process` - 批量处理多个项目
+```javascript
+// 支持多种输入方式
+- URL: https://example.com/article
+- 主题: "人工智能发展趋势"
+- 文件: ./article.md
+- 直接内容: "# 标题\n\n内容..."
+```
 
-## 宝玉技能集成
+#### 2. **分析内容** - 内容理解与结构化
+**输入**: 原始文本内容  
+**输出**: 结构化数据（关键词、时长、摘要）  
+**工具**: `content-processor.js`  
+**质量检查**: 关键词提取准确性、时长计算合理性
 
-本技能依赖宝玉技能（如已安装则自动调用，否则使用内置备用方案）：
+```javascript
+// 分析结果
+{
+  "keywords": ["AI", "机器学习", "深度学习"],
+  "duration": 45, // 秒
+  "summary": "文章介绍了AI技术的发展趋势...",
+  "sections": 6 // 内容分段数
+}
+```
 
-- `baoyu-url-to-markdown` - 网页内容抓取
-- `baoyu-cover-image` - 封面图生成
-- `baoyu-article-illustrator` - 文章插图生成
-- `baoyu-infographic` - 信息图生成
-- `baoyu-format-markdown` - Markdown格式化
-- `baoyu-markdown-to-html` - Markdown转HTML
+#### 3. **生成文案** - 平台优化文案创作
+**参考**: 要生成的文案，参考 PATHS.md 规范.
+**输入**: 结构化内容  
+**输出**: 平台优化文案（标题、标签、摘要）  
+**工具**: `content-processor.js` + 平台适配逻辑  
+**质量检查**: 文案吸引力、平台合规性、SEO优化
 
-## 新增功能文档
+```javascript
+// 多平台文案适配
+- 小红书: "🔥 AI技术爆发！2026年最值得关注的5大趋势"
+- 视频号: "AI技术发展趋势解读"
+- 公众号: "深度解析：AI技术的未来发展方向"
+```
 
-### SUBTITLES.md - 字幕生成与质量检查系统
-完整的使用文档，包括：
-- 字幕生成器API使用示例
-- 质量检查器配置选项
-- 批量处理功能说明
-- 常见问题与解决方案
+#### 4. **构建HTML** - 响应式页面构建
+**参考**: 要生成的文案，参考 PATHS.md 规范.
+**输入**: 结构化内容 + 文案  
+**输出**: Tailwind CSS HTML页面  
+**工具**: `html-builder.js`  
+**质量检查**: 响应式设计、加载性能、浏览器兼容性
 
-### 测试脚本
-- `test-subtitle-system.js` - 完整的系统测试套件
+```html
+<!-- 生成的HTML结构 -->
+<div class="min-h-screen bg-gradient-to-b from-gray-900 to-black">
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-4xl font-bold text-white mb-4">标题</h1>
+    <!-- 内容区域 -->
+  </div>
+</div>
+```
+
+#### 5. **生成视觉** - 视觉素材创建
+**输入**: 结构化内容  
+**输出**: 封面图、插图、信息图  
+**工具**: `baoyu-integration.js` + `svg-generator.js`  
+**质量检查**: 视觉质量、风格一致性、文件大小
+
+```javascript
+// 视觉生成策略
+1. 优先调用宝玉技能（如已安装）
+2. 备用方案：生成SVG矢量图
+3. 质量检查：分辨率、色彩、构图
+```
+
+#### 6. **生成音频** - 语音合成与处理
+**输入**: 文案内容  
+**输出**: 配音音频文件  
+**工具**: edge-tts + `tool-proxy.js`  
+**质量检查**: 语音清晰度、语速适中、无杂音
+
+```bash
+# 使用edge-tts生成自然人声
+edge-tts --voice zh-CN-YunjianNeural --text "$CONTENT" --write-media audio/narration.mp3
+```
+
+#### 7. **生成字幕** - 智能字幕创建 ⭐ **新增**
+**输入**: 配音文本 + 音频时长  
+**输出**: ASS格式字幕文件  
+**工具**: `subtitle-generator.js`  
+**质量检查**: 字体兼容性、时间轴同步、格式正确性
+
+```javascript
+const generator = new SubtitleGenerator();
+const subtitles = await generator.generateFromText(text, audioDuration);
+await generator.generateASS(subtitles, 'audio/subtitles.ass');
+```
+
+#### 8. **质量检查** - 全面质量保障 ⭐ **新增**
+**输入**: 所有中间文件  
+**输出**: 质量检查报告 + 自动修复  
+**工具**: `quality-checker.js`  
+**质量检查**: 字体、音频、字幕、视频、项目结构
+
+```javascript
+const checker = new QualityChecker({
+  projectDir: './my-video',
+  fixIssues: true // 自动修复
+});
+const report = await checker.runFullCheck();
+```
+
+#### 9. **生成视频** - 视频合成与渲染
+**输入**: HTML + 视觉素材 + 音频 + 字幕  
+**输出**: 最终视频文件  
+**工具**: `video-composer.js` + Remotion  
+**质量检查**: 分辨率、帧率、时长、文件大小
+
+```javascript
+// Remotion视频渲染
+const video = await renderVideo({
+  composition: "MyVideo",
+  props: { content, visuals, audio },
+  durationInFrames: 60 * fps,
+  fps: 60,
+  width: 1080,
+  height: 1920
+});
+```
+
+#### 10. **生成报告** - 执行总结与优化建议
+**输入**: 所有处理步骤的结果  
+**输出**: 完整执行报告  
+**工具**: 报告生成系统  
+**质量检查**: 报告完整性、可读性、实用性
+
+```json
+{
+  "project": "my-video",
+  "status": "completed",
+  "duration": "45秒",
+  "quality": "excellent",
+  "issues_fixed": 3,
+  "recommendations": ["使用PingFang SC字体", "优化音频码率"]
+}
+```
+
+### 🔄 工作流执行模式
+
+#### 模式1: **完整工作流**（默认）
+```bash
+# 从URL创建完整视频
+video-creator --url "https://example.com" --output ./my-video
+
+# 执行流程：1→2→3→4→5→6→7→8→9→10
+```
+
+#### 模式2: **质量检查模式** ⭐ **新增**
+```bash
+# 只运行质量检查（不生成新视频）
+video-creator check --project ./my-video --fix
+
+# 执行流程：8（质量检查）→ 自动修复
+```
+
+#### 模式3: **字幕生成模式** ⭐ **新增**
+```bash
+# 只生成字幕文件
+video-creator subtitles --generate --project ./my-video
+
+# 执行流程：7（字幕生成）
+```
+
+#### 模式4: **批量处理模式** ⭐ **新增**
+```bash
+# 批量处理多个项目
+video-creator batch --directory ./workspace --fix
+
+# 执行流程：对每个项目运行模式2
+```
+
+### 🎨 主题风格集成
+
+工作流支持10+种主题风格，每种风格都有独特的视觉设计和动画效果：
+
+```javascript
+// 主题风格配置
+const themes = {
+  'tech-modern': { colors: ['#3B82F6', '#10B981'], animations: 'smooth' },
+  'cyberpunk': { colors: ['#FF00FF', '#00FFFF'], animations: 'glitch' },
+  'neon-future': { colors: ['#FF6B6B', '#4ECDC4'], animations: 'pulse' }
+  // ... 更多主题
+};
+```
+
+### 🔧 错误处理与恢复
+
+#### 错误检测
+- **内容获取失败**：自动重试，提供备用方案
+- **视觉生成失败**：使用SVG备用图
+- **音频生成失败**：提示用户手动处理
+- **字体兼容性问题**：自动修复为PingFang SC
+
+#### 恢复机制
+```javascript
+// 工作流状态保存
+{
+  "step": 6, // 当前执行到第6步
+  "completed": [1, 2, 3, 4, 5], // 已完成步骤
+  "errors": [], // 错误记录
+  "checkpoint": "audio-generated" // 检查点
+}
+```
+
+### 📊 性能优化
+
+#### 并行处理
+```javascript
+// 可并行执行的步骤
+parallelSteps: [
+  [5, 6], // 视觉生成 + 音频生成可并行
+  [7, 8]  // 字幕生成 + 质量检查可并行
+]
+```
+
+#### 缓存机制
+- **内容缓存**：避免重复获取相同URL
+- **视觉缓存**：重复使用已生成的图片
+- **字体缓存**：缓存系统字体信息
+
+### 🚀 扩展性设计
+
+#### 插件系统
+```javascript
+// 自定义处理插件
+const plugins = {
+  'custom-visual': './plugins/custom-visual.js',
+  'special-effect': './plugins/special-effect.js'
+};
+```
+
+#### 钩子函数
+```javascript
+// 工作流钩子
+hooks: {
+  'before-video-render': async (context) => {
+    // 渲染前自定义处理
+  },
+  'after-quality-check': async (report) => {
+    // 质量检查后处理
+  }
+}
+```
+
+### 📈 监控与日志
+
+#### 详细日志
+```bash
+# 启用详细日志
+video-creator --url "https://example.com" --verbose
+
+# 日志级别：debug, info, warn, error
+```
+
+#### 性能监控
+```javascript
+// 性能数据收集
+performance: {
+  'content-processing': '1.2s',
+  'visual-generation': '4.5s',
+  'video-rendering': '12.3s',
+  'total': '18.0s'
+}
+```
+
+### 🎯 最佳实践
+
+#### 工作流配置
+```javascript
+// 推荐配置
+const config = {
+  quality: 'high', // 质量优先
+  useBaoyu: true,  // 使用宝玉技能
+  autoFix: true,   // 自动修复问题
+  batchSize: 5     // 批量处理大小
+};
+```
+
+#### 定期维护
+```bash
+# 每周批量检查所有项目
+0 9 * * 1 video-creator batch --directory ~/VideoProjects --fix
+
+# 每月清理缓存
+0 0 1 * * rm -rf ~/.video-creator/cache/*
+```
+
+### 🔍 故障排除
+
+常见问题及解决方案：
+1. **字体兼容性问题**：运行 `video-creator subtitles --fix`
+2. **音频质量问题**：检查edge-tts安装和网络连接
+3. **视频渲染失败**：检查Remotion配置和依赖
+4. **性能问题**：启用缓存，优化并行处理
 
 ## 参考文档
 
@@ -186,29 +431,11 @@ video-creator/
 - `{baseDir}/INTEGRATION.md` - 集成指南
 - `{baseDir}/SCRIPTS.md` - 脚本说明
 
-## 技术规格
+---
 
-### 视频规格
-- 分辨率：1080×1920（竖屏）
-- 帧率：60fps
-- 时长：30-60秒（可配置）
-- 格式：MP4/H.264
-
-### 字幕规格
-- 字体：PingFang SC（macOS兼容）
-- 大小：10-14px（根据视频时长调整）
-- 颜色：黄色 (&H0000FFFF)，黑色描边
-- 位置：底部居中，距底边30px
-- 格式：ASS（Advanced SubStation Alpha）
-
-### 音频规格
-- 格式：AAC/MP3
-- 码率：256kbps
-- 语音：edge-tts自然人声（推荐）
-
-## 版本历史
-
-### v3.0.0 (2026-04-15) - 重大更新
+**工作流版本**: v3.0.0 (2026-04-15)  
+**主要更新**: 集成字幕生成、质量检查、批量处理功能  
+**设计原则**: 模块化、可扩展、质量优先、自动化修复### v3.0.0 (2026-04-15) - 重大更新
 - ✅ 新增字幕生成系统
 - ✅ 新增质量检查系统
 - ✅ 新增批量处理功能
