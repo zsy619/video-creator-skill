@@ -163,3 +163,100 @@ npx remotion render VerticalVideo --output out/video.mp4
 ```
 
 注意：此方法会降低安全性，仅在本地开发环境使用。
+
+### Q: useCurrentFrame() 报错 "can only be called inside a component registered as a Composition"
+
+- 原因：`useCurrentFrame()` 只能在被 `<Composition>` 注册的组件内部调用。在 `Sequence` 的子组件中直接使用 `useCurrentFrame()` 会触发此错误。
+- 解决：采用「传递帧参数」模式。
+
+**错误模式（不要这样做）**：
+
+```tsx
+// ❌ 错误：Scene 组件内部直接调用 useCurrentFrame()，在 Sequence 内会报错
+export const VerticalVideo: React.FC = () => {
+  const frame = useCurrentFrame(); // ✅ 主组件可以
+  return (
+    <Sequence from={0} durationInFrames={300}>
+      <Scene1 /> {/* ❌ Scene1 内部 useCurrentFrame() 会失败 */}
+    </Sequence>
+  );
+};
+```
+
+**正确模式（标准做法）**：
+
+```tsx
+// ✅ src/Root.tsx — 定义 Composition
+export const RemotionRoot: React.FC = () => {
+  return (
+    <Composition
+      id="VerticalVideo"
+      component={VerticalVideo}
+      durationInFrames={3600}
+      fps={60}
+      width={1080}
+      height={1920}
+    />
+  );
+};
+
+// ✅ src/index.tsx — 注册根组件
+import { registerRoot } from 'remotion';
+import { RemotionRoot } from './Root';
+registerRoot(() => <RemotionRoot />);
+
+// ✅ src/VerticalVideo.tsx — 主组件获取帧，传递给场景
+export const VerticalVideo: React.FC = () => {
+  const frame = useCurrentFrame(); // 在 Composition 内，可直接调用
+  return (
+    <AbsoluteFill>
+      <Audio src={staticFile('audio/neural_1_2x.m4a')} />
+      <Sequence from={0} durationInFrames={300}>
+        <Scene1 frame={frame} /> {/* 通过 props 传递 frame */}
+      </Sequence>
+      <Sequence from={300} durationInFrames={420}>
+        <Scene2 frame={frame} />
+      </Sequence>
+    </AbsoluteFill>
+  );
+};
+
+// ✅ src/Scene1.tsx — 接收 frame 作为 props
+const Scene1: React.FC<{ frame: number }> = ({ frame }) => {
+  const opacity = interpolate(frame, [0, 30], [0, 1]); // 使用传入的 frame
+  return <div style={{ opacity }}>内容</div>;
+};
+```
+
+**关键规则**：
+- `useCurrentFrame()` 只在 `Root.tsx` 中定义的 `<Composition>` 组件内可直接使用
+- 所有场景子组件通过 `frame` prop 接收帧数
+- 每个 `Sequence` 嵌套一个「帧包装组件」，该组件调用 `useCurrentFrame()` 并传给实际场景
+
+---
+
+## 封面渲染：remotion still 文字不显示
+
+**症状**：Remotion 封面图只有深色背景，所有文字（标题、统计数字、CTA）都不渲染，图片为纯黑/深蓝色。
+
+**原因**：`remotion still` 命令在某些版本中对 div 内文字渲染有问题，文字内容不被捕获。
+
+**解决方案**：使用 `render --frames=0` 代替 `still`：
+
+```bash
+# ❌ 错误方式 — 文字不渲染
+npx remotion still CoverImage --output-file=docs/assets/cover.png
+
+# ✅ 正确方式 — 文字正常渲染
+cd video-project
+npx remotion render CoverImage --frames=0 --log=error
+cp out/CoverImage.png docs/assets/cover.png
+```
+
+**验证**：生成后检查图片中亮色像素数量：
+```python
+from PIL import Image
+img = Image.open('docs/assets/cover.png')
+bright = sum(1 for p in img.getdata() if max(p[:3]) > 100)
+print(f"亮色像素: {bright}")  # 应 > 0
+```

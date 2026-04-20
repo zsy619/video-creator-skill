@@ -21,6 +21,24 @@ metadata:
 - "video-creator" / "make video" / "create video" / "video creator"
 - "检查视频质量" / "修复字幕字体" / "批量处理视频"
 
+## ⚠️ 铁律：封面图是强制必选项
+
+> **封面图是视频的门面，是用户第一眼看到的内容。封面未生成，不得进入音频生成和视频渲染步骤。**
+>
+> 生成优先级：
+> 1. **baoyu-imagine**（AI绘图）→ 生成 9:16 竖屏封面
+> 2. **Remotion 单帧渲染** → 用视频第45帧或固定帧输出 PNG
+> 3. **PIL/Pillow 代码生成** → 纯字体排版封面（所有 API 不可用时的最终兜底）
+>
+> 封面尺寸（必填）：
+> - 视频号 / 抖音 / 公众号：**1080×1920**（9:16）
+> - 小红书：**1440×2560**（9:16）
+>
+> **禁止跳过封面生成步骤。** 如果 baoyu-imagine 报错，必须按以下顺序重试：
+> 1. 检查 `~/.baoyu-skills/baoyu-imagine/EXTEND.md` 确认 provider 配置
+> 2. 尝试其他 provider（openrouter / replicate / dashscope / minimax）
+> 3. 所有 API 不可用时 → 使用 PIL 代码生成（见 rules/TROUBLESHOOTING.md 方案二）
+
 ### 输入模式
 - [rules/INPUT.md](rules/INPUT.md) - 内容输入模式
 

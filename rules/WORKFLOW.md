@@ -1,7 +1,7 @@
 # 视频创作工作流程 (Video Creator Workflow)
 
 > **所属模块**: video-creator / SKILL.md → 核心工作流
-> **版本**: v3.0.0
+> **版本**: v4.0.0
 > **相关模块**: [INPUT.md](INPUT.md) · [COPY.md](COPY.md) · [THEMES.md](THEMES.md) · [VOICE.md](VOICE.md) · [QUALITY.md](QUALITY.md)
 
 本文档定义了使用 Remotion 和 baoyu 技能体系创建专业级社交媒体视频的完整工作流程。
@@ -11,17 +11,216 @@
 ## 📋 工作流程概览
 
 ```
-Step 1        Step 2        Step 3        Step 4        Step 5
-内容获取   →   分析内容   →   构建项目   →   生成文案   →   构建HTML
-
-Step 6        Step 7        Step 8        Step 9        Step 10
-生成视觉   →   生成音频   →   生成字幕   →   质量检查   →   生成视频
-                                                                      ↓
-                                                              Step 11
-                                                              生成报告
+Step 0        Step 1        Step 2        Step 3        Step 4        Step 5
+创建文档   →   内容获取   →   分析内容   →   构建项目   →   生成文案   →   构建HTML
+                                                                              ↓
+Step 11       Step 10        Step 9        Step 8        Step 7        Step 6
+生成报告   ←   生成视频   ←   质量检查   ←   生成字幕   ←   生成音频   ←   生成视觉
 ```
 
 ---
+
+## ⚠️ 铁律：文档必须全部生成，禁止跳过任何一个文件
+
+> **经验教训（flowboard-video 项目血泪史）**：
+> 1. 不能先做 Remotion 视频再补文档——会漏，必须先创建所有文档再开始渲染
+> 2. `session-log.md` 必须主动写入，不是光调用 `session_status` 就完了
+> 3. 每完成一个 Step 都要验证输出文件是否存在
+> 4. **封面图未生成，不得进入 Step 7（音频）和 Step 10（视频渲染）**
+
+**输出文件清单（必须全部生成，缺一不可）**：
+
+
+| 文件 | 路径 | 说明 |
+|------|------|------|
+| 项目首页 | `docs/README.md` | 项目概览、规格、时间轴、文件清单 |
+| 原始内容 | `docs/article.md` | 原始抓取或整理的内容 |
+| 视频脚本 | `docs/video-script.md` | 分镜脚本和场景描述 |
+| 营销文案集 | `docs/copy.md` | 小红书/视频号/抖音三版本文案 |
+| 公众号文案 | `docs/wechat-copy.md` | 公众号正文（hook→功能→号召→结尾） |
+| 发布指南 | `docs/posting-guide.md` | 各平台发布参数 + 检查清单 |
+| 落地页 | `docs/landing-page.html` | Tailwind 深色科技风宣传页 |
+| 文章阅读页 | `docs/article-page.html` | 深色竖屏阅读页 |
+| 公众号适配页 | `docs/wechat-page.html` | 公众号白底适配页 |
+| **会话日志** | `docs/session-log.md` | **必须主动写入，不是光调用 session_status** |
+| 执行报告 | `docs/report.json` | JSON 格式完整报告 |
+| 🔴 封面图 | `docs/assets/cover.png` | **竖屏封面（9:16），**平台尺寸见 PLATFORM.md，**禁止跳过** |
+| 封面生成脚本 | `docs/assets/generate_cover.py` | PIL 封面生成模板 |
+| 字幕生成脚本 | `docs/assets/gen_subtitles.py` | ASS 字幕生成脚本 |
+| 音频文件 | `audio/neural_1_2x.m4a` | 处理后音频（atempo 后，文件名反映实际语速） |
+| 字幕文件 | `audio/subtitles_58s.ass` | ASS 格式（文件名反映实际时长） |
+| 最终视频 | `video-project/out/final-video.mp4` | 音频混流后的成品 |
+
+---
+
+## Step 0: 创建全部文档（必须先执行，禁止跳过）
+
+> **本步骤必须生成的文件（见 PATHS.md 完整清单）**：
+> - `docs/README.md` — 项目首页（概览、规格、时间轴、文件清单）
+> - `docs/video-script.md` — 分镜脚本
+> - `docs/copy.md` — 营销文案集
+> - `docs/wechat-copy.md` — 公众号文案
+> - `docs/posting-guide.md` — 发布指南
+> - `docs/landing-page.html` — 落地页（Tailwind 深色科技风）
+> - `docs/article-page.html` — 文章阅读页（深色竖屏）
+> - `docs/wechat-page.html` — 公众号白底适配页
+> - `docs/session-log.md` — Session 日志（token 消耗追踪）
+> ⚠️ **以上文件必须全部创建，禁止跳过任何一个。Step 0 是预防遗漏的第一道防线。**
+
+> **重要性**：所有文档必须在创建 Remotion 项目之前生成完毕。Remotion 视频渲染是最后一步，在此之前必须确保所有 docs/ 目录下的文件已就位。
+
+### 0.1 创建目录结构
+
+```bash
+PROJECT_NAME="flowboard-video"   # 替换为实际项目名
+PROJECT_DIR="workspace/${PROJECT_NAME}"
+mkdir -p "${PROJECT_DIR}/docs/assets"
+mkdir -p "${PROJECT_DIR}/audio"
+mkdir -p "${PROJECT_DIR}/video-project/src"
+mkdir -p "${PROJECT_DIR}/video-project/out"
+mkdir -p "${PROJECT_DIR}/video-project/public/audio"
+echo "目录结构创建完成"
+```
+
+### 0.2 生成 session-log.md（必须写入文件）
+
+```bash
+PROJECT_DIR="workspace/${PROJECT_NAME}"
+SKILL_SCRIPT="${HOME}/.openclaw/skills/video-creator/scripts/session-log-append.py"
+
+# Step 0.2a: 初始化 session-log.md 文件
+cat > "${PROJECT_DIR}/docs/session-log.md" << 'HDRY'
+# Session Log - {project-name}
+
+## 项目信息
+- **项目名称**: {project-name}
+- **开始时间**: {start_time}
+- **状态**: 进行中
+
+## 模型配置
+- **默认模型**: minimax/MiniMax-M2.7
+- **Token 追踪**: session_status 工具（session 级别累计，emoji 格式输出）
+
+## 请求记录
+
+| # | 时间 | 任务 | 模型 | 输入token | 输出token | 总token | 费用 | Context |
+|---|------|------|------|----------|----------|---------|------|---------|
+HDRY
+# 替换占位符
+START_TIME=$(date '+%Y-%m-%d %H:%M %Z')
+sed -i '' "s/{start_time}/${START_TIME}/" "${PROJECT_DIR}/docs/session-log.md"
+sed -i '' "s/{project-name}/${PROJECT_NAME}/" "${PROJECT_DIR}/docs/session-log.md"
+echo "✅ session-log.md 已初始化"
+```
+
+### 0.3 封面图预生成（强制执行）
+
+> ⚠️ **封面是唯一可以在 Step 6.1 预先生成的视觉素材。**
+> 如果视频渲染还未开始，先把封面生成了——这样后续流程不会被封面缺失卡住。
+> **所有 API 不可用时，必须用 PIL 生成（见 TROUBLESHOOTING.md 方案二），禁止跳过。**
+
+```bash
+# 优先尝试 baoyu-imagine
+SKILL_DIR="$HOME/.agents/skills/baoyu-imagine"
+BUN_PATH="$HOME/.bun/bin/bun"
+PROMPT=$(cat "${PROJECT_DIR}/docs/assets/prompt-cover.txt" 2>/dev/null || echo "AI科技风格封面，9比16竖屏格式")
+
+# 小红书用 1440x2560，其他平台用 1080x1920
+$BUN_PATH "$SKILL_DIR/scripts/main.ts" \
+  --promptfiles "${PROJECT_DIR}/docs/assets/prompt-cover.txt" \
+  --image "${PROJECT_DIR}/docs/assets/cover.png" \
+  --ar 9:16 --quality 2k 2>&1
+
+if [ $? -ne 0 ]; then
+  echo "⚠️ baoyu-imagine 失败，尝试 PIL 兜底..."
+  python3 "${PROJECT_DIR}/docs/assets/generate_cover.py"
+fi
+
+if [ -f "${PROJECT_DIR}/docs/assets/cover.png" ]; then
+  echo "✅ 封面已生成"
+else
+  echo "❌ 封面生成失败，禁止继续 Step 7 和 Step 10"
+  exit 1
+fi
+```
+
+### 0.4 验证文档完整性
+
+```bash
+# Step 0 完成后，必须验证所有文件存在才能继续
+REQUIRED_FILES=(
+  "${PROJECT_DIR}/docs/README.md"
+  "${PROJECT_DIR}/docs/article.md"
+  "${PROJECT_DIR}/docs/video-script.md"
+  "${PROJECT_DIR}/docs/copy.md"
+  "${PROJECT_DIR}/docs/wechat-copy.md"
+  "${PROJECT_DIR}/docs/posting-guide.md"
+  "${PROJECT_DIR}/docs/landing-page.html"
+  "${PROJECT_DIR}/docs/article-page.html"
+  "${PROJECT_DIR}/docs/wechat-page.html"
+  "${PROJECT_DIR}/docs/session-log.md"
+  "${PROJECT_DIR}/docs/assets/cover.png"
+  "${PROJECT_DIR}/docs/assets/generate_cover.py"
+  "${PROJECT_DIR}/docs/assets/gen_subtitles.py"
+  "${PROJECT_DIR}/audio/neural_1_2x.m4a"
+  "${PROJECT_DIR}/audio/subtitles_*.ass"
+  "${PROJECT_DIR}/video-project/out/final-video.mp4"
+)
+
+MISSING=""
+for f in "${REQUIRED_FILES[@]}"; do
+  if [ ! -f "$f" ]; then
+    MISSING="$MISSING\n  缺失: $f"
+  fi
+done
+if [ -n "$MISSING" ]; then
+  echo "❌ 以下文件缺失，Step 0 未完成：$MISSING"
+  echo "请先创建所有文档再继续！"
+  exit 1
+else
+  echo "✅ Step 0 完成，所有文件就绪"
+fi
+```
+
+### 0.5 强制检查：封面未生成则禁止渲染
+
+```bash
+# ⚠️ 此检查在 Step 7（音频）之前必须执行
+if [ ! -f "${PROJECT_DIR}/docs/assets/cover.png" ]; then
+  echo "❌ 封面缺失！必须先生成封面图（Step 6.1）才能继续音频和渲染步骤"
+  exit 1
+fi
+echo "✅ 封面检查通过"
+```
+
+### 0.4 追加 session-log
+
+每次调用 `session_status` 后，必须将数据追加到 session-log.md：
+
+```bash
+# ⚠️ session_status 是工具调用（tool），不是 shell 命令！
+# 正确流程：
+#   1. 调用 session_status 工具 → 得到 emoji 格式输出
+#   2. 将输出作为参数传给 Python 脚本写入文件
+#
+# ❌ 错误写法（无效）：
+#   STATUS=$(session_status)          # session_status 不是 shell 命令
+#   session_status > file.txt        # 输出在 tool result，不在 stdout
+#
+# ✅ 正确写法：先调用工具，将结果手动追加到 session-log.md
+PROJECT_DIR="workspace/${PROJECT_NAME}"
+SKILL_SCRIPT="${HOME}/.openclaw/skills/video-creator/scripts/session-log-append.py"
+
+# 手动追加一行（每次大步骤完成后执行）
+python3 "${SKILL_SCRIPT}" "${PROJECT_DIR}" "内容获取（baoyu-fetch）"
+
+# 或直接用 echo 追加（无需解析）：
+TS=$(date '+%Y-%m-%d %H:%M:%S %Z')
+echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >> "${PROJECT_DIR}/docs/session-log.md"
+```
+
+---
+
 
 ## Step 1: 内容获取
 
@@ -293,18 +492,24 @@ platforms: [xhs, wechat, douyin, youtube]
 
 ## Step 6: 生成视觉
 
+> ⚠️ **封面图必须第一个生成，是所有视觉素材中优先级最高的。**
+> 封面未生成到位，不得进入 Step 7（音频生成）和 Step 10（视频渲染）。
+
 **调用 baoyu 技能生成图片**（详见 [THEMES.md](THEMES.md)）
 
-### 6.1 封面图生成
+### 6.1 封面图生成（强制优先）
+
+> 🔴 **所有 API 失败时的最终兜底：必须用 PIL 生成封面，禁止留空。**
+> 见 TROUBLESHOOTING.md 方案二（`generate_cover.py`）。
 
 ```bash
-# 使用 baoyu-cover-image 生成封面
-# 参数：
-# - 类型：article/hero/summary
-# - 调色板：根据主题选择
-# - 渲染风格：modern/tech/elegant
+# 使用 baoyu-imagine 生成封面（Step 6.1.1）
+# 平台尺寸（按 posting-guide.md 中各平台要求）：
+#   - 视频号 / 抖音 / 公众号：1080×1920（9:16）
+#   - 小红书：1440×2560（9:16）
+# 必填参数：--ar 9:16 --quality 2k
 
-# 输出：docs/assets/cover.webp (9:16 竖屏比例)
+# 输出：docs/assets/cover.png (9:16 竖屏比例)
 ```
 
 ### 6.1.2 记录 Session 日志
@@ -330,10 +535,12 @@ session_status
 4. 渲染后用 ffmpeg 提取单帧 PNG
 
 ```bash
-# 渲染封面视频
-npx remotion render CoverImage --output out/cover.mp4 --fps=60 --height=1920 --width=1080
-# 提取第45帧为PNG
-ffmpeg -y -i out/cover.mp4 -vf "select=eq(n\,45)" -vsync 0 -frames:v 1 docs/assets/cover.png
+# ✅ 正确方式：渲染第0帧为PNG（不要用 remotion still，文字不会渲染）
+npx remotion render CoverImage --frames=0 --log=error
+# 输出：out/CoverImage.png
+
+# 复制到项目目录
+cp out/CoverImage.png docs/assets/cover.png
 ```
 
 #### 方案二：PIL/Pillow 纯代码生成
@@ -385,6 +592,7 @@ python3 docs/assets/generate_cover.py
 
 ## Step 7: 生成音频
 
+> ⚠️ **前置条件：封面图必须已生成（Step 6.1）。封面未生成则不开始本步骤。**
 > **⚠️ 详细说明**: 请参考 [VOICE.md](VOICE.md) - Azure Neural TTS 自然语音合成最佳实践
 
 ### 7.1 音频生成流程
@@ -492,6 +700,8 @@ const report = await checker.runFullCheck();
 
 ## Step 10: 生成视频
 
+> ⚠️ **前置条件：封面图和音频必须都已生成。两者缺一则不开始本步骤。**
+
 ### 10.1 Remotion 项目初始化
 
 ```bash
@@ -507,7 +717,9 @@ npm install
 
 ### 10.2 主题配置
 
-**参考**: [THEMES.md](THEMES.md) - 主题色板和字体规范
+**参考**: [THEMES.md](THEMES.md) - 主题色板 + **字体大小规范（1080×1920竖屏）**
+
+> ⚠️ 字体规范要点：主标题 100-150px，场景标题 48-72px，正文 28-40px，**全部内容块上下左右居中**，禁止拆分标题区/内容区。详见 THEMES.md 末尾的「字体大小规范」。
 
 ```typescript
 export const theme = {
@@ -584,44 +796,56 @@ session_status
 
 ---
 
-## Step 11: 生成报告
+## Step 11: 生成报告 + 强制清单检查
 
-### 报告内容
+### 11.0 ⚠️ 必须先对照文件清单检查（禁止跳过）
+
+> **在生成任何报告之前，先运行 Step 11.4 的文件清单检查脚本。**
+> 如有缺失文件，必须先补全，再继续。
+
+### 11.1 写入 session-log.md（必须执行，禁止跳过）
+
+> **血泪教训**：flowboard-video 项目中，`session_status` 调用了无数次但从未写入文件，导致 session-log.md 完全缺失。`session_status` 只读取数据，必须配合文件写入操作才生效。
+
+```bash
+PROJECT_DIR="workspace/${PROJECT_NAME}"
+SKILL_SCRIPT="${HOME}/.openclaw/skills/video-creator/scripts/session-log-append.py"
+
+# ✅ 方法一（推荐）：用 Python 脚本解析 session_status 输出
+#    1. 先调用 session_status 工具，复制输出文本
+#    2. 将文本作为参数传入脚本
+STATUS_TEXT="🧮 Tokens: 85k in / 123 out · 💵 Cost: \$0.03 · 📚 Context: 111k/205k (54%)"
+python3 "${SKILL_SCRIPT}" "${PROJECT_DIR}" "最终报告生成" "${STATUS_TEXT}"
+
+# ✅ 方法二（备用）：直接追加一行（无 token 数据）
+TS=$(date '+%Y-%m-%d %H:%M:%S %Z')
+REQ_COUNT=$(($(grep -c "^[|]" "${PROJECT_DIR}/docs/session-log.md" 2>/dev/null || echo 0) + 1))
+echo "| $(printf '%02d' $REQ_COUNT) | $TS | 最终报告生成 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >> "${PROJECT_DIR}/docs/session-log.md"
+
+# 更新项目状态
+sed -i '' 's/- **状态**: 进行中/- **状态**: 已完成/' "${PROJECT_DIR}/docs/session-log.md"
+echo "✅ session-log.md 已更新（最终状态）"
+```
+
+### 11.2 生成 report.json
 
 ```json
 {
   "title": "Video Creator 执行报告",
-  "generatedAt": "2026-04-16T12:00:00Z",
+  "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "project": {
-    "name": "project-name",
-    "path": "workspace/project-name"
-  },
-  "content": {
-    "title": "内容标题",
-    "words": 1200,
-    "duration": 45
-  },
-  "quality": {
-    "score": 95,
-    "issues_fixed": 2
+    "name": "${PROJECT_NAME}",
+    "path": "workspace/${PROJECT_NAME}"
   },
   "files": {
     "video": "video-project/out/final-video.mp4",
-    "audio": "audio/processed/final.mp3",
-    "subtitles": "audio/subtitles.ass"
+    "audio": "audio/neural_1_2x.m4a",
+    "subtitles": "audio/subtitles_*.ass"
   }
 }
 ```
 
-### 输出文件
-
-| 文件 | 路径 | 说明 |
-|------|------|------|
-| 执行报告 | `report.json` | JSON格式完整报告 |
-| Markdown报告 | `report.md` | 可读性报告 |
-| 质量检查报告 | `quality-report.json` | 详细质量数据 |
-
-### 清理无用文件
+### 11.3 清理无用文件
 
 ```bash
 # 清理 Remotion 临时文件
@@ -638,25 +862,68 @@ rm -f docs/assets/illustration-*_low.webp
 rm -f audio/raw/temp_*.mp3
 ```
 
-### 生成文件清单
+### 11.4 ⚠️ 强制文件清单检查（禁止跳过）
 
-| 文件类型 | 处理方式 |
-|---------|---------|
-| `out/temp/` | 删除整个临时目录 |
-| `out/*.mp4` (非final) | 删除中间渲染文件 |
-| `node_modules/.cache` | 删除缓存目录 |
-| `raw/*.mp3` (temp_*) | 删除临时音频 |
+> **⚠️ 制作完成前，必须逐项对照以下清单检查所有文件是否已生成。缺失的文件必须在此步骤补全，禁止跳过任何一个。**
 
-### 记录 Session 日志
-
+**文件清单检查命令**：
 ```bash
-# 记录本次报告生成的 token 消耗，并追加到项目日志
-session_status
+PROJECT_DIR="workspace/${PROJECT_NAME}"
+REQUIRED_FILES=(
+  "docs/README.md"
+  "docs/article.md"
+  "docs/video-script.md"
+  "docs/copy.md"
+  "docs/wechat-copy.md"
+  "docs/posting-guide.md"
+  "docs/landing-page.html"
+  "docs/article-page.html"
+  "docs/wechat-page.html"
+  "docs/session-log.md"
+  "docs/report.json"
+  "docs/assets/cover.png"
+  "docs/assets/generate_cover.py"
+  "docs/assets/gen_subtitles.py"
+  "audio/neural_1_2x_speed.m4a"
+  "audio/subtitles_*.ass"
+  "video-project/out/final-video.mp4"
+)
+
+MISSING=""
+for f in "${REQUIRED_FILES[@]}"; do
+  if [ ! -f "$PROJECT_DIR/$f" ]; then
+    echo "❌ MISSING: $f"
+    MISSING="$MISSING $f"
+  else
+    echo "✅ $f"
+  fi
+done
+
+if [ -n "$MISSING" ]; then
+  echo ""
+  echo "⚠️  Missing files detected:$MISSING"
+  echo "⚠️  These files must be generated before completing the project."
+  echo "⚠️  Run: python3 $HOME/.openclaw/skills/video-creator/scripts/session-log-append.py $PROJECT_DIR --init"
+  exit 1
+else
+  echo ""
+  echo "✅ All required files present. Project complete."
+fi
 ```
-> 详见 [SESSION_LOG.md](SESSION_LOG.md)
+
+> **如果有任何文件缺失，必须立即生成缺失的文件，然后重新运行检查命令确认全部通过。**
+> 这是最后一道关卡，不完成清单检查不得宣告项目结束。
 
 ---
 
+**相关模块**:
+- [INPUT.md](INPUT.md) - 输入模式详细说明
+- [COPY.md](COPY.md) - 文案生成规范
+- [THEMES.md](THEMES.md) - 主题系统
+- [VOICE.md](VOICE.md) - 音频合成
+- [QUALITY.md](QUALITY.md) - 质量检查
+- [REMOTION.md](REMOTION.md) - Remotion 组件规范
+- [SESSION_LOG.md](SESSION_LOG.md) - Session 日志追踪
 ## 📊 输出文件清单
 
 | 文件 | 路径 | 说明 |
@@ -693,3 +960,33 @@ session_status
 - [QUALITY.md](QUALITY.md) - 质量检查
 - [REMOTION.md](REMOTION.md) - Remotion 组件规范
 - [SESSION_LOG.md](SESSION_LOG.md) - Session 日志追踪
+
+---
+
+## 📸 Session Tracking 快速参考
+
+> ⚠️ `session_status` 是**工具调用**（tool），不是 shell 命令，无法 `$()` 捕获。
+> 正确流程：① 调用 session_status 工具 → ② 复制 emoji 输出 → ③ 追加到日志。
+
+### 每个 Step 完成后手动执行：
+
+```bash
+SKILL_SCRIPT="$HOME/.openclaw/skills/video-creator/scripts/session-log-append.py"
+PROJECT_DIR="workspace/${PROJECT_NAME}"
+
+# snapshot 模式（记录累计值）：
+python3 "$SKILL_SCRIPT" "$PROJECT_DIR" "Step X: 任务名" \
+  --snapshot "🧮 Tokens: 85k in / 123 out · 💵 Cost: $0.03 · 📚 Context: 111k/205k"
+
+# delta 模式（自动计算与上次快照差值）：
+python3 "$SKILL_SCRIPT" "$PROJECT_DIR" "Step X: 任务名" \
+  --delta "🧮 Tokens: 90k in / 130 out · 💵 Cost: $0.035 · 📚 Context: 115k/205k"
+```
+
+### 初始化新项目 session-log：
+
+```bash
+python3 "$SKILL_SCRIPT" "$PROJECT_DIR" --init
+```
+
+> 详见 [SESSION_LOG.md](SESSION_LOG.md)

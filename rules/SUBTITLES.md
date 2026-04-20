@@ -109,13 +109,26 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,10,&H0000FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,50,50,30,1
+Style: Default,PingFang SC,10,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,134
 
 [Events]
-Format: Layer, Start, End, Style, Text
-Dialogue: 0,00:00:00.000,00:00:03.500,Default,第一行字幕
-Dialogue: 0,00:00:03.500,00:00:07.000,Default,第二行字幕
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.50,0:00:03.50,Default,,30,30,30,,PPT这件事，大多数人还在\N用错误的方式做。
+Dialogue: 0,0:00:03.50,0:00:07.50,Default,,30,30,30,,长字幕内容\N自动分多行显示
 ```
+
+**标准参数**（必须严格遵守）：
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| `Fontsize` | **10** | 10px，竖屏视频最佳阅读尺寸 |
+| `PrimaryColour` | `&H00FFFF` | 黄色（#00FFFF）|
+| `Alignment` | **2** | 底部居中 |
+| `MarginL` | **30** | 左侧边距 30px |
+| `MarginR` | **30** | 右侧边距 30px |
+| `MarginV` | **30** | 底部边距 30px |
+| `WrapStyle` | **0** | 支持 `\N` 换行符 |
+| `Fontname` | `PingFang SC` | macOS 系统中文字体 |
+| `Outline` | 1 | 1px 黑色描边，防止白字在浅色背景看不清 |
 
 ## 🔍 质量检查器 (QualityChecker)
 
