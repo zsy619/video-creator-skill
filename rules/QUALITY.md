@@ -23,6 +23,7 @@
 - [ ] 所有文档存储在 `docs/` 目录
 - [ ] 视频存储在 `video-project/out/` 目录
 - [ ] 素材存储在 `docs/assets/` 目录
+- [ ] **session-log.md 存在**：追踪 token 消耗的审计文档
 
 ## 技术检查
 

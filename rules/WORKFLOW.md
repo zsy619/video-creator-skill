@@ -235,13 +235,19 @@ echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >>
    bun $SKILL_DIR/scripts/vendor/baoyu-fetch/src/cli.ts <url> --output docs/article.md
    ```
 
-2. **解析 Markdown 提取关键信息**
+2. **记录来源链接（强制）**
+   > ⚠️ **必须**：在 `docs/README.md`、`docs/article.md`、`docs/report.json` 中明确记录原始链接地址
+   - GitHub 项目：`https://github.com/xxx/yyy`
+   - X/Twitter 推文：`https://x.com/xxx/status/yyy`
+   - 其他链接：按实际来源如实记录
+
+3. **解析 Markdown 提取关键信息**
    - 标题（title）
    - 正文内容（body）
    - 元数据（metadata）
    - 关键段落和论点
 
-3. **记录 Session 日志**
+4. **记录 Session 日志**
    ```bash
    # 记录本次内容获取的 token 消耗
    session_status
