@@ -423,7 +423,7 @@ illustrations:
 
 ### 4.3 公众号文案生成
 
-**生成文件**: `docs/wechat.md`
+**生成文件**: `docs/wechat-copy.md`
 
 ```markdown
 ---
@@ -433,10 +433,16 @@ tags:
   - 标签1
   - 标签2
   - 标签3
+source: https://example.com/original-link  # 来源链接（从Step 1获取）
 ---
 
 # 公众号正文
 ```
+
+> ⚠️ **来源链接强制要求**：如果内容来自链接（GitHub、X/Twitter等），必须在 frontmatter 中添加 `source:` 字段，记录原始链接地址。
+> - GitHub 项目：`https://github.com/xxx/yyy`
+> - X/Twitter 推文：`https://x.com/xxx/status/yyy`
+> - 其他链接：按实际来源如实记录
 
 ### 4.4 发布指南生成
 
@@ -446,6 +452,10 @@ tags:
 ---
 title: "发布指南"
 platforms: [xhs, wechat, douyin, youtube]
+tags:
+  - 标签1
+  - 标签2
+  - 标签3
 ---
 
 ## 📱 小红书
@@ -453,7 +463,7 @@ platforms: [xhs, wechat, douyin, youtube]
 |------|------|
 | 标题 | （吸引眼球、不超过20个字符）|
 | 摘要 | （100-200字）|
-| 标签 | #标签1 #标签2 #标签3 |
+| 标签 | #标签1 #标签2 #标签3 #标签4 #标签5 |
 
 ## ⏰ 最佳发布时间
 | 平台 | 最佳时段 |
@@ -461,6 +471,8 @@ platforms: [xhs, wechat, douyin, youtube]
 | 小红书 | 19:00-22:00 |
 | 视频号 | 12:00-13:00, 20:00-22:00 |
 ```
+
+> ⚠️ **标签强制要求**：posting-guide.md 中的小红书标签**不少于5个**，格式为 `#标签1 #标签2 #标签3 #标签4 #标签5`
 
 ---
 
@@ -725,7 +737,14 @@ npm install
 
 **参考**: [THEMES.md](THEMES.md) - 主题色板 + **字体大小规范（1080×1920竖屏）**
 
-> ⚠️ 字体规范要点：主标题 100-150px，场景标题 48-72px，正文 28-40px，**全部内容块上下左右居中**，禁止拆分标题区/内容区。详见 THEMES.md 末尾的「字体大小规范」。
+> ⚠️ **【强制要求】所有视频必须使用大字体！**
+> - 主标题：**120-180px**（封面场景可用更大）
+> - 副标题：**48-72px**
+> - 正文：**40-56px**
+> - 场景标题：**64-96px**
+> - 全部内容块**上下左右居中**，禁止拆分标题区/内容区
+> 
+> 详见 [FONTS.md](FONTS.md) - 大字体居中设计规范。
 
 ```typescript
 export const theme = {

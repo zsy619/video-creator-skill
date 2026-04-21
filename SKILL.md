@@ -20,6 +20,7 @@ metadata:
 - "制作竖屏视频" / "小红书视频" / "抖音视频"
 - "video-creator" / "make video" / "create video" / "video creator"
 - "检查视频质量" / "修复字幕字体" / "批量处理视频"
+- "大字体" / "大字体视频" / "字体要大"
 
 ## ⚠️ 铁律：封面图是强制必选项
 
