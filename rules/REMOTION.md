@@ -7,8 +7,9 @@ related_skills:
   - VOICE.md
   - THEMES.md
   - FONTS.md
-version: 2.4.0
-last_updated: 2026-04-05
+  - THEME_ANIMATIONS.md
+version: 2.5.0
+last_updated: 2026-04-21
 ---
 
 # Remotion 视频组件规范 (Remotion Video Component Spec)
@@ -52,6 +53,7 @@ last_updated: 2026-04-05
 - 媒体同步与资源管理：音频同步问题通常分为三类——偏移（固定延迟）、漂移（逐渐失步）和修剪不匹配（音视频起点不一致）。使用 <Sequence> 组件的 from 属性延迟音视频、用 trimBefore/trimAfter 修剪内容。加载字体、音频数据等异步资源时必须使用 delayRender()/continueRender() 模式阻塞渲染直至资源就绪。大型媒体数据（如完整音频波形）不得作为 props 传递，应改用 calculateMetadata 提前获取。
 - TypeScript + Zod 类型安全：所有组件 props 必须定义 TypeScript 类型，并使用 Zod schema 进行运行时校验。在 <Composition> 中通过 schema 属性附加 schema，Remotion 会自动进行 props 验证并支持 Studio 可视化编辑。
 - 渲染性能优化：通过 npx remotion benchmark 命令测试不同 --concurrency 值找到最佳并发数——并发过高或过低都会降低渲染效率。使用新 <Video> 标签替代旧的 <Html5Video> 或 <OffthreadVideo> 以获得最优性能。使用 useMemo() 和 useCallback() 缓存昂贵计算，用 --log=verbose 定位最慢帧，避免在云无 GPU 实例上大量使用 GPU 加速 CSS 属性（如 filter: blur()）。
+- **主题动画适配**：每个主题有独特的「动画性格」——科技类快速锐利、自然类柔和平滑、创意类弹性有趣。使用 `useThemeAnimation()` Hook 自动应用主题适配的动画参数（spring damping/stiffness、fade duration、glow intensity 等）。详见 [THEME_ANIMATIONS.md](THEME_ANIMATIONS.md)。
 
 ## 竖屏配置
 
@@ -97,6 +99,29 @@ export const RemotionRoot: React.FC = () => {
 ### 基础居中场景组件
 
 > **⚠️ 重要**: CSS `transition` 和 Tailwind 动画类名**禁止使用**，动画必须基于 `useCurrentFrame()` 驱动。
+>
+> **⚠️ **【强制】Sequence 内使用帧参数传递模式**：`useCurrentFrame()` 只能在 Remotion Root 注册的组件内调用，在 Sequence 子组件内调用会报错 "can only be called inside a component registered as a Composition"。必须采用「传递帧参数」模式——在顶层调用 `useCurrentFrame()`，通过 props 将 frame 传递给子组件。
+>
+> ```tsx
+> // ❌ 错误：在 Sequence 子组件内调用 useCurrentFrame
+> const Scene: React.FC = ({ frame }: { frame: number }) => {
+>   // 注意：这里不调用 useCurrentFrame()
+>   const opacity = interpolate(frame, [0, 30], [0, 1]);
+>   return <div style={{ opacity }}>...</div>;
+> };
+>
+> // ✅ 正确：在顶层调用 useCurrentFrame()，通过 props 传递
+> export const VerticalVideo: React.FC = () => {
+>   const frame = useCurrentFrame(); // ✅ 在顶层调用
+>   return (
+>     <AbsoluteFill>
+>       <Sequence from={0} durationInFrames={300}>
+>         <Scene frame={frame} /> {/* ✅ 通过 props 传递 */}
+>       </Sequence>
+>     </AbsoluteFill>
+>   );
+> };
+> ```
 
 ```tsx
 // src/components/CenteredScene.tsx
@@ -297,6 +322,66 @@ const bounce = interpolate(frame, [0, 40], [0, 1], {
 });
 ```
 
+### 主题动画 Hook（推荐）
+
+> **💡 推荐**：使用 `useThemeAnimation()` Hook 自动应用主题适配的动画参数。
+
+```tsx
+import { useThemeAnimation } from '../scripts/useThemeAnimation';
+
+// 主题适配的动画（自动使用 THEMES.md 中定义的主题动画参数）
+const ThemeAnimatedScene: React.FC<{ theme: string }> = ({ theme }) => {
+  // ✅ 使用主题动画 Hook
+  const { opacity, scale, translateY, glow, hasSpecialEffect } = useThemeAnimation(theme);
+  
+  // 检查特殊效果
+  if (hasSpecialEffect('neon-flicker')) {
+    // 实现霓虹闪烁效果
+  }
+  
+  return (
+    <AbsoluteFill
+      style={{
+        opacity,
+        transform: `scale(${scale}) translateY(${translateY}px)`,
+        boxShadow: glow.intensity > 0.5 ? `0 0 60px ${glow.color}` : 'none',
+      }}
+    >
+      {/* 场景内容 */}
+    </AbsoluteFill>
+  );
+};
+```
+
+#### useThemeAnimation 返回值
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `opacity` | number | 透明度动画值 0-1 |
+| `scale` | number | 缩放动画值 |
+| `translateY` | number | Y轴位移动画值 |
+| `springConfig` | object | 弹簧动画配置 { damping, stiffness, mass } |
+| `glow` | object | 光晕配置 { intensity, color } |
+| `fadeDuration` | number | 淡入动画帧数 |
+| `slideDuration` | number | 滑入动画帧数 |
+| `hasSpecialEffect(effect)` | function | 检查是否有指定特殊效果 |
+
+#### 其他主题动画 Hook
+
+```tsx
+// 脉冲动画（用于循环效果）
+const pulse = useThemePulse(themeId);
+
+// 光晕动画
+const glow = useThemeGlow(themeId);
+// 返回 { opacity, scale, color, blur }
+
+// 快捷方式
+const { opacity, scale } = useEntranceAnimation(themeId);
+const pulse = useLoopAnimation(themeId);
+const glow = useGlowAnimation(themeId);
+```
+
 ### 组合动画：入场 + 内容 + 出场
 
 ```tsx
@@ -398,11 +483,18 @@ const Scene: React.FC<{
   );
 };
 
-// 主视频组件
+// 主视频组件 - 【推荐】帧参数传递模式
+// @remotion 【强制】useCurrentFrame() 只能在 Remotion Root 注册的组件内调用
+// 在 Sequence 子组件内调用会报错："can only be called inside a component registered as a Composition"
+// 解决方案：在顶层调用 useCurrentFrame()，通过 props 将 frame 传递给子组件
+
 export const VerticalVideo: React.FC<{
   title: string;
   content: ContentItem[];
 }> = ({ title, content }) => {
+  // ✅ 在顶层调用 useCurrentFrame()
+  const frame = useCurrentFrame();
+
   return (
     <AbsoluteFill
       style={{
@@ -412,26 +504,50 @@ export const VerticalVideo: React.FC<{
       }}
     >
       {/* 封面场景 */}
-      <Scene config={SCENES[0]}>
+      <Scene config={SCENES[0]} frame={frame}>
         <CoverScene title={title} />
       </Scene>
 
       {/* 引言场景 */}
-      <Scene config={SCENES[1]}>
+      <Scene config={SCENES[1]} frame={frame}>
         <IntroScene />
       </Scene>
 
       {/* 内容场景 */}
       {content.map((item, index) => (
-        <Scene key={item.id} config={SCENES[2 + index]}>
+        <Scene key={item.id} config={SCENES[2 + index]} frame={frame}>
           <ContentScene item={item} />
         </Scene>
       ))}
 
       {/* 结尾场景 */}
-      <Scene config={SCENES[SCENES.length - 1]}>
+      <Scene config={SCENES[SCENES.length - 1]} frame={frame}>
         <OutroScene />
       </Scene>
+    </AbsoluteFill>
+  );
+};
+
+// 通用场景组件 - 【推荐】接收 frame 作为 props
+const Scene: React.FC<{
+  config: typeof SCENES[number];
+  frame: number; // ✅ 通过 props 接收 frame
+  children: React.ReactNode;
+}> = ({ config, frame, children }) => {
+  const { start, end } = config;
+
+  // 可见性判断（使用传入的 frame）
+  const isVisible = frame >= start && frame < end;
+  if (!isVisible) return null;
+
+  // 淡入效果（使用传入的 frame）
+  const opacity = interpolate(frame, [start, start + 15], [0, 1], {
+    extrapolateRight: 'clamp',
+  });
+
+  return (
+    <AbsoluteFill style={{ opacity }}>
+      {children}
     </AbsoluteFill>
   );
 };
@@ -491,16 +607,58 @@ const { fps } = useVideoConfig();
 
 ## 过渡效果
 
-> **📖 参考**: [remotion-best-practices/transitions.md](../remotion-best-practices/rules/transitions.md)
-> **⚠️ 依赖**: 需要安装 `@remotion/transitions`
+### 推荐：原生 Sequence + opacity 动画（无需额外依赖）
 
-### 安装依赖
+> **💡 推荐**：使用原生 `Sequence` 组件 + `interpolate` 透明度动画实现过渡效果，**无需安装额外包**。
+
+```tsx
+import { Sequence, AbsoluteFill, interpolate, useCurrentFrame } from 'remotion';
+
+// ✅ 推荐：使用 opacity 动画实现淡入淡出
+// 在场景 A 中添加淡出效果，在场景 B 中添加淡入效果
+
+// 场景 A（带淡出）
+const SceneA: React.FC<{ frame: number; startFrame: number }> = ({ frame, startFrame }) => {
+  const opacity = interpolate(frame, [startFrame + 30, startFrame + 45], [1, 0], {
+    extrapolateRight: 'clamp',
+  });
+  return (
+    <AbsoluteFill style={{ opacity }}>
+      {/* 场景 A 内容 */}
+    </AbsoluteFill>
+  );
+};
+
+// 场景 B（带淡入）
+const SceneB: React.FC<{ frame: number; startFrame: number }> = ({ frame, startFrame }) => {
+  const opacity = interpolate(frame, [startFrame, startFrame + 15], [0, 1], {
+    extrapolateRight: 'clamp',
+  });
+  return (
+    <AbsoluteFill style={{ opacity }}>
+      {/* 场景 B 内容 */}
+    </AbsoluteFill>
+  );
+};
+
+// 主视频中使用
+<Sequence from={0} durationInFrames={60}>
+  <SceneA frame={frame} startFrame={0} />
+</Sequence>
+<Sequence from={60} durationInFrames={60}>
+  <SceneB frame={frame} startFrame={60} />
+</Sequence>
+```
+
+### 可选：`@remotion/transitions` 额外包（需要安装）
+
+> **⚠️ 注意**：如需更复杂的过渡效果，可安装 `@remotion/transitions` 包。基础过渡推荐使用上面的原生方法。
 
 ```bash
 npx remotion add @remotion/transitions
 ```
 
-### TransitionSeries 基础用法
+#### 安装后的 TransitionSeries 用法
 
 ```tsx
 import {
@@ -524,7 +682,7 @@ import { fade, slide } from '@remotion/transitions/fade';
 </TransitionSeries>;
 ```
 
-### 过渡类型
+### 过渡类型（仅在使用 `@remotion/transitions` 时）
 
 | 过渡类型 | 导入方式 | 说明 |
 |----------|----------|------|
@@ -593,6 +751,55 @@ const transitionDuration = 15;
 // 总时长 = 60 + 60 - 15 = 105 帧
 // 公式: scene1 + scene2 - transition = total
 ```
+
+---
+
+## 字体加载（新 API）
+
+> **📖 参考**: [@remotion/fonts](https://remotion.dev/docs/fonts) - 官方字体加载 API
+
+Remotion 提供官方 `@remotion/fonts` 包，推荐使用此方式加载字体：
+
+```bash
+npm install @remotion/fonts
+```
+
+```tsx
+import { loadFont, FontInter } from '@remotion/fonts';
+
+// 在 calculateMetadata 中加载
+const { props } = await calculateMetadata({
+  // ...
+});
+
+// 或在组件中通过 useEffect 调用
+useEffect(() => {
+  const loadFonts = async () => {
+    await loadFont(FontInter);
+  };
+  loadFonts();
+}, []);
+```
+
+**⚠️ 兼容性说明**：如果 `@remotion/fonts` 不可用，可回退到 `FontFace` API：
+
+```tsx
+// 回退方案（不推荐，仅在 @remotion/fonts 不可用时使用）
+const loadFontFallback = async (fontName: string, fontUrl: string) => {
+  try {
+    const font = new FontFace(fontName, `url(${fontUrl})`);
+    await font.load();
+    document.fonts.add(font);
+  } catch (e) {
+    console.warn(`字体 ${fontName} 加载失败:`, e);
+  }
+};
+```
+
+**推荐字体**（macOS 系统字体，无需额外加载）：
+- `PingFang SC` - macOS 默认中文字体
+- `STHeiti Medium` - ❌ 不存在，**禁止使用**
+- `Helvetica Neue` - 西文字体
 
 ---
 
@@ -742,35 +949,61 @@ import { interpolate, useCurrentFrame, Audio } from 'remotion';
    > 不可见场景返回 null，避免不必要的渲染
 
    ```tsx
-   const Scene: React.FC = () => {
-     const frame = useCurrentFrame();
+   // ✅ 正确：使用传入的 frame 参数
+   const Scene: React.FC<{ frame: number }> = ({ frame }) => {
      if (frame < start || frame >= end) return null;
      // 渲染内容...
    };
    ```
 
 3. **图片优化**
-   - 使用 WebP 格式
-   - 压缩到合理尺寸（不超过 2MB）
-   - 考虑使用 `@remotion/media` 的 OffthreadVideo
+   - 使用 WebP 格式（比 PNG/JPG 小 30-50%）
+   - 单张图片不超过 500KB
+   - 尺寸控制在 1080x1920 以内
+   - 使用 `@remotion/media` 的 `OffthreadVideo` 替代旧标签
 
 4. **渲染配置优化**
 
    ```bash
-   # 设置合理的并发数（根据CPU核心数）
-   npx remotion render VerticalVideo \
-     --concurrency=4 \
+   # 高配机器（8+ 核）：--concurrency=8
+   npx remotion render VerticalVideo out/video.mp4 \
+     --concurrency=8 \
      --crf=18 \
-     --profile
+     --log=error
 
-   # 低质量预览，高质量最终输出
-   npx remotion render VerticalVideo --quality=0  # 快速预览
-   npx remotion render VerticalVideo --quality=1  # 最终输出
+   # 低配机器：--concurrency=4
+   npx remotion render VerticalVideo out/video.mp4 \
+     --concurrency=4 \
+     --crf=23
+
+   # 快速预览：--quality=0
+   npx remotion render VerticalVideo out/preview.mp4 \
+     --concurrency=8 \
+     --quality=0
+
+   # 增量渲染（调试用）：--frames=0-300
+   npx remotion render VerticalVideo out/debug.mp4 \
+     --frames=0-300
    ```
 
 5. **帧率选择**
-   - 预览：15-30fps
-   - 最终输出：60fps
+   - 预览：15-30fps（`--fps=30`）
+   - 最终输出：60fps（`--fps=60`）
+
+6. **GPU 加速属性（慎用）**
+   > 以下 CSS 属性会触发 GPU 加速，在无 GPU 云实例上会导致性能下降：
+   - `filter: blur()` / `drop-shadow()`
+   - `transform: perspective()`
+   - `backdrop-filter`
+
+7. **性能分析**
+   ```bash
+   # 测试最佳并发数
+   npx remotion benchmark
+
+   # 定位最慢帧
+   npx remotion render VerticalVideo out/video.mp4 --log=verbose
+   ```
 
 ### 批量渲染
 
@@ -830,28 +1063,166 @@ for (const entry of data) {
 
 ### Q: 视频渲染太慢怎么办？
 
-**A**: 1. 使用低质量预览 (`--quality=0`)  
-   2. 减少并发数 (`--concurrency=2`)  
-   3. 检查是否有未优化的图片/视频资源  
-   4. 考虑使用 OffthreadVideo
+**A**: 1. 使用低质量预览 (`--quality=0`)
+   2. 减少并发数 (`--concurrency=4`)  
+   3. 检查是否有未优化的图片/视频资源（单张应 < 500KB）
+   4. 避免使用 GPU 加速 CSS 属性（`filter: blur()` 等）
+   5. 使用 `npx remotion benchmark` 找到最佳并发数
 
 ### Q: 如何获取音频时长？
 
-**A**: 参考 [VOICE.md](VOICE.md) 中的 `getAudioDuration()` 使用方式。
+**A**: 使用 `@remotion/media-utils` 的 `calculateMetadata`：
+
+```tsx
+import { calculateMetadata } from '@remotion/media-utils';
+
+const { durationInFrames } = await calculateMetadata({
+  src: staticFile('audio/neural_1_2x.m4a'),
+});
+const durationInSeconds = durationInFrames / fps;
+```
+
+### Q: `useCurrentFrame()` 在 Sequence 内调用报错？
+
+**A**: 这是**强制要求**的错误。Remotion 规定 `useCurrentFrame()` 只能在 Root 注册的组件内调用。
+
+**解决方案**：采用「传递帧参数」模式——在顶层调用 `useCurrentFrame()`，通过 props 将 frame 传递给子组件：
+
+```tsx
+// ✅ 正确：在顶层调用
+const VerticalVideo: React.FC = () => {
+  const frame = useCurrentFrame();
+  return (
+    <Sequence from={0} durationInFrames={300}>
+      <Scene frame={frame} /> {/* 通过 props 传递 */}
+    </Sequence>
+  );
+};
+
+// ❌ 错误：在 Sequence 子组件内调用
+const Scene: React.FC = () => {
+  const frame = useCurrentFrame(); // 会报错！
+  return <div>{frame}</div>;
+};
+```
 
 ### Q: 过渡效果影响总时长？
 
-**A**: 是的。Transition 会重叠相邻场景，总时长 = 各场景时长之和 - 过渡时长。Overlay 不影响总时长。
+**A**: 是的。Transition 会重叠相邻场景，总时长 = 各场景时长之和 - 过渡时长。Overlay 不影响总时长。推荐使用原生 `Sequence` + `interpolate` opacity 动画替代 `@remotion/transitions` 包。
+
+### Q: 字体加载失败怎么办？
+
+**A**: 1. 优先使用 macOS 系统字体（`PingFang SC`），无需加载
+   2. 如需加载，使用 `@remotion/fonts` 的 `loadFont()` API
+   3. 禁止使用不存在的字体（如 `STHeiti Medium`）
+
+### Q: 如何使用 Zod 进行类型验证？
+
+**A**: 使用 `zod` 定义 props schema，提供编译时类型检查和运行时验证：
+
+```tsx
+import { z } from 'zod';
+import { Composition } from 'remotion';
+
+// ✅ 定义 props schema
+const schema = z.object({
+  title: z.string(),
+  subtitle: z.string().optional(),
+  scenes: z.array(z.object({
+    id: z.string(),
+    icon: z.string(),
+    text: z.string(),
+    durationInFrames: z.number(),
+  })),
+});
+
+// 推导 TypeScript 类型
+type Props = z.infer<typeof schema>;
+
+// ✅ 组件中使用类型
+const VerticalVideo: React.FC<Props> = ({ title, subtitle, scenes }) => {
+  // ...
+};
+
+// ✅ 在 Composition 中注册 schema
+<Composition
+  id="VerticalVideo"
+  component={VerticalVideo}
+  schema={schema}
+  defaultProps={{
+    title: '默认标题',
+    subtitle: undefined,
+    scenes: [],
+  }}
+/>
+```
+
+### Q: 如何处理图片/音频加载错误？
+
+**A**: 使用 `onError` 回调和状态管理：
+
+```tsx
+import { useState } from 'react';
+
+// 图片加载错误处理
+const OptimizedImage: React.FC<{ src: string; style?: React.CSSProperties }> = ({ src, style }) => {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  return (
+    <div style={{ position: 'relative', ...style }}>
+      {!loaded && !error && (
+        <div style={{ 
+          position: 'absolute', 
+          width: '100%', 
+          height: '100%', 
+          backgroundColor: '#1E293B' 
+        }} />
+      )}
+      <Img
+        src={src}
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          opacity: loaded ? 1 : 0,
+          ...style 
+        }}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          console.warn('图片加载失败:', src);
+          setError(true);
+        }}
+      />
+    </div>
+  );
+};
+
+// 音频加载状态
+const AudioWithState: React.FC<{ src: string }> = ({ src }) => {
+  const [ready, setReady] = useState(false);
+
+  return (
+    <Audio
+      src={src}
+      onError={(e) => console.error('音频加载失败:', e)}
+    />
+  );
+};
+```
 
 ---
 
-## 📝 完整示例：竖屏视频组件
+---
+
+## 📝 完整示例：竖屏视频组件（v2.5.0 新版）
 
 ```tsx
 // src/VerticalVideo.tsx
-import React, { useEffect } from 'react';
+// ✅ 使用【帧参数传递模式】- 符合 v2.5.0 规范
+import React from 'react';
 import {
   AbsoluteFill,
+  Sequence,
   useCurrentFrame,
   useVideoConfig,
   interpolate,
@@ -860,44 +1231,28 @@ import {
   Audio,
   staticFile,
 } from 'remotion';
-import { TransitionSeries, linearTiming } from '@remotion/transitions';
-import { fade } from '@remotion/transitions/fade';
 
 // 常量定义
 const FPS = 60;
 const DURATION = 30; // 秒
-const TOTAL_FRAMES = DURATION * FPS;
 
 // 场景配置
 const SCENES = [
   { id: 'cover', start: 0, end: 180, duration: 3 },
-  { id: 'intro', start: 180, end: 660, duration: 8 },
-  { id: 'content', start: 660, end: 1500, duration: 14 },
+  { id: 'content', start: 180, end: 1500, duration: 22 },
   { id: 'outro', start: 1500, end: 1800, duration: 5 },
 ];
 
-// 加载字体
-const loadFonts = async () => {
-  const font = new FontFace(
-    'Noto Sans SC',
-    `url(${staticFile('fonts/NotoSansSC.woff2')})`
-  );
-  await font.load();
-  document.fonts.add(font);
-};
-
+// ✅ 子组件接收 frame 作为 props（不使用 useCurrentFrame）
 // 封面场景
-const CoverScene: React.FC<{ title: string }> = ({ title }) => {
-  const frame = useCurrentFrame();
+const CoverScene: React.FC<{ title: string; frame: number }> = ({ title, frame }) => {
   const { fps } = useVideoConfig();
-  const { start, end } = SCENES[0];
+  const { start } = SCENES[0];
 
-  const opacity = interpolate(
-    frame,
-    [start, start + 15],
-    [0, 1],
-    { extrapolateRight: 'clamp' }
-  );
+  // 淡入 + 缩放入场
+  const opacity = interpolate(frame, [start, start + 15], [0, 1], {
+    extrapolateRight: 'clamp',
+  });
   const scale = spring({ frame: frame - start, fps, config: { damping: 15 } });
 
   return (
@@ -909,13 +1264,7 @@ const CoverScene: React.FC<{ title: string }> = ({ title }) => {
         backgroundColor: '#0F172A',
       }}
     >
-      <div
-        style={{
-          opacity,
-          transform: `scale(${scale})`,
-          textAlign: 'center',
-        }}
-      >
+      <div style={{ opacity, transform: `scale(${scale})`, textAlign: 'center' }}>
         <Img
           src={staticFile('images/cover.webp')}
           style={{ width: 1080, height: 1920, objectFit: 'cover' }}
@@ -929,7 +1278,7 @@ const CoverScene: React.FC<{ title: string }> = ({ title }) => {
             color: '#FFFFFF',
             fontSize: 120,
             fontWeight: 'bold',
-            fontFamily: 'Noto Sans SC',
+            fontFamily: 'PingFang SC', // ✅ 使用系统字体
             textShadow: '0 4px 20px rgba(0,0,0,0.5)',
           }}
         >
@@ -941,14 +1290,18 @@ const CoverScene: React.FC<{ title: string }> = ({ title }) => {
 };
 
 // 内容场景
-const ContentScene: React.FC<{ content: string; image?: string }> = ({
+const ContentScene: React.FC<{ content: string; frame: number; image?: string }> = ({
   content,
+  frame,
   image,
 }) => {
-  const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { start } = SCENES[2];
+  const { start } = SCENES[1];
 
+  // 淡入 + 滑入
+  const opacity = interpolate(frame, [start, start + 15], [0, 1], {
+    extrapolateRight: 'clamp',
+  });
   const slideIn = spring({ frame: frame - start, fps, config: { damping: 200 } });
   const translateY = interpolate(slideIn, [0, 1], [100, 0]);
 
@@ -980,7 +1333,7 @@ const ContentScene: React.FC<{ content: string; image?: string }> = ({
           color: '#F8FAFC',
           fontSize: 72,
           textAlign: 'center',
-          fontFamily: 'Noto Sans SC',
+          fontFamily: 'PingFang SC', // ✅ 使用系统字体
           lineHeight: 1.4,
           transform: `translateY(${translateY}px)`,
         }}
@@ -992,15 +1345,20 @@ const ContentScene: React.FC<{ content: string; image?: string }> = ({
 };
 
 // 结尾场景
-const OutroScene: React.FC<{ cta: string }> = ({ cta }) => {
-  const frame = useCurrentFrame();
+const OutroScene: React.FC<{ cta: string; frame: number }> = ({ cta, frame }) => {
   const { fps, durationInFrames } = useVideoConfig();
-  const { start } = SCENES[3];
+  const { start } = SCENES[2];
 
+  // 脉冲动画
   const pulse = spring({
     frame: frame - start,
     fps,
     config: { damping: 10 },
+  });
+
+  // 淡入
+  const opacity = interpolate(frame, [start, start + 15], [0, 1], {
+    extrapolateRight: 'clamp',
   });
 
   return (
@@ -1013,54 +1371,39 @@ const OutroScene: React.FC<{ cta: string }> = ({ cta }) => {
         backgroundColor: '#0F172A',
       }}
     >
-      <div
-        style={{
-          color: '#22D3EE',
-          fontSize: 100,
-          fontWeight: 'bold',
-          fontFamily: 'Noto Sans SC',
-          transform: `scale(${pulse})`,
-        }}
-      >
+      <div style={{ opacity, color: '#22D3EE', fontSize: 100, fontWeight: 'bold', fontFamily: 'PingFang SC', transform: `scale(${pulse})` }}>
         {cta}
       </div>
     </AbsoluteFill>
   );
 };
 
-// 主组件
+// ✅ 主组件 - 在顶层调用 useCurrentFrame()
 export const VerticalVideo: React.FC<{
   title: string;
   content: string;
   cta: string;
   audioSrc?: string;
 }> = ({ title, content, cta, audioSrc }) => {
-  useEffect(() => {
-    loadFonts();
-  }, []);
+  // ✅ 在顶层调用 useCurrentFrame()
+  const frame = useCurrentFrame();
 
   return (
     <AbsoluteFill style={{ width: 1080, height: 1920, backgroundColor: '#0F172A' }}>
-      {/* 使用 TransitionSeries 实现平滑过渡 */}
-      <TransitionSeries>
-        <TransitionSeries.Sequence durationInFrames={180}>
-          <CoverScene title={title} />
-        </TransitionSeries.Sequence>
-        <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: 15 })}
-        />
-        <TransitionSeries.Sequence durationInFrames={840}>
-          <ContentScene content={content} />
-        </TransitionSeries.Sequence>
-        <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: 15 })}
-        />
-        <TransitionSeries.Sequence durationInFrames={300}>
-          <OutroScene cta={cta} />
-        </TransitionSeries.Sequence>
-      </TransitionSeries>
+      {/* ✅ 使用原生 Sequence + opacity 动画实现过渡（无需额外依赖） */}
+      <Sequence from={0} durationInFrames={180}>
+        <CoverScene title={title} frame={frame} /> {/* ✅ 传递 frame */}
+      </Sequence>
+
+      {/* 淡出动画在 CoverScene 内部实现 */}
+      <Sequence from={165} durationInFrames={1335}>
+        <ContentScene content={content} frame={frame} /> {/* ✅ 传递 frame */}
+      </Sequence>
+
+      {/* 淡出动画在 ContentScene 内部实现 */}
+      <Sequence from={1485} durationInFrames={315}>
+        <OutroScene cta={cta} frame={frame} /> {/* ✅ 传递 frame */}
+      </Sequence>
 
       {/* 单一音频从头到尾 */}
       {audioSrc && <Audio src={staticFile(audioSrc)} />}

@@ -50,7 +50,7 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,10,&H0000FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,10,10,30,1
+Style: Default,PingFang SC,18,&H0000FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -61,7 +61,7 @@ Dialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,字幕内容（可换行）
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| `Fontsize` | `10` | 10px字体大小 |
+| `Fontsize` | `18` | 18px字体大小（竖屏视频建议10-18px） |
 | `PrimaryColour` | `&H0000FFFF` | 醒目的黄色（ARGB格式） |
 | `Fontname` | `PingFang SC` | macOS中文字体，避免STHeiti Medium等不兼容字体 |
 | `Alignment` | `2` | 底部居中（其他值：1=左下，3=右下，5=正中，6=右中，8=中上） |
@@ -88,7 +88,7 @@ ffmpeg -i input.mp4 -vf "ass=subtitle.ass" -c:v libx264 -crf 18 -preset fast -c:
 | 问题 | 解决方案 |
 |------|---------|
 | 字幕显示为黑块或方块 | 检查Fontname是否为系统可用字体，更换为PingFang SC |
-| 字体太小看不清 | 确认Fontsize=10，可适当调整为12px但不要超过14px |
+| 字体太小看不清 | 确认Fontsize=18（竖屏视频建议10-18px），可适当调整但不要超过20px |
 | 字幕位置不对 | 检查MarginV和Alignment参数 |
 | 多行字幕重叠 | 调整WrapStyle或控制每行字数 |
 

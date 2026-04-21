@@ -1,7 +1,8 @@
-# 主题系统 (20 主题)
+# 主题系统 (30 主题)
 
 > 所属模块：video-creator / SKILL.md → 视觉设计
 > 代码实现：`scripts/themes.js`（与本文档保持同步）
+> 动画配置：`scripts/themes.js` 内的 `animation` 字段，或 [THEME_ANIMATIONS.md](THEME_ANIMATIONS.md) 查看详细参数
 
 ## ⚠️ 强制要求：所有视频必须使用大字体
 
@@ -10,28 +11,38 @@
 
 ## 主题速查表
 
-| ID | 名称 | 主色 | 适用场景 |
+| ID | 名称 | 主色 | 动画风格 | 适用场景 |
 |----|------|------|----------|
-| tech-modern | 科技现代风 | #2563EB | 科技产品、AI工具 |
-| cyberpunk | 赛博朋克风 | #00FFFF | 游戏、潮流科技 |
-| neon-future | 霓虹未来风 | #00FF88 | 创新、前沿 |
-| minimal-tech | 极简科技风 | #1E293B | 高端品牌、金融 |
-| particle-tech | 粒子科技风 | #00FFCC | 数据、科学 |
-| gradient-wave | 渐变波纹风 | #06B6D4 | 设计、创意 |
-| glass-morphism | 玻璃拟态风 | rgba白 | 时尚、品牌 |
-| holographic | 全息投影风 | #00FFCC | AR/VR、元宇宙 |
-| data-stream | 数据流风 | #00FF00 | 大数据、金融 |
-| quantum-tech | 量子科技风 | #FF00CC | 量子、物理 |
-| vibrant-gradient | 活力渐变风 | #F97316 | 生活方式、健身 |
-| aurora-gradient | 极光渐变风 | #06B6D4 | 视觉艺术 |
-| forest-nature | 森林自然风 | #059669 | 环保、户外 |
-| deep-ocean | 深海科技风 | #0891B2 | 海洋、环保 |
-| arctic-ice | 极地冰晶风 | #38BDF8 | 冰雪、能源 |
-| dark-minimal | 暗夜极简风 | #1E293B | 专业服务 |
-| neon-city | 霓虹都市风 | #F43F5E | 夜生活、音乐 |
-| fintech | 金融科技风 | #059669 | 金融、投资 |
-| pure-medical | 纯净医疗风 | #0EA5E9 | 医疗、生物 |
-| autumn-vintage | 暖秋复古风 | #DC2626 | 复古、艺术 |
+| tech-modern | 科技现代风 | #2563EB | 快速+稳定 | 科技产品、AI工具 |
+| cyberpunk | 赛博朋克风 | #00FFFF | 快速+锐利+光晕 | 游戏、潮流科技 |
+| neon-future | 霓虹未来风 | #00FF88 | 弹性+霓虹 | 创新、前沿 |
+| minimal-tech | 极简科技风 | #1E293B | 缓慢+克制 | 高端品牌、金融 |
+| particle-tech | 粒子科技风 | #00FFCC | 粒子+动态 | 数据、科学 |
+| gradient-wave | 渐变波纹风 | #06B6D4 | 弹性+渐变 | 设计、创意 |
+| glass-morphism | 玻璃拟态风 | rgba白 | 柔和+玻璃 | 时尚、品牌 |
+| holographic | 全息投影风 | #00FFCC | 快速+彩虹 | AR/VR、元宇宙 |
+| data-stream | 数据流风 | #00FF00 | 快速+矩阵 | 大数据、金融 |
+| quantum-tech | 量子科技风 | #FF00CC | 极快+闪烁 | 量子、物理 |
+| vibrant-gradient | 活力渐变风 | #F97316 | 弹性+跳动 | 生活方式、健身 |
+| aurora-gradient | 极光渐变风 | #06B6D4 | 缓慢+流动 | 视觉艺术 |
+| forest-nature | 森林自然风 | #059669 | 缓慢+柔和 | 环保、户外 |
+| deep-ocean | 深海科技风 | #0891B2 | 缓慢+深度 | 海洋、环保 |
+| arctic-ice | 极地冰晶风 | #38BDF8 | 缓慢+冰晶 | 冰雪、能源 |
+| dark-minimal | 暗夜极简风 | #1E293B | 缓慢+克制 | 专业服务 |
+| neon-city | 霓虹都市风 | #F43F5E | 快速+霓虹 | 夜生活、音乐 |
+| fintech | 金融科技风 | #059669 | 稳定+增长 | 金融、投资 |
+| pure-medical | 纯净医疗风 | #0EA5E9 | 柔和+纯净 | 医疗、生物 |
+| autumn-vintage | 暖秋复古风 | #DC2626 | 柔和+暖色 | 复古、艺术 |
+| game-elite | 电竞游戏风 | #8B5CF6 | 快速+能量 | 游戏、电竞 |
+| education-blue | 学术教育风 | #3B82F6 | 缓慢+稳定 | 课程、教育 |
+| food-warm | 美食温暖风 | #F97316 | 柔和+食欲 | 美食、探店 |
+| travel-adventure | 旅行冒险风 | #059669 | 活力+探索 | 旅行、冒险 |
+| music-beat | 音乐节拍风 | #EC4899 | 节奏+律动 | 音乐、音频 |
+| news-official | 新闻权威风 | #1E40AF | 严肃+可信 | 新闻、时事 |
+| pet-cute | 萌宠可爱风 | #F472B6 | 活泼+萌 | 宠物、萌宠 |
+| auto-tech | 汽车科技风 | #1F2937 | 高级+精致 | 汽车、科技 |
+| startup-energy | 创业活力风 | #10B981 | 激情+创新 | 创业、投资 |
+| luxury-elegant | 奢华优雅风 | #B8860B | 高贵+精致 | 奢侈品、品牌 |
 
 ---
 
