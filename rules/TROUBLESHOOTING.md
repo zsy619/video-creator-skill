@@ -49,6 +49,27 @@ bun scripts/vendor/baoyu-fetch/src/cli.ts <url> --wait-for interaction
 
 - 解决：用 ffmpeg 混流绕过重编码。详见 `VOICE.md`
 
+### Q: Remotion bundle 报错 "Entry point was specified as X, but it was not found"
+
+- **原因**: `VerticalVideo` 是组件名（Composition ID），不是入口文件
+- **解决**: bundle 使用 `src/index.ts`，render 使用 Composition ID
+```bash
+# bundle（用 index.ts）
+npx remotion bundle src/index.ts --output build/bundle.js
+# render（用 Composition ID）
+npx remotion render VerticalVideo out/final-video.mp4
+```
+
+### Q: ffmpeg 报 "No such file or directory"（output 目录不存在）
+
+- **原因**: 输出目录不存在
+- **解决**: 先创建目录再执行 ffmpeg
+```bash
+mkdir -p out/
+ffmpeg -i video-project/out/final-video.mp4 -i audio/neural_1_2x.m4a \
+  -c:v copy -c:a aac -shortest out/final-video-with-audio.mp4
+```
+
 ### Q: 封面图生成失败（API 不可用 / 错位）
 
 当 baoyu 图像生成 API（Seedream / MiniMax / DashScope / OpenAI / OpenRouter）均不可用时，使用以下两种容错方案：

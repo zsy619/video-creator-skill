@@ -182,7 +182,7 @@ else
 fi
 ```
 
-### 0.5 强制检查：封面未生成则禁止渲染
+### 0.4 强制检查：封面未生成则禁止渲染
 
 ```bash
 # ⚠️ 此检查在 Step 7（音频）之前必须执行
@@ -193,9 +193,25 @@ fi
 echo "✅ 封面检查通过"
 ```
 
-### 0.4 追加 session-log
+### 0.5 ⚠️ 强制记录 Session 日志（铁律）
 
-每次调用 `session_status` 后，必须将数据追加到 session-log.md：
+> **⚠️ 【铁律】每个 Step 完成后必须调用 `session_status` 工具并记录到 session-log.md**
+>
+> `session_status` 是 OpenClaw 工具调用，不是 shell 命令。调用后在 AI 对话中会看到 emoji 格式输出，**必须立即将此输出追加到 session-log.md**。
+>
+> 格式：
+> ```bash
+> # 1. 调用 session_status 工具（在 AI 对话中）
+> # 2. 看到 emoji 输出后，立即追加到 session-log.md
+> echo "| $(printf '%02d' $((++REQ_COUNT))) | $(date '+%Y-%m-%d %H:%M:%S') | Step N: 任务名 | minimax/MiniMax-M2.7 | - | - | - | - | <emoji输出> |" >> "${PROJECT_DIR}/docs/session-log.md"
+> ```
+>
+> **所有 Step（0-11）完成后都要记录，禁止跳过任何一个。**
+> 这是追踪 Token 消耗和审计的唯一手段。
+
+### 0.6 追加 session-log（旧版，请忽略）
+
+> 以下为旧版说明，已被 0.5 铁律替代，仅作参考。
 
 ```bash
 # ⚠️ session_status 是工具调用（tool），不是 shell 命令！
