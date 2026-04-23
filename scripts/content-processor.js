@@ -21,33 +21,42 @@ class ContentProcessor {
   /**
    * 处理内容
    */
-  async process(input) {
+  async process(input, options = {}) {
     const { type, value } = this.detectInputType(input);
     
     console.log(`📥 检测到输入类型: ${type}`);
     
-    let content;
+    let result;
     switch (type) {
       case 'url':
-        content = await this.processUrl(value);
+        result = await this.processUrl(value, options);
         break;
       case 'topic':
-        content = await this.processTopic(value);
+        result = await this.processTopic(value);
         break;
       case 'content':
-        content = await this.processRawContent(value);
+        result = await this.processRawContent(value);
         break;
       default:
         throw new Error(`不支持的内容类型: ${type}`);
     }
     
+    // 支持两种返回格式：string 或 { content, images }
+    const content = typeof result === 'string' ? result : result.content;
+    const downloadedImages = typeof result === 'string' ? [] : (result.images || []);
+    
     // 验证内容长度
-    content = this.validateContent(content);
+    const validatedContent = this.validateContent(content);
     
     // 分析内容
-    const metadata = await this.analyzeContent(content);
+    const metadata = await this.analyzeContent(validatedContent);
     
-    return { content, metadata, type };
+    return { 
+      content: validatedContent, 
+      metadata, 
+      type,
+      downloadedImages
+    };
   }
 
   /**
@@ -83,15 +92,29 @@ class ContentProcessor {
   /**
    * 处理URL
    */
-  async processUrl(url) {
+  async processUrl(url, options = {}) {
     console.log(`🔗 处理URL: ${url}`);
     
+    const outputDir = options.outputDir || 'docs/assets/imgs';
+    
     try {
-      // 尝试使用 baoyu-url-to-markdown 技能
-      const result = await this.callBaoyuSkill('url-to-markdown', { url });
+      // 尝试使用 baoyu-url-to-markdown 技能（带图片下载）
+      const result = await this.callBaoyuSkill('url-to-markdown', { 
+        url, 
+        downloadMedia: true,
+        mediaDir: outputDir
+      });
       
       if (result && result.content) {
-        return result.content;
+        // 下载的图片路径
+        const downloadedImages = result.downloads?.images || [];
+        if (downloadedImages.length > 0) {
+          console.log(`📷 已下载 ${downloadedImages.length} 张图片到 ${outputDir}/`);
+        }
+        return {
+          content: result.content,
+          images: downloadedImages
+        };
       }
       
       // 如果技能调用失败，使用web_fetch
@@ -99,7 +122,10 @@ class ContentProcessor {
       const response = await web_fetch({ url });
       
       if (response && response.content) {
-        return this.htmlToMarkdown(response.content);
+        return {
+          content: this.htmlToMarkdown(response.content),
+          images: []
+        };
       }
       
       throw new Error('无法获取URL内容');
@@ -108,7 +134,10 @@ class ContentProcessor {
       console.warn(`❌ URL处理失败: ${error.message}`);
       
       // 返回模拟数据
-      return this.generateMockContent(`网页内容: ${url}`);
+      return {
+        content: this.generateMockContent(`网页内容: ${url}`),
+        images: []
+      };
     }
   }
 

@@ -64,6 +64,78 @@ metadata:
 11. **Step 10: 生成视频**
 12. **Step 11: 生成报告 + 强制清单检查**
 
+### ⚠️ Step 0 强制检查清单（禁止跳过）
+
+> **铁律：Step 0 完成后必须验证所有文件存在，包括 `session-log.md`**
+
+```bash
+# Step 0 完成后必须执行此验证
+PROJECT_DIR="~/VideoProjects/{project-name}"
+for f in README.md article.md video-script.md copy.md wechat-copy.md posting-guide.md landing-page.html article-page.html wechat-page.html session-log.md report.json; do
+  if [ ! -f "$PROJECT_DIR/docs/$f" ]; then
+    echo "❌ 缺失: $f"
+    exit 1
+  fi
+done
+echo "✅ Step 0 完成，所有11个文档已创建"
+```
+
+---
+
+### ⚠️ Session Status 强制追踪（防止遗漏）
+
+> **⚠️ 【重灾区】session-log.md 的 token 记录经常被遗漏！**
+>
+> **根本原因**：`session_status` 是 OpenClaw **工具调用**，不是 shell 命令。它的输出在 AI 对话的 tool result 中（emoji 格式），不是 stdout。
+>
+> **问题**：执行时直接批量调用工具，忽略了 token 追踪。
+>
+> **解决方案**：在以下关键节点**必须显式调用** `session_status` **工具**，并将 emoji 输出追加到 session-log.md：
+
+| 节点 | 时机 | 操作 |
+|------|------|------|
+| **Step 0 完成** | 初始化 session-log.md 后 | 调用 `session_status` 并记录 |
+| **Step 1 完成** | 内容获取完成后 | 调用 `session_status` 并记录 |
+| **Step 4 完成** | 文案生成完成后 | 调用 `session_status` 并记录 |
+| **Step 6 完成** | 封面/视觉生成完成后 | 调用 `session_status` 并记录 |
+| **Step 7 完成** | 音频生成完成后 | 调用 `session_status` 并记录 |
+| **Step 10 完成** | 视频渲染完成后 | 调用 `session_status` 并记录 |
+| **Step 11 完成** | 报告生成完成后 | 调用 `session_status` 并记录最终累计 |
+
+```bash
+# ❌ 错误做法（遗漏 token 追踪）：
+# 直接调用工具生成内容，不记录 session_status
+generate_content()
+
+# ✅ 正确做法（在关键节点调用并记录）：
+generate_content()
+session_status  # ← 在 AI 对话中输入，AI 会返回 emoji 格式输出
+# 然后手动将 emoji 输出追加到 session-log.md
+```
+
+**session_status emoji 输出格式示例**：
+```
+🦎 OpenClaw 2026.4.15 (041266a)
+🧠 Model: minimax/MiniMax-M2.7 · 🔑 api-key (minimax:cn)
+🧮 Tokens: 138k in / 723 out · 💵 Cost: $0.04
+🗄️ Cache: 0% hit · 30k cached, 43.3m new
+📚 Context: 168k/205k (82%)
+```
+
+**追加到 session-log.md 的方法**：
+```bash
+# 在 AI 对话中看到 emoji 输出后，手动执行：
+TS=$(date '+%Y-%m-%d %H:%M %Z')
+cat >> "${PROJECT_DIR}/docs/session-log.md" << 'EOF'
+
+## Step X 完成时的 Session 快照
+- 时间: TS_PLACEHOLDER
+- 累计 Tokens: 138k in / 723 out
+- 费用: $0.04
+- Context: 168k/205k (82%)
+EOF
+```
+
 ---
 
 ## 📋 输出文件清单（强制全部生成）
@@ -72,6 +144,38 @@ metadata:
 > 这是预防遗漏的第一道防线。视频渲染前必须确认所有文件存在。
 
 ### 文档文件（11个）
+
+> ⚠️ **session-log.md 必须主动初始化，不是光调用 session_status 就完了**
+> 详见 [rules/SESSION_LOG.md](rules/SESSION_LOG.md)
+
+```bash
+# Step 0 开始时：初始化 session-log.md
+PROJECT_DIR="~/VideoProjects/{project-name}"
+START_TIME=$(date '+%Y-%m-%d %H:%M %Z')
+
+cat > "${PROJECT_DIR}/docs/session-log.md" << 'HDRY'
+# Session Log - {project-name}
+
+## 项目信息
+- **项目名称**: {project-name}
+- **开始时间**: START_TIME_PLACEHOLDER
+- **状态**: 进行中
+
+## 模型配置
+- **默认模型**: minimax/MiniMax-M2.7
+
+## 请求记录
+
+| # | 时间 | 任务 | 模型 | 输入token | 输出token | 总token | 费用 | Context |
+|---|------|------|------|----------|----------|---------|------|---------|
+HDRY
+
+sed -i '' "s/START_TIME_PLACEHOLDER/${START_TIME}/" "${PROJECT_DIR}/docs/session-log.md"
+sed -i '' "s/{project-name}/{project_name}/" "${PROJECT_DIR}/docs/session-log.md"
+echo "✅ session-log.md 已初始化"
+```
+
+
 
 | # | 文件 | 路径 | 说明 |
 |---|------|------|------|

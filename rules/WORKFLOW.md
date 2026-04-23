@@ -74,7 +74,8 @@ Step 11       Step 10        Step 9        Step 8        Step 7        Step 6
 ```bash
 PROJECT_NAME="flowboard-video"   # 替换为实际项目名
 PROJECT_DIR="workspace/${PROJECT_NAME}"
-mkdir -p "${PROJECT_DIR}/docs/assets"
+mkdir -p "${PROJECT_DIR}/docs/assets/imgs"
+mkdir -p "${PROJECT_DIR}/docs/assets/illustrations"
 mkdir -p "${PROJECT_DIR}/audio"
 mkdir -p "${PROJECT_DIR}/video-project/src"
 mkdir -p "${PROJECT_DIR}/video-project/out"
@@ -86,7 +87,7 @@ echo "目录结构创建完成"
 
 ```bash
 PROJECT_DIR="workspace/${PROJECT_NAME}"
-SKILL_SCRIPT="${HOME}/.openclaw/skills/video-creator/scripts/session-log-append.py"
+SKILL_SCRIPT="${HOME}/.hermes/skills/video-creator/scripts/session-log-append.py"
 
 # Step 0.2a: 初始化 session-log.md 文件
 cat > "${PROJECT_DIR}/docs/session-log.md" << 'HDRY'
@@ -182,7 +183,7 @@ else
 fi
 ```
 
-### 0.4 强制检查：封面未生成则禁止渲染
+### 0.5 强制检查：封面未生成则禁止渲染
 
 ```bash
 # ⚠️ 此检查在 Step 7（音频）之前必须执行
@@ -193,7 +194,7 @@ fi
 echo "✅ 封面检查通过"
 ```
 
-### 0.5 ⚠️ 强制记录 Session 日志（铁律）
+### 0.6 ⚠️ 强制记录 Session 日志（铁律）
 
 > **⚠️ 【铁律】每个 Step 完成后必须调用 `session_status` 工具并记录到 session-log.md**
 >
@@ -209,7 +210,7 @@ echo "✅ 封面检查通过"
 > **所有 Step（0-11）完成后都要记录，禁止跳过任何一个。**
 > 这是追踪 Token 消耗和审计的唯一手段。
 
-### 0.6 追加 session-log（旧版，请忽略）
+### 0.7 追加 session-log（旧版，请忽略）
 
 > 以下为旧版说明，已被 0.5 铁律替代，仅作参考。
 
@@ -225,7 +226,7 @@ echo "✅ 封面检查通过"
 #
 # ✅ 正确写法：先调用工具，将结果手动追加到 session-log.md
 PROJECT_DIR="workspace/${PROJECT_NAME}"
-SKILL_SCRIPT="${HOME}/.openclaw/skills/video-creator/scripts/session-log-append.py"
+SKILL_SCRIPT="${HOME}/.hermes/skills/video-creator/scripts/session-log-append.py"
 
 # 手动追加一行（每次大步骤完成后执行）
 python3 "${SKILL_SCRIPT}" "${PROJECT_DIR}" "内容获取（baoyu-fetch）"
@@ -246,9 +247,12 @@ echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >>
 
 当用户提供网址时执行：
 
-1. **使用 baoyu-url-to-markdown 抓取内容**
+1. **使用 baoyu-url-to-markdown 抓取内容并下载图片**
    ```bash
-   bun $SKILL_DIR/scripts/vendor/baoyu-fetch/src/cli.ts <url> --output docs/article.md
+   bun $SKILL_DIR/scripts/vendor/baoyu-fetch/src/cli.ts <url> \
+     --output docs/article.md \
+     --download-media \
+     --media-dir docs/assets/imgs/
    ```
 
 2. **记录来源链接（强制）**
@@ -263,7 +267,11 @@ echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >>
    - 元数据（metadata）
    - 关键段落和论点
 
-4. **记录 Session 日志**
+4. **下载的图片存放位置**
+   - 路径：`docs/assets/imgs/`
+   - 图片可直接用于 Step 6（视觉生成）和 Remotion 视频组件
+
+5. **记录 Session 日志**
    ```bash
    # 记录本次内容获取的 token 消耗
    session_status
@@ -602,15 +610,60 @@ python3 docs/assets/generate_cover.py
 | 黑体（细）   | `/System/Library/Fonts/STHeiti Light.ttc`  |
 
 
-### 6.2 内容插图生成
+### 6.2 内容插图生成（优先使用下载图片）
 
 ```bash
-# 使用 baoyu-article-illustrator 生成插图
-# 智能识别插图位置：
-# - 每个主要段落配 1 张插图
-# - 数据和统计配信息图
+# Step 6.2.1: 筛选并裁剪下载的图片适配9:16竖屏
+# 图片存放位置：docs/assets/imgs/
+# 裁剪后存放：docs/assets/illustrations/
 
-# 输出：docs/assets/illustration-1.webp, illustration-2.webp, ...
+# 使用 Python PIL 自动裁剪
+python3 $SKILL_DIR/scripts/crop-images.py \
+  --input docs/assets/imgs/ \
+  --output docs/assets/illustrations/ \
+  --target-size 1080x1920 \
+  --mode center-crop
+
+# Step 6.2.2: 如果下载图片不足或质量不够，使用 baoyu-article-illustrator 生成
+# 每个主要段落配 1 张插图
+# 数据和统计配信息图
+
+# 输出：docs/assets/illustrations/illustration-1.webp, illustration-2.webp, ...
+```
+
+#### 6.2.3 图片自动筛选与场景匹配
+
+> **核心逻辑**：从 `docs/assets/imgs/` 中自动筛选最相关的图片，匹配视频脚本中的场景关键词。
+
+```python
+# 图片筛选规则：
+# 1. 提取场景关键词（来自 video-script.md）
+# 2. 计算图片名/alt text 与关键词的相似度
+# 3. 按相关性排序，选择 top-N
+# 4. 裁剪为 9:16 竖屏比例
+```
+
+#### 6.2.4 图片裁剪规范
+
+| 原始比例 | 目标比例 | 处理方式 |
+|---------|---------|---------|
+| 16:9 横版 | 9:16 竖屏 | 居中裁剪，保留主体 |
+| 4:3 | 9:16 竖屏 | 居中裁剪 |
+| 1:1 方版 | 9:16 竖屏 | 上下填充模糊背景 |
+| 9:16 竖屏 | 9:16 竖屏 | 智能缩放，保持完整 |
+
+```python
+# 裁剪算法伪代码
+if source_aspect > target_aspect:  # 横版图片
+    # 计算裁剪区域（居中）
+    crop_height = width / target_ratio
+    offset_y = (height - crop_height) / 2
+    crop_box = (0, offset_y, width, offset_y + crop_height)
+else:  # 竖版图片
+    # 智能缩放，主体内容不裁剪
+    scale = max(target_width / width, target_height / height)
+    new_size = (int(width * scale), int(height * scale))
+    # 居中放置，背景填充
 ```
 
 ### 6.3 信息图生成（如适用）
@@ -835,6 +888,30 @@ session_status
 ```
 > 详见 [SESSION_LOG.md](SESSION_LOG.md)
 
+### 10.7 视频预览（可选）
+
+```bash
+# 方案一：Remotion still 预览（快速生成单帧预览）
+cd video-project
+npx remotion still VerticalVideo out/preview-frame-0.png --frame 0
+npx remotion still VerticalVideo out/preview-frame-mid.png --frame 450
+
+# 方案二：ffmpeg 生成缩略图预览（快速验证）
+ffmpeg -i video-project/out/final-video.mp4 \
+  -vf "fps=1,scale=360:-1" \
+  -frames:v 6 \
+  video-project/out/preview-thumbs.jpg
+
+# 方案三：生成 GIF 预览（适合分享，文件较大）
+ffmpeg -i video-project/out/final-video.mp4 \
+  -vf "fps=5,scale=360:-1" \
+  -frames:v 30 \
+  video-project/out/preview.gif
+
+# 预览完成后清理
+rm -f video-project/out/preview-*.png video-project/out/preview-thumbs.jpg
+```
+
 ---
 
 ## Step 11: 生成报告 + 强制清单检查
@@ -850,7 +927,7 @@ session_status
 
 ```bash
 PROJECT_DIR="workspace/${PROJECT_NAME}"
-SKILL_SCRIPT="${HOME}/.openclaw/skills/video-creator/scripts/session-log-append.py"
+SKILL_SCRIPT="${HOME}/.hermes/skills/video-creator/scripts/session-log-append.py"
 
 # ✅ 方法一（推荐）：用 Python 脚本解析 session_status 输出
 #    1. 先调用 session_status 工具，复制输出文本
@@ -886,7 +963,42 @@ echo "✅ session-log.md 已更新（最终状态）"
 }
 ```
 
-### 11.3 清理无用文件
+### 11.3 批量处理视频项目
+
+```bash
+# 进入 video-creator 目录
+cd $HOME/.hermes/skills/video-creator
+
+# 批量检查所有项目（不自动修复）
+node scripts/video-check.js batch-process \
+  --directory ~/VideoProjects
+
+# 批量检查并自动修复问题
+node scripts/video-check.js batch-process \
+  --directory ~/VideoProjects \
+  --fix
+
+# 批量检查 + 自动修复 + 生成缺失字幕
+node scripts/video-check.js batch-process \
+  --directory ~/VideoProjects \
+  --fix \
+  --generate-subtitles
+```
+
+**批量处理报告输出到**：`~/VideoProjects/batch-processing-report.json`
+
+```json
+{
+  "timestamp": "2026-04-23T10:30:00.000Z",
+  "directory": "~/VideoProjects",
+  "totalProjects": 5,
+  "successful": 4,
+  "failed": 1,
+  "projects": [...]
+}
+```
+
+### 11.4 清理无用文件
 
 ```bash
 # 清理 Remotion 临时文件
@@ -903,7 +1015,7 @@ rm -f docs/assets/illustration-*_low.webp
 rm -f audio/raw/temp_*.mp3
 ```
 
-### 11.4 ⚠️ 强制文件清单检查（禁止跳过）
+### 11.5 ⚠️ 强制文件清单检查（禁止跳过）
 
 > **⚠️ 制作完成前，必须逐项对照以下清单检查所有文件是否已生成。缺失的文件必须在此步骤补全，禁止跳过任何一个。**
 
@@ -944,7 +1056,7 @@ if [ -n "$MISSING" ]; then
   echo ""
   echo "⚠️  Missing files detected:$MISSING"
   echo "⚠️  These files must be generated before completing the project."
-  echo "⚠️  Run: python3 $HOME/.openclaw/skills/video-creator/scripts/session-log-append.py $PROJECT_DIR --init"
+  echo "⚠️  Run: python3 $HOME/.hermes/skills/video-creator/scripts/session-log-append.py $PROJECT_DIR --init"
   exit 1
 else
   echo ""
@@ -1012,7 +1124,7 @@ fi
 ### 每个 Step 完成后手动执行：
 
 ```bash
-SKILL_SCRIPT="$HOME/.openclaw/skills/video-creator/scripts/session-log-append.py"
+SKILL_SCRIPT="$HOME/.hermes/skills/video-creator/scripts/session-log-append.py"
 PROJECT_DIR="workspace/${PROJECT_NAME}"
 
 # snapshot 模式（记录累计值）：

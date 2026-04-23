@@ -66,8 +66,9 @@ workspace/
         ├── wechat-page.html    # 公众号适配页
         ├── session-log.md      # Session 日志（token 消耗追踪）
         └── assets/             # 视觉素材
-            ├── cover.png
-            └── illustrations/
+            ├── cover.png       # 封面图（9:16竖屏）
+            ├── imgs/           # 链接下载的原始图片
+            └── illustrations/  # AI生成的插图/信息图
     └── video-project/         # 视频项目
         ├── src/
         ├── out/

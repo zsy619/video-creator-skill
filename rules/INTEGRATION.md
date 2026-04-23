@@ -20,14 +20,18 @@
 # video-creator-workflow.sh
 
 PROJECT_NAME="my-video-project"
-SKILL_DIR="$HOME/.openclaw/skills/video-creator"
+SKILL_DIR="~/.openclaw/skills/video-creator"
 
-mkdir -p "workspace/${PROJECT_NAME}/docs/assets"
+mkdir -p "workspace/${PROJECT_NAME}/docs/assets/imgs"
+mkdir -p "workspace/${PROJECT_NAME}/docs/assets/illustrations"
 mkdir -p "workspace/${PROJECT_NAME}/video-project"
 mkdir -p "workspace/${PROJECT_NAME}/audio"
 
-# 1. 获取内容
-bun "$SKILL_DIR/scripts/vendor/baoyu-fetch/src/cli.ts" "$URL" --output "docs/article.md"
+# 1. 获取内容（同时下载与主题相关的图片）
+bun "$SKILL_DIR/scripts/vendor/baoyu-fetch/src/cli.ts" "$URL" \
+  --output "workspace/${PROJECT_NAME}/docs/article.md" \
+  --download-media \
+  --media-dir "workspace/${PROJECT_NAME}/docs/assets/imgs/"
 
 # 2. 生成封面
 node scripts/generate-cover.js --input docs/article.md --theme tech-vision --output "docs/assets/cover.png"

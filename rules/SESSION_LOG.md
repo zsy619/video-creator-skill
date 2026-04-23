@@ -1,8 +1,20 @@
 # 会话日志规范 (Session Log)
 
 > 所属模块：video-creator / SKILL.md → 会话追踪
-> **版本**: v3.0.0（Snapshot 法版）
+> **版本**: v4.0.0（防遗漏强化版）
 > **用途**: 记录每次大模型请求的 token 消耗、模型、处理时长
+
+---
+
+## ⚠️ 常见错误：token 记录被遗漏
+
+> **问题现象**：创建视频后 session-log.md 只有表头，没有 token 记录。
+>
+> **根本原因**：`session_status` 是 OpenClaw **工具调用**，不是 shell 命令。它的输出在 AI 对话的 tool result 中（emoji 格式），执行时直接批量调用工具会忽略 token 追踪。
+>
+> **解决方案**：在关键节点显式调用 `session_status` **工具**，并将 emoji 输出追加到 session-log.md。
+>
+> **关键节点**：Step 0 完成、Step 1 完成、Step 4 完成、Step 6 完成、Step 7 完成、Step 10 完成、Step 11 完成。
 
 ---
 
@@ -107,7 +119,7 @@ workspace/{project-name}/docs/session-log.md
 推荐使用 `scripts/session-log-append.py` 解析 emoji 格式：
 
 ```bash
-SKILL_SCRIPT="${HOME}/.openclaw/skills/video-creator/scripts/session-log-append.py"
+SKILL_SCRIPT="${HOME}/.hermes/skills/video-creator/scripts/session-log-append.py"
 PROJECT_DIR="workspace/toutiao-video"
 
 # 追加一行（手动复制 session_status 输出）
