@@ -81,49 +81,102 @@ body {
 
 ## 公众号适配页模板 (`wechat-page.html`)
 
+> ⚠️ **企业级微信适配页规范**：
+> - 禁止使用 Google Fonts（国内不可访问）
+> - 使用系统字体栈（零加载、兼容性最好）
+> - 微信外链转换为底部引用
+> - 结构化 HTML + 内联 CSS
+> - 适配 baoyu-post-to-wechat 发布工具
+
+### 系统字体栈（必须使用）
+
+```css
+font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+```
+
+### 微信友好 Meta 标签
+```html
+<meta property="og:title" content="标题">
+<meta property="og:description" content="摘要">
+<meta property="og:type" content="article">
+<meta name="author" content="作者">
+```
+
+### 企业级模板结构
 ```html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{标题} - 公众号</title>
-  <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+  <meta property="og:title" content="标题">
+  <meta property="og:description" content="摘要">
+  <meta property="og:type" content="article">
+  <meta name="author" content="作者">
+  <title>标题</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-           background: #fafafa; color: #333; line-height: 1.8; }
-    .article-header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                       color: white; padding: 48px 24px; }
-    .article-content { background: white; padding: 32px 20px;
-                       box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .code-block { background: #1a1a2e; color: #10B981; padding: 16px 20px;
-                  border-radius: 8px; font-family: monospace; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 
+                   'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+      font-size: 17px;
+      line-height: 1.8;
+      color: #333333;
+      background: #FFFFFF;
+      margin: 0;
+      padding: 0;
+    }
+    .container { max-width: 677px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; padding: 30px 0 20px; border-bottom: 1px solid #E5E5E5; }
+    .hook { background: #EFF6FF; border-left: 4px solid #3B82F6; 
+            padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+    .section { margin: 24px 0; }
+    .section-title { font-size: 20px; font-weight: 700; color: #1a1a1a; 
+                    margin: 0 0 12px; padding-bottom: 8px; 
+                    border-bottom: 2px solid #3B82F6; display: inline-block; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th { background: #3B82F6; color: #FFFFFF; padding: 12px 16px; text-align: left; }
+    td { padding: 12px 16px; border-bottom: 1px solid #E5E5E5; }
+    code { background: #EEF2FF; padding: 2px 6px; border-radius: 4px; 
+           font-family: 'SF Mono', Monaco, monospace; font-size: 14px; color: #3B82F6; }
+    .cta { background: linear-gradient(135deg, #3B82F6 0%, #6366F1 100%); 
+            color: #FFFFFF; text-align: center; padding: 24px 20px; 
+            border-radius: 12px; margin: 30px 0; }
+    .footer { text-align: center; padding: 24px 0; border-top: 1px solid #E5E5E5; 
+              color: #999999; font-size: 14px; }
   </style>
 </head>
 <body>
-  <header class="article-header text-center">
-    <h1 class="display-5 fw-bold mb-3">{公众号标题}</h1>
-    <p class="lead opacity-75">{摘要}</p>
-  </header>
-  <main class="container py-4">
-    <article style="max-width: 680px; margin: 0 auto;">
+  <div class="container">
+    <header class="header">
+      <h1>标题</h1>
+    </header>
+    <div class="hook">
+      <p>Hook 开场白</p>
+    </div>
+    <section class="section">
+      <h2 class="section-title">章节标题</h2>
       <!-- 正文内容 -->
-      <blockquote class="bg-light p-4 border-start border-4 border-dark rounded">
-        <p class="mb-0"><strong>{hook开场白}</strong></p>
-      </blockquote>
-      <!-- 代码块 -->
-      <div class="my-4">
-        <p class="text-center text-muted">复制以下命令：</p>
-        <div class="code-block text-center">npx skills add xxx</div>
-      </div>
-    </article>
-  </main>
-  <footer class="text-center py-4 border-top">
-    <a href="{url}" class="text-secondary">原文链接</a>
-  </footer>
-  <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    </section>
+    <div class="cta">
+      <div>CTA 行动号召</div>
+    </div>
+    <footer class="footer">
+      <p>视频号：作者</p>
+    </footer>
+  </div>
 </body>
 </html>
+```
+
+### 色彩系统推荐
+| 用途 | 色值 | CSS |
+|------|------|-----|
+| 主色 | #3B82F6 | blue-600 |
+| 强调 | #10B981 | green-500 |
+| 背景 | #FFFFFF | white |
+| 文字 | #333333 | gray-700 |
+| 边框 | #E5E5E5 | gray-200 |
 ```
 
 ---

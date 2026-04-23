@@ -34,18 +34,55 @@
 
 ## 中文案（公众号/小红书）
 
-```markdown
-## 中文案（公众号/小红书）
+---
+title: 工具推荐 | 让你的 AI 成为知识管家
+author: 元曜科技
+summary: LLM 每次回答都在重复工作？Obsidian LLM Wiki 让 LLM 构建持久化 wiki，知识编译一次保持最新。
+tags:
+  - AI工具
+  - 知识管理
+  - Obsidian
+  - Claude Code
+  - 效率提升
+platform: wechat
+date: 2026-04-22
+---
 
-**标题**：xxx
+# 工具推荐 | 让你的 AI 成为知识管家
 
-**正文**：xxx
+> 「你知道吗？LLM 每次回答问题都在重复同样的工作。」
 
-**标签**:
-- 小红书：#标签1 #标签2 #标签3 #标签4 #标签5
-- 公众号：（无标签，放在摘要中）
-- 视频号：（无标签，放在描述中）
-```
+## 你是否也有这样的困扰？
+
+每次向 AI 提问，它都要从海量文档中重新检索、重新推导。
+
+- RAG 检索 → 片段拼接 → 重新推导
+- 问一个需要综合 5 份文档的问题，AI 每次都要「从零开始」
+- **没有知识积累，只有重复劳动**
+
+## 解决方案：LLM Wiki
+
+**Obsidian LLM Wiki** 采用了 Andrej Karpathy 的 LLM Wiki 理念：
+
+LLM **持续构建和维护一个持久化的 wiki**——知识编译一次，然后**保持最新**，而非每次查询重新推导。
+
+## 三层架构设计
+
+| 层级 | 目录 | 说明 |
+|------|------|------|
+| Schema | CLAUDE.md | 配置层，告诉 LLM 如何工作 |
+| Wiki | wiki/ | 可写层，LLM 生成和维护 |
+| Raw | raw/ | 不可变层，原始资料（只读）|
+
+### 安装使用
+
+1. 在 Claude Code 中输入 `/obsidian-llm-wiki`
+2. Skill 会引导你初始化目录结构
+3. 运行 `/obsidian-llm-wiki ingest` 处理资料
+
+## 号召行动
+
+GitHub 搜索 **Lesterffx/obsidian-llm-wiki**
 
 ## 长文案（落地页）
 

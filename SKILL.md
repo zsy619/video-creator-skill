@@ -3,7 +3,7 @@ name: video-creator
 description: 自动化视频创作技能：从文章/URL/主题生成竖屏社交媒体视频（小红书/视频号/抖音）。整合宝玉技能生态进行内容获取、图片生成、HTML构建和Remotion视频渲染。集成字幕生成、质量检查、自动修复功能，支持批量处理多个视频项目。
 homepage: https://github.com/zsy619/video-creator-skill
 metadata: 
-    tags: "video-creator", "创建视频", "生成视频", "视频创作", "竖屏视频", "make video", "create video", "检查视频质量", "修复字幕字体", "批量处理视频"
+    tags: "video-creator", "创建视频", "生成视频", "视频创作", "竖屏视频", "make video", "create video", "检查视频质量", "修复字幕字体", "批量处理视频", "发布公众号", "公众号封面图", "wechat-cover", "微信公众号", "企业级文案"
     "clawdbot":
         "emoji":"🎬"
         "requires":
@@ -21,6 +21,9 @@ metadata:
 - "video-creator" / "make video" / "create video" / "video creator"
 - "检查视频质量" / "修复字幕字体" / "批量处理视频"
 - "大字体" / "大字体视频" / "字体要大"
+- **"发布公众号" / "微信公众号" / "微信文章" / "发到公众号"** → 执行 Step 12.5
+- **"生成公众号封面图" / "wechat-cover" / "微信封面"** → 执行 Step 6.2
+- **"企业级文案" / "优化 wechat-copy" / "优化 wechat-page"** → 执行 B/C 优化
 
 ## ⚠️ 铁律：封面图是强制必选项
 
@@ -32,8 +35,11 @@ metadata:
 > 3. **PIL/Pillow 代码生成** → 纯字体排版封面（所有 API 不可用时的最终兜底）
 >
 > 封面尺寸（必填）：
-> - 视频号 / 抖音 / 公众号：**1080×1920**（9:16）
+> - 视频号 / 抖音：**1080×1920**（9:16）
+> - **微信公众号文章封面：900×383**（约 2.35:1）
 > - 小红书：**1440×2560**（9:16）
+>
+> ⚠️ **注意**：微信公众号封面图是文章详情页顶部的大图，尺寸与其他平台不同，必须单独生成 900×383 尺寸的 `cover-wechat.png`
 >
 > **禁止跳过封面生成步骤。** 如果 baoyu-imagine 报错，必须按以下顺序重试：
 > 1. 检查 `~/.baoyu-skills/baoyu-imagine/EXTEND.md` 确认 provider 配置
