@@ -14,14 +14,21 @@
 | CTA/结尾 | **64-96px** | **40-56px** | **32-40px** |
 
 
-## 视频字体规范
-| 元素 |   最终字体大小 |  
-| --------   | ---------- |  
-| 主标题 |   **120px** |
-| 副标题 |   **44px** |
-| 内容 |   **40px** |
-| 命令行 |   **22px** |
-| 字幕 |   **18px** |
+## 视频字体规范（竖屏 1080×1920）
+| 元素 |   字体大小 |  说明 |
+| --------   | ---------- |  ------- |
+| 主标题 |   **120-160px** | 封面/核心场景 |
+| 副标题 |   **44-56px** | 特征/功能描述 |
+| 内容 |   **40-48px** | 正文内容 |
+| 命令行 |   **22-28px** | 代码/命令展示 |
+| **字幕** | **10px** | ASS字幕，底部居中，黄色（&H00FFFF），PingFang SC，MarginV=30 |
+
+> ⚠️ **字幕字体说明**：
+> - **统一使用 10px**（竖屏视频最佳阅读尺寸，已在 SUBTITLES.md 中定义）
+> - ASS 的 Fontsize 是相对于 PlayResY(1920) 的像素值
+> - **统一标准**：Fontsize=10, Alignment=2, MarginL=30, MarginR=30, MarginV=30
+> - 多行用 `\N` 分隔（WrapStyle=0）
+> - 禁止使用其他字号
 
 ## 字幕系统规范（必须严格遵守）
 
@@ -50,7 +57,7 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,18,&H0000FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,1
+Style: Default,PingFang SC,36,&H0000FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,45,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -61,7 +68,7 @@ Dialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,字幕内容（可换行）
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| `Fontsize` | `18` | 18px字体大小（竖屏视频建议10-18px） |
+| `Fontsize` | `10` | 10px字体大小（竖屏视频最佳阅读尺寸） |
 | `PrimaryColour` | `&H0000FFFF` | 醒目的黄色（ARGB格式） |
 | `Fontname` | `PingFang SC` | macOS中文字体，避免STHeiti Medium等不兼容字体 |
 | `Alignment` | `2` | 底部居中（其他值：1=左下，3=右下，5=正中，6=右中，8=中上） |
@@ -121,10 +128,10 @@ ffmpeg -i input.mp4 -vf "ass=subtitle.ass" -c:v libx264 -crf 18 -preset fast -c:
 └─────────────────────────┘
 ```
 
-## 大字体场景模板
+## 大字体场景模板（竖屏视频版）
 
 ```tsx
-// 大字体居中场景模板
+// 大字体居中场景模板 - 竖屏视频专用
 const LargeCenteredScene: React.FC<{
   children: React.ReactNode;
   style?: React.CSSProperties;
@@ -136,7 +143,7 @@ const LargeCenteredScene: React.FC<{
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: COLORS.background,
-        padding: '120px', // 大内边距确保内容不贴边
+        padding: '120px 80px', // 大内边距确保内容不贴边
         ...style
       }}
     >
@@ -147,7 +154,16 @@ const LargeCenteredScene: React.FC<{
   );
 };
 
-// 使用示例 - 封面
+// 竖屏视频字体规范（1080×1920）
+// | 元素 |   字体大小 |  说明 |
+// | --------   | ---------- |  ------- |
+// | 主标题 |   120-180px | 封面核心场景用160-180px |
+// | 副标题 |   44-56px | 特征/功能描述 |
+// | 内容 |   40-48px | 正文内容 |
+// | 命令行 |   22-28px | 代码/命令展示 |
+// | 字幕 |   10px | ASS字幕规范，底部居中 |
+
+// 使用示例 - 封面（160px大字）
 const CoverScene: React.FC = () => {
   const frame = useCurrentFrame();
   const opacity = spring({ frame, fps: FPS, config: { damping: 12 } });
@@ -157,22 +173,50 @@ const CoverScene: React.FC = () => {
     <LargeCenteredScene>
       <div style={{ opacity, transform: `scale(${scale})` }}>
         <div style={{
-          fontSize: '180px',
+          fontSize: '160px',  // 封面用160px大标题
           fontWeight: 'bold',
           color: COLORS.textPrimary,
           marginBottom: '40px',
           lineHeight: 1,
           letterSpacing: '-4px'
         }}>
-          140万亿
+          AI Reads Books
         </div>
         <div style={{
-          fontSize: '64px',
+          fontSize: '56px',  // 副标题56px
           color: COLORS.accent,
           marginBottom: '40px',
           fontWeight: 'bold'
         }}>
-          日均 Token 调用量
+          逐页分析PDF，自动提取知识精华
+        </div>
+      </div>
+    </LargeCenteredScene>
+  );
+};
+
+// 内容场景示例（88px主标题）
+const FeatureScene: React.FC<{ title: string; description: string }> = ({ title, description }) => {
+  const frame = useCurrentFrame();
+  const opacity = spring({ frame, fps: FPS, config: { damping: 15 } });
+  
+  return (
+    <LargeCenteredScene>
+      <div style={{ opacity, textAlign: 'center' }}>
+        <div style={{
+          fontSize: '88px',  // 功能标题88px
+          fontWeight: 'bold',
+          color: COLORS.textPrimary,
+          marginBottom: '30px'
+        }}>
+          {title}
+        </div>
+        <div style={{
+          fontSize: '44px',  // 描述44px
+          color: COLORS.textSecondary,
+          lineHeight: 1.6
+        }}>
+          {description}
         </div>
       </div>
     </LargeCenteredScene>
