@@ -7,8 +7,8 @@
 ## 字体大小规范
 
 | 场景类型 | 主标题字体 | 副标题字体 | 说明字体 |
-|----------|-----------|-----------|----------|
-| 封面/核心场景 | **120-180px** | **48-72px** | **32-40px** |
+|----------|-----------|-----------|
+| 封面/核心场景 | **≥300px** | **≥200px** | **≥80px** |
 | 内容场景 | **64-96px** | **40-56px** | **28-36px** |
 | 数据展示 | **72-120px** | **36-48px** | **24-32px** |
 | CTA/结尾 | **64-96px** | **40-56px** | **32-40px** |
@@ -17,18 +17,17 @@
 ## 视频字体规范（竖屏 1080×1920）
 | 元素 |   字体大小 |  说明 |
 | --------   | ---------- |  ------- |
-| 主标题 |   **120-160px** | 封面/核心场景 |
-| 副标题 |   **44-56px** | 特征/功能描述 |
+| 主标题 |   **≥300px** | 封面/核心场景 |
+| 副标题 |   **≥200px** | 特征/功能描述 |
 | 内容 |   **40-48px** | 正文内容 |
 | 命令行 |   **22-28px** | 代码/命令展示 |
-| **字幕** | **10px** | ASS字幕，底部居中，黄色（&H00FFFF），PingFang SC，MarginV=30 |
+| **字幕** | **72px** | ASS字幕，底部居中，黄色（&H00FFFF），PingFang SC，MarginV=50 |
 
-> ⚠️ **字幕字体说明**：
-> - **统一使用 10px**（竖屏视频最佳阅读尺寸，已在 SUBTITLES.md 中定义）
+> ⚠️ **字幕字体说明**（见 UNIFIED_RULES.md）：
+> - **统一使用 72px**（竖屏视频最佳阅读尺寸）
 > - ASS 的 Fontsize 是相对于 PlayResY(1920) 的像素值
-> - **统一标准**：Fontsize=10, Alignment=2, MarginL=30, MarginR=30, MarginV=30
+> - **统一标准**：Fontsize=72, Alignment=2, MarginL=30, MarginR=30, MarginV=50
 > - 多行用 `\N` 分隔（WrapStyle=0）
-> - 禁止使用其他字号
 
 ## 字幕系统规范（必须严格遵守）
 
@@ -36,11 +35,11 @@
 
 | 属性 | 规范值 | 说明 |
 |------|--------|------|
-| **字体大小** | **18px** | 必须使用18px字体大小 |
-| **字体颜色** | **醒目的黄色** | `&H0000FFFF` (ARGB格式，纯黄色) |
+| **字体大小** | **72px** | 必须使用72px字体大小（≥36px，推荐72px） |
+| **字体颜色** | **醒目的黄色** | `&H00FFFF` (ARGB格式，纯黄色) |
 | **字体** | **PingFang SC** | macOS系统中文字体，确保跨平台兼容 |
 | **位置** | **底部居中** | `Alignment=2` (底部居中) |
-| **距底边距离** | **30px** | `MarginV=30` |
+| **距底边距离** | **50px** | `MarginV=50` |
 | **描边** | **1px黑色** | `Outline=1, OutlineColour=&H00000000` |
 | **换行支持** | **支持多行，距离左右两边30px** | `WrapStyle=0` |
 
@@ -57,11 +56,11 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,36,&H0000FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,45,1
+Style: Default,PingFang SC,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,50,134
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,字幕内容（可换行）
+Dialogue: 0,0:00:00.00,0:00:05.00,Default,,30,30,50,,字幕内容（可换行）
 ```
 
 ### 关键参数说明

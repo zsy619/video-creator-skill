@@ -218,6 +218,7 @@ done
 - [references/baoyu-config.json](references/baoyu-config.json) - 宝玉技能配置
 - [references/cdn-mapping.json](references/cdn-mapping.json) - CDN映射配置
 - [references/tailwind-config.json](references/tailwind-config.json) - Tailwind配置
+- [rules/UNIFIED_RULES.md](rules/UNIFIED_RULES.md) - ⚠️ **【最高优先级】** 视频创作铁律清单，包含字幕规格、帧数计算、居中布局、封面生成、赛博朋克风格、文件清理等强制规则。**必须首先阅读此文件。**
 - [rules/PATHS.md](rules/PATHS.md) - 规定了 video-creator 技能中项目命名、目录结构和文件命名的规范，确保输出文件统一组织在 workspace/{project-name}/ 下的 docs/ 和 video-project/ 目录中。
 - [rules/REMOTION.md](rules/REMOTION.md) - 详细规定了使用 Remotion 框架创建视频组件的规范，包括组件结构、动画效果（打字机、词高亮、渐入等）、主题配置、字体选择以及视频渲染参数。
 - [rules/VOICE.md](rules/VOICE.md) - 规定了使用微软 Azure Neural TTS（推荐 zh-CN-YunjianNeural）进行自然人声合成的工作流程，强调整段连续生成、音频后处理及通过 ffmpeg 混流避免 Remotion 编码杂音。
