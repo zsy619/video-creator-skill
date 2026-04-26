@@ -26,7 +26,7 @@ const SUPERVISED_CONFIG = {
   width: 1080,
   height: 1920,
   quality: 'high',
-  defaultStyle: 'tech-modern',
+  defaultStyle: 'cyberpunk',
   
   // 监督配置
   supervision: {

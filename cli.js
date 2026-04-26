@@ -27,8 +27,8 @@ function showHelp() {
   console.log('  video-creator --content "# 我的内容\\n\\n详细内容..."');
   console.log('');
   console.log(chalk.yellow('🎨 主题风格:'));
-  console.log('  tech-modern    现代科技风 (默认)');
-  console.log('  cyberpunk      赛博朋克风');
+  console.log('  tech-modern    现代科技风');
+  console.log('  cyberpunk      赛博朋克风 (默认)');
   console.log('  neon-future    霓虹未来风');
   console.log('  minimal-tech   极简科技风');
   console.log('  gradient-wave  渐变波纹风');
@@ -71,7 +71,7 @@ async function main() {
   
   // 样式选项
   program
-    .option('-s, --style <style>', '主题风格', 'tech-modern')
+    .option('-s, --style <style>', '主题风格', 'cyberpunk')
     .option('-p, --platform <platform>', '目标平台', 'all');
   
   // 其他选项

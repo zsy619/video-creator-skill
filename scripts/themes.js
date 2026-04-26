@@ -734,7 +734,7 @@ const CONFIG = {
   width: 1080,
   height: 1920,
   quality: 'high',
-  defaultStyle: 'tech-modern',
+  defaultStyle: 'cyberpunk',
   platformSpecs: {
     xiaohongshu: { width: 1080, height: 1920, fps: 60, bitrate: '10-15Mbps' },
     wechat: { width: 1080, height: 1920, fps: 30, bitrate: '8-12Mbps' },
