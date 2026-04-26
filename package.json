@@ -1,6 +1,6 @@
 {
   "name": "video-creator-skill",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "自动化视频创作技能，整合宝玉技能生态",
   "main": "cli.js",
   "bin": {
@@ -40,12 +40,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/video-creator-skill.git"
+    "url": "https://github.com/zsy619/video-creator-skill.git"
   },
   "bugs": {
-    "url": "https://github.com/your-org/video-creator-skill/issues"
+    "url": "https://github.com/zsy619/video-creator-skill/issues"
   },
-  "homepage": "https://github.com/your-org/video-creator-skill#readme",
+  "homepage": "https://github.com/zsy619/video-creator-skill#readme",
   "files": [
     "SKILL.md",
     "cli.js",

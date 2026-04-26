@@ -13,6 +13,24 @@ class HtmlBuilder {
       fontFamily: "'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif",
       ...options
     };
+    this.cdnMapping = {};
+    this._loadCdnMapping();
+  }
+
+  async _loadCdnMapping() {
+    try {
+      const raw = await fs.readFile(path.join(__dirname, '..', 'references', 'cdn-mapping.json'), 'utf-8');
+      this.cdnMapping = JSON.parse(raw);
+    } catch (e) {
+      this.cdnMapping = {};
+    }
+  }
+
+  getCdnUrl(type) {
+    const cdn = this.options.useChinaCDN ? this.cdnMapping.china : this.cdnMapping.global;
+    if (type === 'tailwind') return cdn?.tailwind || 'https://cdn.tailwindcss.com';
+    if (type === 'icons') return cdn?.icons || 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css';
+    return null;
   }
 
   /**

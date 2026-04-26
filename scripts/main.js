@@ -11,8 +11,11 @@ const path = require('path');
 const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
+const logger = require('./logger');
 const BaoyuIntegration = require('./baoyu-integration');
 const VideoComposer = require('./video-composer');
+const SubtitleGenerator = require('./subtitle-generator');
+const QualityChecker = require('./quality-checker');
 const { THEMES, CONFIG, VALID_STYLES, VALID_PLATFORMS } = require('./themes');
 
 class VideoCreator {
@@ -21,6 +24,10 @@ class VideoCreator {
     this.content = null;
     this.metadata = {};
     this.generatedFiles = [];
+    this.coverGenerated = false;
+    this.sessionLogPath = null;
+    this.baoyuConfig = {};
+    this.cdnMapping = {};
     this.baoyu = new BaoyuIntegration({
       outputDir: this.options.outputDir
     });
@@ -33,25 +40,57 @@ class VideoCreator {
       style: this.options.style || CONFIG.defaultStyle,
       outputDir: this.options.outputDir
     });
+    this._loadReferences();
+  }
+
+  async _loadReferences() {
+    const baseDir = path.join(__dirname, '..', 'references');
+    try {
+      const baoyuConfigRaw = await fs.readFile(path.join(baseDir, 'baoyu-config.json'), 'utf-8');
+      this.baoyuConfig = JSON.parse(baoyuConfigRaw);
+      const cdnRaw = await fs.readFile(path.join(baseDir, 'cdn-mapping.json'), 'utf-8');
+      this.cdnMapping = JSON.parse(cdnRaw);
+    } catch (e) {
+      // references 可选，不阻塞流程
+    }
   }
 
   /**
-   * 主执行函数
+   * 主执行函数 - 12步完整流程
    */
   async run() {
     try {
-      console.log('🎬 开始视频创作流程...');
+      console.log('🎬 开始视频创作流程（12步）...\n');
 
+      // Step 0: 创建文档（强制）
       await this.createOutputDir();
+      await this.initStepZero();
+      // Step 1: 内容获取
       await this.getContent();
+      // Step 2: 分析内容
       await this.analyzeContent();
-      await this.generateVisualContent();
+      // Step 3: 构建项目
+      await this.buildProject();
+      // Step 4: 生成文案
       await this.generateCopywriting();
+      // Step 5: 构建HTML
       await this.buildHtmlPage();
+      // Step 6: 生成视觉（封面强制优先）
+      await this.generateVisualContent();
+      this.checkCoverGenerated();
+      // Step 7: 生成音频
+      await this.generateAudio();
+      // Step 8: 生成字幕
+      await this.generateSubtitles();
+      // Step 9: 质量检查
+      await this.runQualityCheck();
+      // Step 10: 生成视频
       await this.generateVideo();
+      // Step 11: 生成报告 + 强制清单检查
       await this.generateReport();
+      await this.runFinalChecklist();
 
-      console.log('✅ 视频创作完成！');
+      console.log('\n✅ 视频创作完成！');
       console.log(`📁 输出目录: ${this.options.outputDir}`);
 
     } catch (error) {
@@ -61,10 +100,35 @@ class VideoCreator {
   }
 
   /**
+   * Step 0: 初始化和记录
+   */
+  async recordSessionLog(node, description) {
+    try {
+      const scriptPath = path.join(__dirname, 'session-log-append.py');
+      const projectDir = this.options.outputDir;
+
+      const { execSync } = require('child_process');
+      execSync(`python3 "${scriptPath}" "${projectDir}" "${description}" --init 2>/dev/null || true`, { stdio: 'pipe' });
+    } catch (e) {
+      // session-log 记录失败不阻塞流程
+    }
+  }
+
+  /**
    * 创建输出目录
    */
   async createOutputDir() {
-    const dirs = ['content', 'images', 'html', 'video', 'temp'];
+    // 对齐 PATHS.md 规范的项目目录结构
+    const dirs = [
+      'docs/assets',
+      'video-project/src/components',
+      'video-project/src/themes',
+      'video-project/out',
+      'audio/raw',
+      'audio/processed',
+      'fonts',
+      'temp'
+    ];
 
     for (const dir of dirs) {
       const fullPath = path.join(this.options.outputDir, dir);
@@ -94,7 +158,7 @@ class VideoCreator {
       throw new Error('请提供内容来源：--url, --topic, 或 --content');
     }
 
-    const contentPath = path.join(this.options.outputDir, 'content', 'original.md');
+    const contentPath = path.join(this.options.outputDir, 'docs', 'article.md');
     await fs.writeFile(contentPath, this.content);
     this.generatedFiles.push(contentPath);
 
@@ -110,7 +174,7 @@ class VideoCreator {
 
       const result = await this.baoyu.callBaoyuSkill('baoyu-url-to-markdown', {
         url,
-        outputPath: path.join(this.options.outputDir, 'content', 'original.md')
+        outputPath: path.join(this.options.outputDir, 'docs', 'article.md')
       });
 
       if (result.success && result.content) {
@@ -201,7 +265,7 @@ class VideoCreator {
       analyzedAt: new Date().toISOString()
     };
 
-    const metadataPath = path.join(this.options.outputDir, 'content', 'metadata.json');
+    const metadataPath = path.join(this.options.outputDir, 'docs', 'metadata.json');
     await fs.writeFile(metadataPath, JSON.stringify(this.metadata, null, 2));
     this.generatedFiles.push(metadataPath);
 
@@ -216,7 +280,7 @@ class VideoCreator {
 
     const theme = THEMES[this.options.style || CONFIG.defaultStyle];
     const title = this.metadata.title || '未命名内容';
-    const imagesDir = path.join(this.options.outputDir, 'images');
+    const imagesDir = path.join(this.options.outputDir, 'docs', 'assets');
 
     await fs.mkdir(imagesDir, { recursive: true });
 
@@ -266,7 +330,7 @@ class VideoCreator {
         console.log(`  ✅ 信息图生成完成: ${infoResult.dataPoints} 个数据点`);
       }
 
-      console.log(`🖼️ 视觉内容生成完成，共 ${this.generatedFiles.filter(f => f.includes('images/')).length} 张图片`);
+      console.log(`🖼️ 视觉内容生成完成，共 ${this.generatedFiles.filter(f => f.includes('docs/assets')).length} 张图片`);
 
     } catch (error) {
       console.error(`❌ 视觉内容生成失败: ${error.message}`);
@@ -334,7 +398,7 @@ class VideoCreator {
       const theme = THEMES[this.options.style || CONFIG.defaultStyle];
       const processedContent = `# ${title}\n\n${formattedContent}\n\n---\n\n## 平台优化\n\n### 小红书标题\n${xhsTitle}\n\n### 视频号标题\n${wechatTitle}\n\n### 内容摘要\n${summary}\n\n### 标签\n${(Array.isArray(tags) ? tags : [tags]).join(', ')}\n\n### 视频规格\n- 分辨率: 1080×1920 (竖屏)\n- 帧率: 60fps\n- 时长: ${this.metadata.suggestedDuration || 30}秒\n- 主题: ${theme.name}\n\n*由 Video Creator 技能生成*`;
 
-      const processedPath = path.join(this.options.outputDir, 'content', 'processed.md');
+      const processedPath = path.join(this.options.outputDir, 'docs', 'processed.md');
       await fs.writeFile(processedPath, processedContent);
       this.generatedFiles.push(processedPath);
 
@@ -361,7 +425,7 @@ class VideoCreator {
       .replace(/\n{3,}/g, '\n\n')
       .trim();
 
-    const processedPath = path.join(this.options.outputDir, 'content', 'processed.md');
+    const processedPath = path.join(this.options.outputDir, 'docs', 'processed.md');
     const processedContent = `# ${title}\n\n${formattedContent}\n\n---\n\n## 平台优化\n\n### 小红书标题\n${xhsTitle}\n\n### 视频号标题\n${wechatTitle}\n\n### 内容摘要\n${summary}\n\n### 标签\n${tags.join(', ')}\n`;
 
     await fs.writeFile(processedPath, processedContent);
@@ -420,10 +484,10 @@ class VideoCreator {
   async buildHtmlPage() {
     console.log('🌐 使用宝玉技能构建HTML页面...');
 
-    const htmlPath = path.join(this.options.outputDir, 'html', 'article-summary.html');
+    const htmlPath = path.join(this.options.outputDir, 'docs', 'article-summary.html');
 
     try {
-      const processedPath = path.join(this.options.outputDir, 'content', 'processed.md');
+      const processedPath = path.join(this.options.outputDir, 'docs', 'processed.md');
       let markdownContent;
 
       try {
@@ -513,7 +577,7 @@ class VideoCreator {
       keywords: this.metadata.keywords
     };
 
-    const htmlPath = path.join(this.options.outputDir, 'html', 'article-summary.html');
+    const htmlPath = path.join(this.options.outputDir, 'docs', 'article-summary.html');
     await htmlBuilder.buildPage(this.content, metadata, htmlPath);
 
     this.generatedFiles.push(htmlPath);
@@ -521,7 +585,150 @@ class VideoCreator {
   }
 
   /**
-   * 生成视频（之前缺失的方法，现已补全）
+   * Step 3: 构建项目目录
+   */
+  async buildProject() {
+    console.log('📁 Step 3: 构建项目目录...');
+
+    // 对齐 PATHS.md 规范的项目目录结构
+    const projectName = this.options.outputDir.split('/').pop() || 'video-project';
+    const dirs = [
+      'content',
+      'docs/assets',
+      'html',
+      'video-project/src/components',
+      'video-project/src/themes',
+      'video-project/out',
+      'audio/raw',
+      'audio/processed',
+      'fonts',
+      'temp'
+    ];
+
+    for (const dir of dirs) {
+      await fs.mkdir(path.join(this.options.outputDir, dir), { recursive: true });
+    }
+
+    console.log('✅ 项目目录构建完成');
+  }
+
+  /**
+   * Step 7: 生成音频
+   * 通过 Azure Neural TTS 或 edge-tts 生成自然人声配音
+   */
+  async generateAudio() {
+    if (this.options.skipAudio) {
+      console.log('⏭️  Step 7: 跳过音频生成');
+      return;
+    }
+
+    console.log('🔊 Step 7: 生成音频...');
+
+    try {
+      const narrationText = this.metadata.summary || this.content.substring(0, 500);
+      const audioTextPath = path.join(this.options.outputDir, 'audio', 'full_narration.txt');
+      await fs.writeFile(audioTextPath, narrationText);
+
+      // 尝试使用 edge-tts 生成音频
+      try {
+        const scriptPath = path.join(__dirname, '..', 'scripts', 'synthesize-voice.sh');
+        await execAsync(`bash "${scriptPath}"`, {
+          cwd: this.options.outputDir,
+          timeout: 120000
+        });
+        console.log('✅ 音频生成完成 (edge-tts)');
+      } catch (ttsError) {
+        console.warn(`⚠️  edge-tts 不可用: ${ttsError.message}`);
+        console.log('🔄 使用 macOS say 作为备用方案...');
+        try {
+          await execAsync(`say -v "Tingting" -o audio/raw/narration.aiff -- "${narrationText.substring(0, 500)}"`, {
+            cwd: this.options.outputDir,
+            timeout: 60000
+          });
+          await execAsync('ffmpeg -y -i audio/raw/narration.aiff -c:a aac -b:a 256k audio/processed/narration.m4a', {
+            cwd: this.options.outputDir
+          });
+          console.log('✅ 音频生成完成 (macOS say 备用)');
+        } catch (sayError) {
+          console.warn(`⚠️  音频生成失败，将继续生成无配音视频: ${sayError.message}`);
+        }
+      }
+
+      this.metadata.audioGenerated = true;
+    } catch (error) {
+      console.warn(`⚠️  音频生成异常: ${error.message}`);
+    }
+  }
+
+  /**
+   * Step 8: 生成字幕
+   * 使用 SubtitleGenerator 生成 ASS 格式字幕
+   */
+  async generateSubtitles() {
+    if (this.options.skipSubtitles) {
+      console.log('⏭️  Step 8: 跳过字幕生成');
+      return;
+    }
+
+    console.log('📝 Step 8: 生成字幕...');
+
+    try {
+      const subtitleGenerator = new SubtitleGenerator({
+        fontSize: 10,
+        color: '&H0000FFFF'
+      });
+
+      const narrationText = this.metadata.summary || this.content;
+      const audioDuration = this.metadata.suggestedDuration || 30;
+
+      const subtitles = await subtitleGenerator.generateFromText(narrationText, audioDuration);
+      const outputPath = path.join(this.options.outputDir, 'audio', 'subtitles.ass');
+      await subtitleGenerator.generateASS(subtitles, outputPath);
+
+      this.generatedFiles.push(outputPath);
+      this.metadata.subtitlesGenerated = true;
+      console.log(`✅ 字幕生成完成: ${outputPath}`);
+    } catch (error) {
+      console.warn(`⚠️  字幕生成失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * Step 9: 质量检查
+   * 使用 QualityChecker 检查所有输出文件
+   */
+  async runQualityCheck() {
+    if (this.options.skipQualityCheck) {
+      console.log('⏭️  Step 9: 跳过质量检查');
+      return;
+    }
+
+    console.log('🔍 Step 9: 运行质量检查...');
+
+    try {
+      const checker = new QualityChecker({
+        projectDir: this.options.outputDir,
+        fixIssues: true,
+        verbose: this.options.debug || false
+      });
+
+      const report = await checker.runFullCheck();
+      const reportPath = path.join(this.options.outputDir, 'quality-report.json');
+      await checker.saveReport(report, reportPath);
+      this.generatedFiles.push(reportPath);
+
+      if (report.summary.passed) {
+        console.log('✅ 质量检查通过');
+      } else {
+        console.warn(`⚠️  质量检查发现问题: ${report.summary.errors} 错误, ${report.summary.warnings} 警告`);
+      }
+    } catch (error) {
+      console.warn(`⚠️  质量检查异常: ${error.message}`);
+    }
+  }
+
+  /**
+   * Step 10: 生成视频（之前缺失的方法，现已补全）
    */
   async generateVideo() {
     if (this.options.skipVideo) {
@@ -535,7 +742,7 @@ class VideoCreator {
       const videoPath = await this.videoComposer.generateVideo(
         this.content,
         this.metadata,
-        this.generatedFiles.filter(f => f.includes('images/'))
+        this.generatedFiles.filter(f => f.includes('docs/assets'))
       );
 
       if (videoPath) {
@@ -547,7 +754,7 @@ class VideoCreator {
       console.error(`❌ 视频生成失败: ${error.message}`);
       console.log('🔄 创建视频占位信息...');
 
-      const videoInfoPath = path.join(this.options.outputDir, 'video', 'video-info.json');
+      const videoInfoPath = path.join(this.options.outputDir, 'video-project', 'out', 'video-info.json');
       const videoInfo = {
         status: 'failed',
         error: error.message,
@@ -605,18 +812,18 @@ class VideoCreator {
       generatedFiles: this.generatedFiles,
       statistics: {
         totalFiles: this.generatedFiles.length,
-        imageFiles: this.generatedFiles.filter(f => f.includes('images/')).length,
-        contentFiles: this.generatedFiles.filter(f => f.includes('content/')).length,
-        htmlFiles: this.generatedFiles.filter(f => f.includes('html/')).length,
-        videoFiles: this.generatedFiles.filter(f => f.includes('video/')).length
+        imageFiles: this.generatedFiles.filter(f => f.includes('docs/assets')).length,
+        contentFiles: this.generatedFiles.filter(f => f.includes('docs/')).length,
+        htmlFiles: this.generatedFiles.filter(f => f.includes('.html')).length,
+        videoFiles: this.generatedFiles.filter(f => f.includes('video-project/out')).length
       }
     };
 
-    const reportPath = path.join(this.options.outputDir, 'report.json');
+    const reportPath = path.join(this.options.outputDir, 'docs', 'report.json');
     await fs.writeFile(reportPath, JSON.stringify(report, null, 2));
     this.generatedFiles.push(reportPath);
 
-    const reportMdPath = path.join(this.options.outputDir, 'report.md');
+    const reportMdPath = path.join(this.options.outputDir, 'docs', 'report.md');
     const reportMd = `# 🎬 Video Creator 执行报告
 
 ## 项目信息
@@ -652,7 +859,59 @@ ${this.generatedFiles.map(f => `- \`${path.relative(this.options.outputDir, f)}\
     await fs.writeFile(reportMdPath, reportMd);
     this.generatedFiles.push(reportMdPath);
 
-    console.log('📊 执行报告生成完成');
+    logger.info('📊 执行报告生成完成');
+  }
+
+  /**
+   * 发布到微信公众号（生成封面图 + 适配文章）
+   */
+  async publishWechat() {
+    logger.step('12.5', '发布到微信公众号...');
+
+    const title = this.metadata.title || '公众号文章';
+    const summary = this.metadata.summary || title;
+
+    // 1. 生成公众号封面图（900x383）
+    const coverDir = path.join(this.options.outputDir, 'docs', 'assets');
+    await fs.mkdir(coverDir, { recursive: true });
+    try {
+      const baoyuSkill = `BAOYU_SKILLS_DIR="${path.join(__dirname, '..')}" baoyu-cover-image --type conceptual --palette cool --rendering digital --aspect 2.35:1 --output "${path.join(coverDir, 'cover-wechat.png')}"`;
+      await execAsync(baoyuSkill, { timeout: 60000, shell: true });
+    } catch (e) {
+      const simpleSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 383">
+        <rect width="900" height="383" fill="#1a1a2e"/>
+        <text x="450" y="191" font-family="sans-serif" font-size="48" fill="white" text-anchor="middle">${title}</text>
+      </svg>`;
+      await fs.writeFile(path.join(coverDir, 'cover-wechat.svg'), simpleSvg, 'utf-8');
+      logger.fail(`公众号封面生成降级为 SVG: ${e.message}`);
+    }
+
+    // 2. 生成公众号适配 HTML
+    const titleMatch = this.content ? this.content.match(/^#\s+(.+?)$/m) : null;
+    const contentTitle = titleMatch ? titleMatch[1].trim() : title;
+    const bodyMatch = this.content ? this.content.replace(/^---[\s\S]*?---\n*/, '').replace(/^#\s+.+$/m, '').trim() : '';
+    const wechatHtml = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${contentTitle}</title>
+<link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+<style>body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:#fafafa;color:#333;line-height:1.8}
+.article-header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:48px 24px;text-align:center}
+.article-content{background:#fff;padding:32px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}</style></head>
+<body><header class="article-header"><h1 class="display-5 fw-bold">${contentTitle}</h1>
+<p class="lead opacity-75">${summary}</p></header>
+<main class="container py-4" style="max-width:680px"><article class="article-content">
+<p>${bodyMatch.substring(0, 3000).replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>
+</article></main></body></html>`;
+
+    const wechatPath = path.join(this.options.outputDir, 'docs', 'wechat-page.html');
+    await fs.writeFile(wechatPath, wechatHtml, 'utf-8');
+    this.generatedFiles.push(wechatPath);
+
+    logger.info(`✅ 公众号内容已就绪: ${wechatPath}`);
+    if (this.baoyuConfig.videoCreatorSpecific) {
+      logger.debug('baoyu-config.json 主题映射已加载');
+    }
   }
 }
 

@@ -136,32 +136,125 @@ class VideoComposer {
     const title = metadata.title || '视频内容';
     const fps = this.options.fps;
     const totalFrames = duration * fps;
-    
-    // 这里应该生成完整的React组件代码
-    // 由于代码较长，返回简化版本
+    const hasImages = images && images.length > 0;
+    const coverImage = images && images.length > 0 ? images[0] : null;
+
+    // 生成场景帧边界（基于时长分配）
+    const sceneCount = Math.min(hasImages ? images.length : 3, 6);
+    const framesPerScene = Math.floor(totalFrames / sceneCount);
+
+    let sceneImports = '';
+    let sceneComponents = '';
+    for (let i = 0; i < sceneCount; i++) {
+      const imgVar = `img${i}`;
+      const sceneName = `Scene${i}`;
+      const startFrame = i * framesPerScene;
+      const endFrame = (i + 1) * framesPerScene;
+
+      sceneImports += `import ${imgVar} from '../assets/scene-${i}.png';\n`;
+      sceneComponents += `
+const ${sceneName}: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const opacity = interpolate(
+    frame,
+    [${startFrame}, ${startFrame + 15}, ${endFrame - 15}, ${endFrame}],
+    [0, 1, 1, 0],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  );
+
+  if (frame < ${startFrame} || frame >= ${endFrame}) return null;
+
+  return (
+    <AbsoluteFill style={{ opacity }}>
+      <Img src={${imgVar}} style={imgStyle} />
+      <FadeInText
+        text="场景文字"
+        fontSize={64}
+        style={{ position: 'absolute', bottom: 200, textAlign: 'center', width: '100%' }}
+      />
+    </AbsoluteFill>
+  );
+};\n`;
+    }
+
     return `import React from 'react';
-import {AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import { AbsoluteFill, Img, Audio, interpolate, spring, useCurrentFrame, useVideoConfig, Sequence } from 'remotion';
+import { TypewriterText, FadeInText, StaggeredFadeIn, ParticleBackground, WordHighlight } from '../remotion-components';
+${sceneImports}
+
+const imgStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
+};
+
+${sceneComponents}
 
 export const Video: React.FC = () => {
-  const {fps, width, height} = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const frame = useCurrentFrame();
-  
+
+  // 封面入场动画
+  const titleOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
+  const titleScale = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
+
   return (
-    <AbsoluteFill style={{
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      textAlign: 'center',
-      background: '${theme.background}',
-      color: 'white',
-      fontSize: '60px',
-      fontWeight: 'bold'
-    }}>
-      <div>${this.escapeJsString(title)}</div>
-      <div style={{ fontSize: '30px', marginTop: '20px' }}>
-        ${duration}秒视频 • ${theme.name}
-      </div>
+    <AbsoluteFill style={{ background: '${theme.background || '#0F172A'}' }}>
+      {/* 粒子背景 */}
+      <ParticleBackground
+        particleCount={${theme.particles || 50}}
+        color="${theme.primary || '#3B82F6'}"
+        speedMultiplier={0.5}
+      />
+
+      {/* 封面场景：前3秒 */}
+      <Sequence from={0} durationInFrames={${fps * 3}}>
+        <AbsoluteFill style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          textAlign: 'center',
+          opacity: titleOpacity,
+          transform: \`scale(\${titleScale})\`,
+          padding: '120px',
+        }}>
+          <TypewriterText
+            text="${this.escapeJsString(title)}"
+            fontSize={100}
+            color="#FFFFFF"
+            fontWeight="bold"
+            speed={2}
+          />
+          <div style={{ fontSize: 48, color: '${theme.accent || '#22D3EE'}', marginTop: 40 }}>
+            ${duration}秒 · ${theme.name || ''}
+          </div>
+        </AbsoluteFill>
+      </Sequence>
+
+      {/* 内容场景序列 */}
+      <Scene0 />
+      <Scene1 />
+      <Scene2 />
+
+      {/* 结尾 CTA：最后3秒 */}
+      <Sequence from={${totalFrames - fps * 3}} durationInFrames={${fps * 3}}>
+        <AbsoluteFill style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          textAlign: 'center',
+        }}>
+          <FadeInText
+            text="👍 点赞 · 🔔 关注"
+            fontSize={72}
+            color="${theme.primary || '#3B82F6'}"
+          />
+        </AbsoluteFill>
+      </Sequence>
+
+      {/* 音频 */}
+      <Audio src={require('../audio/processed/narration.m4a')} />
     </AbsoluteFill>
   );
 };`;
@@ -218,7 +311,7 @@ export const RemotionVideo: React.FC = () => {
   async renderVideo(projectDir) {
     console.log('🔄 开始渲染视频...');
     
-    const outputPath = path.join(this.options.outputDir, 'video', 'output.mp4');
+    const outputPath = path.join(this.options.outputDir, 'video-project', 'out', 'output.mp4');
     
     try {
       // 安装依赖
