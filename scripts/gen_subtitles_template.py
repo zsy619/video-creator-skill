@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-字幕生成脚本 - quantdinger 格式
-必须严格遵守以下规范：
-1. Fontsize=10
-2. 使用 \\N 换行
-3. 不要设置 PlayResX/PlayResY
-4. 每行约10字符
+字幕生成脚本
+规范（与 rules/FONTS.md 一致）：
+- Fontsize=72
+- Font: PingFang SC
+- PrimaryColour: &H00FFFF（黄色）
+- Alignment: 2（底部居中）
+- MarginL/MarginR/MarginV: 30/30/30
+- Outline: 1（1px黑色描边）
+- \\N 换行，每行约15字符
+- PlayResX: 1080, PlayResY: 1920
 """
 import os
 import sys
@@ -28,31 +32,34 @@ def frame_to_time(frame):
     cs = int((total % 1) * 100)
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
-def split_text(text, max_chars=10):
-    """按语义智能分段，每行最多max_chars个字符"""
+def split_text(text, max_chars=15):
+    """按中文语义智能分段，每行最多max_chars个字符"""
     lines, current = [], ""
     for c in text:
+        current += c
         if c in "，、。；：！？""''（）":
-            current += c
-        elif len(current) >= max_chars:
-            lines.append(current)
+            if current.strip():
+                lines.append(current.strip())
             current = ""
-        else:
-            current += c
-    if current:
-        lines.append(current)
+        elif len(current) >= max_chars:
+            lines.append(current.strip())
+            current = ""
+    if current.strip():
+        lines.append(current.strip())
     return lines or [text]
 
 def generate_ass():
     ass = """[Script Info]
-Title: Subtitles
+Title: Video Creator Subtitles
 ScriptType: v4.00+
 WrapStyle: 0
 ScaledBorderAndShadow: yes
+PlayResX: 1080
+PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,10,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,134
+Style: Default,PingFang SC,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -64,9 +71,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return ass
 
 if __name__ == "__main__":
-    output = os.path.join(AUDIO_DIR, "subtitles.ass")
+    output = os.path.join(AUDIO_DIR, f"subtitles_{int(DURATION)}s.ass")
     with open(output, 'w', encoding='utf-8') as f:
         f.write(generate_ass())
     print(f"✅ 字幕已保存: {output}")
     print(f"📊 总时长: {DURATION:.3f}秒")
-    print(f"📊 字幕规范: quantdinger格式 (Fontsize=10, \\N换行)")
+    print(f"📊 字幕规范: Fontsize=72, PingFang SC, 黄色, Margin=30")

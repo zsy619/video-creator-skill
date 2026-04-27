@@ -26,7 +26,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,10,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,134
+Style: Default,PingFang SC,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -34,15 +34,15 @@ Dialogue: 0,0:00:00.00,0:00:04.00,Default,,30,30,30,,想拥有一个自己的\NA
 ```
 
 ### ❌ 禁止的格式
-1. **禁止使用 PlayResX/PlayResY** - 不要设置分辨率
+1. **必须使用 PlayResX/PlayResY** - 设置 PlayResX=1080, PlayResY=1920
 2. **禁止使用 `\\N` 换行** - 必须用 `\N`
-3. **禁止字号超过10px** - 竖屏视频10px是最佳阅读尺寸
+3. **禁止字号低于36px** - 竖屏视频72px是最佳阅读尺寸，最低不低于36px
 
 ### 标准参数（必须严格遵守）
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| `Fontsize` | **10** | 10px，竖屏视频最佳阅读尺寸 |
+| `Fontsize` | **72** | 72px，竖屏视频最佳阅读尺寸 |
 | `PrimaryColour` | `&H00FFFF` | 黄色（#FFFF00）|
 | `Alignment` | **2** | 底部居中 |
 | `MarginL` | **30** | 左侧边距 30px |

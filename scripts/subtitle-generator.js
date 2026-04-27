@@ -1,6 +1,15 @@
 /**
  * 字幕生成器
  * 智能生成ASS字幕文件，支持字体兼容性修复
+ *
+ * 规范（与 rules/FONTS.md 一致）：
+ * - Fontsize: 72
+ * - Font: PingFang SC (macOS) / Microsoft YaHei (Windows)
+ * - PrimaryColour: &H00FFFF（黄色）
+ * - Alignment: 2（底部居中）
+ * - MarginL/MarginR/MarginV: 30/30/30
+ * - Outline: 1（1px黑色描边）
+ * - 语义换行：\N 分隔多行，每行约15字符
  */
 
 const fs = require('fs').promises;
@@ -10,16 +19,16 @@ const os = require('os');
 class SubtitleGenerator {
   constructor(options = {}) {
     this.options = {
-      font: 'PingFang SC', // ✅ 默认使用macOS兼容字体
-      fontSize: 10,
-      color: '&H0000FFFF', // 黄色
+      font: 'PingFang SC',
+      fontSize: 72,
+      color: '&H00FFFF', // 亮黄色
       outlineColor: '&H00000000', // 黑色描边
       backgroundColor: '&H00000000', // 透明背景
       alignment: 2, // 底部居中
-      marginL: 50,
-      marginR: 50,
-      marginV: 30, // 距底边30px
-      outline: 1, // 1px描边
+      marginL: 30,  // 左边距30px
+      marginR: 30,  // 右边距30px
+      marginV: 30,  // 距底边30px
+      outline: 1,   // 1px描边
       shadow: 0,
       bold: 0,
       italic: 0,
@@ -33,85 +42,57 @@ class SubtitleGenerator {
       encoding: 1,
       ...options
     };
-
-    // 智能字体选择
     this.options.font = this.getCompatibleFont();
   }
 
-  /**
-   * 获取平台兼容字体
-   */
+  /** 获取平台兼容字体 */
   getCompatibleFont() {
     const platform = os.platform();
-    
     const fontMap = {
-      'darwin': 'PingFang SC',      // ✅ macOS简体中文
-      'win32': 'Microsoft YaHei',   // ✅ Windows简体中文
-      'linux': 'WenQuanYi Micro Hei' // ✅ Linux中文字体
+      'darwin': 'PingFang SC',
+      'win32': 'Microsoft YaHei',
+      'linux': 'WenQuanYi Micro Hei'
     };
-
     return fontMap[platform] || 'Arial';
   }
 
   /**
    * 生成ASS字幕文件
-   * @param {Array} subtitles - 字幕数组 [{start, end, text}]
-   * @param {string} outputPath - 输出路径
-   * @param {Object} options - 覆盖默认选项
    */
   async generateASS(subtitles, outputPath, options = {}) {
     const config = { ...this.options, ...options };
-    
-    // 验证字幕数据
     this.validateSubtitles(subtitles);
-    
-    // 生成ASS内容
     const assContent = this.buildASSContent(subtitles, config);
-    
-    // 写入文件
     await fs.writeFile(outputPath, assContent, 'utf8');
-    
     console.log(`✅ 字幕文件已生成: ${outputPath}`);
-    console.log(`   字体: ${config.font}, 大小: ${config.fontSize}px, 颜色: 黄色`);
-    
+    console.log(`   字体: ${config.font}, 大小: ${config.fontSize}px`);
     return outputPath;
   }
 
-  /**
-   * 验证字幕数据
-   */
+  /** 验证字幕数据 */
   validateSubtitles(subtitles) {
     if (!Array.isArray(subtitles) || subtitles.length === 0) {
       throw new Error('字幕数据必须是非空数组');
     }
-
     for (let i = 0; i < subtitles.length; i++) {
       const sub = subtitles[i];
-      
       if (!sub.text || typeof sub.text !== 'string') {
-        throw new Error(`第${i + 1}条字幕缺少text字段或类型错误`);
+        throw new Error(`第${i + 1}条字幕缺少text字段`);
       }
-      
       if (!sub.start || !sub.end) {
         throw new Error(`第${i + 1}条字幕缺少start或end时间字段`);
       }
-      
-      // 验证时间格式
       if (!this.isValidTime(sub.start) || !this.isValidTime(sub.end)) {
-        throw new Error(`第${i + 1}条字幕时间格式错误，应为"HH:MM:SS.mmm"格式`);
+        throw new Error(`第${i + 1}条字幕时间格式错误`);
       }
-      
-      // 验证时间顺序
       if (this.timeToMs(sub.start) >= this.timeToMs(sub.end)) {
-        throw new Error(`第${i + 1}条字幕: start时间(${sub.start})必须小于end时间(${sub.end})`);
+        throw new Error(`第${i + 1}条字幕: start必须小于end`);
       }
-      
-      // 验证重叠（可选，但建议）
       if (i > 0) {
         const prevEnd = this.timeToMs(subtitles[i - 1].end);
         const currStart = this.timeToMs(sub.start);
         if (currStart < prevEnd) {
-          console.warn(`⚠️  警告: 第${i}和${i + 1}条字幕时间重叠`);
+          console.warn(`⚠️  第${i}和${i + 1}条字幕时间重叠`);
         }
       }
     }
@@ -119,313 +100,187 @@ class SubtitleGenerator {
 
   /**
    * 构建ASS文件内容
+   * PlayResX/PlayResY: 1080x1920（竖屏坐标基准）
    */
   buildASSContent(subtitles, config) {
     const lines = [];
-    
-    // Script Info
     lines.push('[Script Info]');
     lines.push('Title: Video Creator Subtitles');
     lines.push('ScriptType: v4.00+');
     lines.push('WrapStyle: 0');
     lines.push('ScaledBorderAndShadow: yes');
+    lines.push('PlayResX: 1080');
+    lines.push('PlayResY: 1920');
     lines.push('');
-    
-    // Styles
+
     lines.push('[V4+ Styles]');
     lines.push('Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding');
-    
+
     const styleLine = [
-      'Default',
-      config.font,
-      config.fontSize,
-      config.color,
-      '&H000000FF', // SecondaryColour (通常为白色)
-      config.outlineColor,
-      config.backgroundColor,
-      config.bold,
-      config.italic,
-      config.underline,
-      config.strikeOut,
-      config.scaleX,
-      config.scaleY,
-      config.spacing,
-      config.angle,
-      config.borderStyle,
-      config.outline,
-      config.shadow,
-      config.alignment,
-      config.marginL,
-      config.marginR,
-      config.marginV,
-      config.encoding
+      'Default', config.font, config.fontSize,
+      config.color, '&H000000FF', config.outlineColor, config.backgroundColor,
+      config.bold, config.italic, config.underline, config.strikeOut,
+      config.scaleX, config.scaleY, config.spacing, config.angle,
+      config.borderStyle, config.outline, config.shadow,
+      config.alignment, config.marginL, config.marginR, config.marginV, config.encoding
     ].join(',');
-    
+
     lines.push(`Style: ${styleLine}`);
     lines.push('');
-    
-    // Events
+
     lines.push('[Events]');
     lines.push('Format: Layer, Start, End, Style, Text');
-    
-    // 添加字幕事件
-    subtitles.forEach((sub, index) => {
-      const line = `Dialogue: 0,${sub.start},${sub.end},Default,${sub.text}`;
-      lines.push(line);
+
+    subtitles.forEach((sub) => {
+      lines.push(`Dialogue: 0,${sub.start},${sub.end},Default,${sub.text}`);
     });
-    
+
     return lines.join('\n');
   }
 
   /**
-   * 从文本生成字幕（智能分段）
-   * @param {string} text - 完整文本
-   * @param {number} totalDuration - 总时长（秒）
-   * @param {Object} options - 分段选项
+   * 从文本生成字幕（中文语义分段）
+   * - 按句号/问号/感叹号切分为"字幕块"
+   * - 每块内按逗号/分号/冒号切分为"行"，\N 连接
+   * - 每行不超过 maxCharsPerLine 字符
+   * - 最后一行不足一半则合并到上一行（避免孤行）
    */
   async generateFromText(text, totalDuration, options = {}) {
-    const {
-      maxCharsPerLine = 15,
-      minDuration = 2,
-      maxDuration = 4
-    } = options;
-    
-    // 智能分段
-    const segments = this.segmentText(text, maxCharsPerLine);
-    
-    // 计算每段时长
-    const subtitles = this.calculateTimings(segments, totalDuration, {
-      minDuration,
-      maxDuration
-    });
-    
-    return subtitles;
-  }
+    const { maxCharsPerLine = 15, minDuration = 2, maxDuration = 6 } = options;
 
-  /**
-   * 智能文本分段
-   */
-  segmentText(text, maxCharsPerLine) {
-    const segments = [];
-    const sentences = text.split(/[。！？.!?]/).filter(s => s.trim());
-    
-    for (const sentence of sentences) {
-      const words = sentence.trim();
-      if (words.length <= maxCharsPerLine) {
-        segments.push(words);
-      } else {
-        // 长句子按逗号或语义分段
-        const parts = words.split(/[,，]/).filter(p => p.trim());
-        for (const part of parts) {
-          const trimmed = part.trim();
-          if (trimmed.length <= maxCharsPerLine) {
-            segments.push(trimmed);
-          } else {
-            // 超长部分按字符数硬分割
-            for (let i = 0; i < trimmed.length; i += maxCharsPerLine) {
-              segments.push(trimmed.substring(i, i + maxCharsPerLine));
-            }
+    // Step 1: 按结束标点拆分为语义段落
+    const paragraphs = text
+      .split(/[。！？.!?\n]+/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+
+    // Step 2: 段落内按逗号拆分为行，组装含 \N 的字幕条目
+    const entries = [];
+    for (const para of paragraphs) {
+      const parts = para.split(/[，、；,;]+/).map(p => p.trim()).filter(p => p.length > 0);
+
+      // 将 parts 组装为多行（\N 分隔），每行不超过 maxCharsPerLine
+      const lines = [];
+      for (const part of parts) {
+        if (part.length <= maxCharsPerLine) {
+          lines.push(part);
+        } else {
+          // 超长部分按字符数硬分割
+          for (let i = 0; i < part.length; i += maxCharsPerLine) {
+            lines.push(part.substring(i, i + maxCharsPerLine));
           }
         }
       }
+
+      // 合并：如果最后一行太短(<一半)，追加到上一行
+      if (lines.length >= 2 && lines[lines.length - 1].length < maxCharsPerLine / 2) {
+        lines[lines.length - 2] = lines[lines.length - 2] + lines[lines.length - 1];
+        lines.pop();
+      }
+
+      entries.push(lines.join('\\N'));
     }
-    
-    return segments.filter(s => s.length > 0);
+
+    // Step 3: 计算时间轴
+    return this.calculateTimings(entries, totalDuration, { minDuration, maxDuration });
   }
 
   /**
    * 计算时间轴
+   * 每段时长按字数比例分配
    */
-  calculateTimings(segments, totalDuration, options) {
-    const { minDuration = 2, maxDuration = 4 } = options;
+  calculateTimings(entries, totalDuration, options) {
+    const { minDuration = 2, maxDuration = 6 } = options;
     const subtitles = [];
-    
-    // 计算总"时间单位"
-    let totalUnits = 0;
-    const unitsPerSegment = segments.map(segment => {
-      // 根据长度和复杂度计算时间单位
-      const lengthFactor = Math.min(segment.length / 10, 2); // 每10字增加1倍
-      const complexityFactor = /[，,；;]/.test(segment) ? 1.2 : 1;
-      const units = Math.max(minDuration, Math.min(maxDuration, lengthFactor * complexityFactor));
-      totalUnits += units;
-      return units;
+
+    // 计算每段权重（字数 + 换行数）
+    let totalWeight = 0;
+    const weights = entries.map(entry => {
+      const textPart = entry.replace(/\\N/g, '');
+      const lineCount = (entry.match(/\\N/g) || []).length + 1;
+      const weight = Math.max(textPart.length, lineCount * 3);
+      totalWeight += weight;
+      return weight;
     });
-    
-    // 缩放以匹配总时长
-    const scaleFactor = totalDuration / totalUnits;
+
     let currentTime = 0;
-    
-    for (let i = 0; i < segments.length; i++) {
-      const duration = unitsPerSegment[i] * scaleFactor;
+    for (let i = 0; i < entries.length; i++) {
+      const rawDuration = (weights[i] / totalWeight) * totalDuration;
+      const duration = Math.max(minDuration, Math.min(maxDuration, rawDuration));
       const start = this.msToTime(currentTime * 1000);
       const end = this.msToTime((currentTime + duration) * 1000);
-      
-      subtitles.push({
-        start,
-        end,
-        text: segments[i]
-      });
-      
+      subtitles.push({ start, end, text: entries[i] });
       currentTime += duration;
     }
-    
+
+    // 缩放最后一帧到总时长
+    if (currentTime < totalDuration) {
+      const last = subtitles[subtitles.length - 1];
+      last.end = this.msToTime(totalDuration * 1000);
+    }
+
     return subtitles;
   }
 
-  /**
-   * 修复现有ASS文件的字体问题
-   * @param {string} assPath - ASS文件路径
-   */
+  /** 修复现有ASS文件的字体问题 */
   async fixFontCompatibility(assPath) {
     try {
       const content = await fs.readFile(assPath, 'utf8');
-      
-      // 查找并替换不兼容字体
-      const incompatibleFonts = [
-        'STHeiti Medium',
-        'STHeiti Light',
-        'SimSun',
-        'Microsoft JhengHei'
-      ];
-      
+      const incompatibleFonts = ['STHeiti Medium', 'STHeiti Light', 'SimSun', 'Microsoft JhengHei'];
       let fixedContent = content;
       let fixed = false;
-      
       for (const font of incompatibleFonts) {
         if (content.includes(font)) {
-          fixedContent = fixedContent.replace(
-            new RegExp(font, 'g'),
-            this.getCompatibleFont()
-          );
+          fixedContent = fixedContent.replace(new RegExp(font, 'g'), this.getCompatibleFont());
           fixed = true;
-          console.log(`🔄 替换不兼容字体: ${font} → ${this.getCompatibleFont()}`);
         }
       }
-      
       if (fixed) {
-        // 备份原文件
         const backupPath = `${assPath}.backup`;
         await fs.copyFile(assPath, backupPath);
-        
-        // 写入修复后的文件
         await fs.writeFile(assPath, fixedContent, 'utf8');
         console.log(`✅ 字体兼容性修复完成: ${assPath}`);
-        console.log(`   备份文件: ${backupPath}`);
       } else {
-        console.log(`✅ 字体检查通过: ${assPath} 使用兼容字体`);
+        console.log(`✅ 字体检查通过: ${assPath}`);
       }
-      
       return fixed;
-      
     } catch (error) {
       console.error(`❌ 修复字体兼容性失败: ${assPath}`, error.message);
       throw error;
     }
   }
 
-  /**
-   * 检查ASS文件质量
-   * @param {string} assPath - ASS文件路径
-   */
+  /** 检查ASS文件质量 */
   async checkQuality(assPath) {
     const issues = [];
-    
     try {
       const content = await fs.readFile(assPath, 'utf8');
-      
-      // 1. 检查字体兼容性
       const incompatibleFonts = ['STHeiti Medium', 'STHeiti Light', 'SimSun'];
       for (const font of incompatibleFonts) {
         if (content.includes(font)) {
-          issues.push({
-            type: 'FONT_COMPATIBILITY',
-            severity: 'ERROR',
-            message: `使用不兼容字体: ${font}`,
-            solution: `替换为 ${this.getCompatibleFont()}`
-          });
+          issues.push({ type: 'FONT_COMPATIBILITY', severity: 'ERROR', message: `使用不兼容字体: ${font}`, solution: `替换为 ${this.getCompatibleFont()}` });
         }
       }
-      
-      // 2. 检查ASS格式
-      if (!content.includes('[Script Info]')) {
-        issues.push({
-          type: 'FORMAT_ERROR',
-          severity: 'ERROR',
-          message: '缺少 [Script Info] 部分',
-          solution: '添加完整的ASS文件头'
-        });
-      }
-      
-      if (!content.includes('[V4+ Styles]')) {
-        issues.push({
-          type: 'FORMAT_ERROR',
-          severity: 'ERROR',
-          message: '缺少 [V4+ Styles] 部分',
-          solution: '添加样式定义'
-        });
-      }
-      
-      if (!content.includes('[Events]')) {
-        issues.push({
-          type: 'FORMAT_ERROR',
-          severity: 'ERROR',
-          message: '缺少 [Events] 部分',
-          solution: '添加字幕事件'
-        });
-      }
-      
-      // 3. 检查字幕内容
+      if (!content.includes('[Script Info]')) issues.push({ type: 'FORMAT_ERROR', severity: 'ERROR', message: '缺少 [Script Info]', solution: '添加ASS文件头' });
+      if (!content.includes('[V4+ Styles]')) issues.push({ type: 'FORMAT_ERROR', severity: 'ERROR', message: '缺少 [V4+ Styles]', solution: '添加样式定义' });
+      if (!content.includes('[Events]')) issues.push({ type: 'FORMAT_ERROR', severity: 'ERROR', message: '缺少 [Events]', solution: '添加字幕事件' });
       const eventLines = content.split('\n').filter(line => line.startsWith('Dialogue:'));
-      if (eventLines.length === 0) {
-        issues.push({
-          type: 'CONTENT_ERROR',
-          severity: 'WARNING',
-          message: '没有字幕内容',
-          solution: '添加字幕文本'
-        });
-      }
-      
-      // 4. 检查时间格式
+      if (eventLines.length === 0) issues.push({ type: 'CONTENT_ERROR', severity: 'WARNING', message: '没有字幕内容', solution: '添加字幕文本' });
       for (const line of eventLines) {
         const match = line.match(/Dialogue: 0,([^,]+),([^,]+),/);
         if (match) {
           const [, start, end] = match;
           if (!this.isValidTime(start) || !this.isValidTime(end)) {
-            issues.push({
-              type: 'TIME_FORMAT_ERROR',
-              severity: 'ERROR',
-              message: `时间格式错误: ${start} - ${end}`,
-              solution: '使用 HH:MM:SS.mmm 格式'
-            });
+            issues.push({ type: 'TIME_FORMAT_ERROR', severity: 'ERROR', message: `时间格式错误: ${start} - ${end}`, solution: '使用 HH:MM:SS.mmm 格式' });
           }
         }
       }
-      
-      return {
-        path: assPath,
-        issues,
-        passed: issues.length === 0,
-        summary: issues.length === 0 ? '✅ 质量检查通过' : `⚠️  发现 ${issues.length} 个问题`
-      };
-      
+      return { path: assPath, issues, passed: issues.length === 0, summary: issues.length === 0 ? '✅ 通过' : `⚠️  ${issues.length} 个问题` };
     } catch (error) {
-      return {
-        path: assPath,
-        issues: [{
-          type: 'FILE_ERROR',
-          severity: 'ERROR',
-          message: `无法读取文件: ${error.message}`,
-          solution: '检查文件路径和权限'
-        }],
-        passed: false,
-        summary: '❌ 文件读取失败'
-      };
+      return { path: assPath, issues: [{ type: 'FILE_ERROR', severity: 'ERROR', message: `无法读取: ${error.message}`, solution: '检查路径' }], passed: false, summary: '❌ 读取失败' };
     }
   }
 
-  /**
-   * 时间验证辅助函数
-   */
   isValidTime(timeStr) {
     return /^\d{1,2}:\d{2}:\d{2}\.\d{2,3}$/.test(timeStr);
   }
@@ -442,7 +297,6 @@ class SubtitleGenerator {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
   }
 }

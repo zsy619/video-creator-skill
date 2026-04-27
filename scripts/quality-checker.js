@@ -184,16 +184,16 @@ class QualityChecker {
           }
         }
 
-        // 检查 ASS 中 Fontsize 参数是否在合理范围内
+        // 检查 ASS 中 Fontsize 参数是否在合理范围内（标准 72px，最低 36px）
         const fontSizeMatch = content.match(/Fontsize,(\d+)/);
         if (fontSizeMatch) {
           const fontSize = parseInt(fontSizeMatch[1]);
-          if (fontSize < 10 || fontSize > 20) {
+          if (fontSize < 36) {
             this.issues.push({
               type: 'FONT_SIZE',
               severity: 'WARNING',
-              message: `字体大小 ${fontSize}px 可能不合适`,
-              solution: '建议使用10-14px字体',
+              message: `字体大小 ${fontSize}px 可能过小`,
+              solution: '建议使用72px字体（竖屏视频标准），最低不低于36px',
               path: file,
               fixable: true,
               fixAction: 'adjustFontSize'
@@ -561,8 +561,8 @@ class QualityChecker {
   }
 
   /**
-   * 调整 ASS 文件中的字体大小
-   * 通过正则查找 Fontsize 参数，将超出 10-20px 范围的值统一重置为 12px
+   * 调整 ASS 文件中的字体大小为默认 72px
+   * 查找 Style 行中的 Fontsize 参数，将低于 36px 的值重置为 72px
    *
    * @param {string} filePath - ASS 文件路径
    */
@@ -570,8 +570,9 @@ class QualityChecker {
     const fileContent = await fs.readFile(filePath, 'utf8');
     const lines = fileContent.split('\n');
     const adjustedLines = lines.map(function(line) {
-      return line.replace('Fontsize,', function() {
-        return 'Fontsize,12';
+      if (!line.startsWith('Style:')) return line;
+      return line.replace(/Fontsize,\d+/g, function() {
+        return 'Fontsize,72';
       });
     });
     await fs.writeFile(filePath, adjustedLines.join('\n'), 'utf8');

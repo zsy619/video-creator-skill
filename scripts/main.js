@@ -661,8 +661,9 @@ class VideoCreator {
   }
 
   /**
-   * Step 8: 生成字幕
-   * 使用 SubtitleGenerator 生成 ASS 格式字幕
+   * Step 8: 生成字幕 + FFmpeg 烧录
+   * 使用 SubtitleGenerator 生成 ASS 格式字幕，然后用 ffmpeg 烧录到视频
+   * 规范：Fontsize=72, 黄色, PingFang SC, MarginL/R/V=30, 底部居中
    */
   async generateSubtitles() {
     if (this.options.skipSubtitles) {
@@ -674,20 +675,42 @@ class VideoCreator {
 
     try {
       const subtitleGenerator = new SubtitleGenerator({
-        fontSize: 10,
-        color: '&H0000FFFF'
+        fontSize: 72,
+        color: '&H00FFFF'
       });
 
       const narrationText = this.metadata.summary || this.content;
       const audioDuration = this.metadata.suggestedDuration || 30;
 
       const subtitles = await subtitleGenerator.generateFromText(narrationText, audioDuration);
-      const outputPath = path.join(this.options.outputDir, 'audio', 'subtitles.ass');
+
+      // 文件名含时长信息，对齐 WORKFLOW.md 规范
+      const durationLabel = Math.round(audioDuration);
+      const outputPath = path.join(this.options.outputDir, 'audio', `subtitles_${durationLabel}s.ass`);
       await subtitleGenerator.generateASS(subtitles, outputPath);
 
       this.generatedFiles.push(outputPath);
       this.metadata.subtitlesGenerated = true;
+      this.metadata.subtitlePath = outputPath;
+      this.metadata.actualDuration = audioDuration;
       console.log(`✅ 字幕生成完成: ${outputPath}`);
+
+      // FFmpeg 烧录字幕到视频（如果有视频需要烧录）
+      const finalVideo = path.join(this.options.outputDir, 'video-project', 'out', 'final-video.mp4');
+      const outputWithSubs = path.join(this.options.outputDir, 'video-project', 'out', 'final-with-subs.mp4');
+      try {
+        await fs.access(finalVideo);
+        const burnCmd = `ffmpeg -y -i "${finalVideo}" -vf "ass='${outputPath}'" -c:v libx264 -crf 18 -preset fast -c:a copy "${outputWithSubs}"`;
+        await execAsync(burnCmd, { timeout: 120000 });
+        this.generatedFiles.push(outputWithSubs);
+        console.log(`✅ 字幕已烧录: ${outputWithSubs}`);
+      } catch (e) {
+        if (e.code === 'ENOENT') {
+          console.log('⏭️  无可烧录的视频（视频尚未渲染），字幕文件已就绪');
+        } else {
+          console.warn(`⚠️  字幕烧录失败（不影响使用）: ${e.message}`);
+        }
+      }
     } catch (error) {
       console.warn(`⚠️  字幕生成失败: ${error.message}`);
     }
