@@ -1,8 +1,113 @@
 # 大字体居中设计规范
 
 > 所属模块：video-creator / SKILL.md → 视觉设计
+> **最后更新**：2026-04-27（新增 PIL 封面字体规范）
 
 ## ⚠️ 重要：所有视频内容必须使用大字体并严格居中显示。
+
+---
+
+## 🎨 PIL 封面字体规范（2026-04-27 新增）
+
+> ⚠️ 封面生成首选 **baoyu-imagine（AI 生成）**，PIL 仅在 API 不可用时使用。
+> ⚠️ **字体路径必须是 `/System/Library/Fonts/STHeiti Medium.ttc`**，不得使用 `LiHei Pro Medium.ttc`！
+
+### PIL 封面字体速查表
+
+| 封面类型 | 画布尺寸 | 标题字号 | 副标题字号 | 标签字号 | URL字号 | 标题高度占比 |
+|---------|---------|---------|-----------|---------|---------|-------------|
+| 竖屏 | 1080×1920 | **260-300px** | 80px | 48px | 32px | ≥10% |
+| 公众号 | 900×383 | **140-180px** | 48px | 36px | 24px | ≥15% |
+| 小红书 | 1440×2560 | **360-400px** | 100px | 64px | 44px | ≥10% |
+
+### PIL 自校验机制
+
+```python
+from PIL import Image, ImageDraw, ImageFont
+FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
+
+# 验证字体加载
+font = ImageFont.truetype(FONT_PATH, 280)
+bbox = draw.textbbox((0, 0), 'Title', font=font, anchor='mm')
+height = bbox[3] - bbox[1]
+assert height > 100, f"Font failed: {height}px"
+
+# 验证标题占比
+ratio = height / canvas_height * 100
+assert ratio >= 10, f"Title too small: {ratio:.1f}% < 10%"
+```
+
+### 字体突出设计（多层发光效果）
+
+> ⚠️ **核心原则**：字体不被背景掩盖！
+
+| 设计 | 效果 |
+|------|------|
+| 旧（亮网格+单层发光） | 字体被背景掩盖 |
+| 新（暗网格+多层发光） | 字体清晰醒目 |
+
+**完整代码模板**：
+```python
+from PIL import Image, ImageDraw, ImageFont
+import os
+FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
+
+def create_prominent_cover(output_path, size, title_size, sub_size, tag_size, url_size, title_y_ratio=0.18):
+    w, h = size
+    img = Image.new('RGB', size, color='#0D0221')
+    draw = ImageDraw.Draw(img)
+    
+    # 1. 暗色背景网格（不抢字体风头）
+    for i in range(0, h, max(20, h//30)):
+        draw.line([(0, i), (w, i)], fill='#150828', width=1)
+    for i in range(0, w, max(20, w//30)):
+        draw.line([(i, 0), (i, h)], fill='#150828', width=1)
+    
+    # 2. 四角背景光晕（中心保持暗色）
+    for cx, cy, r, c in [
+        (int(w*0.1), int(h*0.1), int(min(w,h)*0.35), '#00FFFF'),
+        (int(w*0.9), int(h*0.1), int(min(w,h)*0.25), '#FF00FF'),
+        (int(w*0.1), int(h*0.9), int(min(w,h)*0.25), '#9D00FF'),
+        (int(w*0.9), int(h*0.9), int(min(w,h)*0.2), '#00FFFF'),
+    ]:
+        for a in range(3, 0, -1):
+            color = tuple(int(c[i:i+2], 16) for i in (1, 3, 5))
+            draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=tuple(int(x*0.3) for x in color))
+    
+    # 3. 字体加载
+    font_title = ImageFont.truetype(FONT_PATH, title_size)
+    font_subtitle = ImageFont.truetype(FONT_PATH, sub_size)
+    font_tag = ImageFont.truetype(FONT_PATH, tag_size)
+    font_url = ImageFont.truetype(FONT_PATH, url_size)
+    
+    # 4. 自校验
+    bbox = draw.textbbox((0, 0), 'Title', font=font_title, anchor='mm')
+    title_height = bbox[3] - bbox[1]
+    ratio = title_height / h * 100
+    assert ratio >= 10, f"Too small: {ratio:.1f}%"
+    
+    # 5. 多层发光标题（字体突出核心）
+    title_y = int(h * title_y_ratio)
+    for glow_size, glow_color in [
+        (int(title_size*0.08), '#004444'),
+        (int(title_size*0.05), '#006666'),
+        (int(title_size*0.03), '#008888'),
+        (int(title_size*0.015), '#00CCCC'),
+    ]:
+        for dx, dy in [(0, -glow_size), (0, glow_size), (-glow_size, 0), (glow_size, 0)]:
+            draw.text((w//2 + dx, title_y + dy), 'Title', fill=glow_color, font=font_title, anchor='mm')
+    draw.text((w//2, title_y), 'Title', fill='#FFFFFF', font=font_title, anchor='mm')
+    
+    # 6. 副标题/标签/URL...
+    img.save(output_path, 'PNG')
+
+# 使用
+create_prominent_cover('cover.png', (1080,1920), 280, 80, 48, 32, 0.18)
+create_prominent_cover('cover-wechat.png', (900,383), 160, 48, 36, 24, 0.32)
+create_prominent_cover('cover-xhs.png', (1440,2560), 360, 100, 64, 44, 0.16)
+```
+
+---
 
 ## 字体大小规范
 

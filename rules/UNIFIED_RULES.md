@@ -87,18 +87,101 @@ const SCENES = [
 | 类型 | 尺寸 | 用途 |
 |------|------|------|
 | 竖屏封面 | 1080×1920 | 视频封面、抖音/视频号 |
-| 微信封面 | 900×383 | 公众号文章封面 |
+| 微信公众号封面 | 900×383 | 公众号文章封面（必须单独生成！） |
+| 小红书封面 | 1440×2560 | 小红书 |
 
 **封面生成方式（按优先级）**：
 1. **baoyu-imagine（AI 生成）** ← 首选，字体大、效果好
-2. **PIL（兜底）** ← 仅在 AI 不可用时使用
+2. **PIL（兜底）** ← 仅在 AI 不可用时使用，必须遵循字体规范
 
-**封面字体规范**：
-| 元素 | 字号 | 说明 |
-|------|------|------|
-| 主标题 | ≥300px | "DeepSeek" |
-| 副标题 | ≥200px | "实用集成" |
-| 描述文字 | ≥80px | 副标题下的说明 |
+#### 5.1 PIL 封面字体规范（2026-04-27 更新）
+
+> ⚠️ **字体路径必须是 `/System/Library/Fonts/STHeiti Medium.ttc`**，不得使用 `LiHei Pro Medium.ttc`（会导致字体无法加载）。
+
+**PIL 封面字体速查表**：
+
+| 封面类型 | 画布尺寸 | 标题字号 | 副标题字号 | 标签字号 | URL字号 | 标题高度占比 |
+|---------|---------|---------|-----------|---------|---------|-------------|
+| 竖屏 | 1080×1920 | **260-300px** | 80px | 48px | 32px | ≥10% |
+| 公众号 | 900×383 | **140-180px** | 48px | 36px | 24px | ≥15% |
+| 小红书 | 1440×2560 | **360-400px** | 100px | 64px | 44px | ≥10% |
+
+**推荐字号（实测验证）**：
+
+| 封面 | 标题 | 副标题 | 标签 | URL |
+|------|------|--------|------|-----|
+| 竖屏 (1080×1920) | 280px | 80px | 48px | 32px |
+| 公众号 (900×383) | 160px | 48px | 36px | 24px |
+| 小红书 (1440×2560) | 360px | 100px | 64px | 44px |
+
+**PIL 封面完整代码（字体突出设计）**：
+```python
+from PIL import Image, ImageDraw, ImageFont
+import os
+FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
+
+def create_prominent_cover(output_path, size, title_size, subtitle_size, tag_size, url_size, title_y_ratio=0.18):
+    w, h = size
+    img = Image.new('RGB', size, color='#0D0221')
+    draw = ImageDraw.Draw(img)
+    
+    # 暗色背景网格（不抢字体风头）
+    for i in range(0, h, max(20, h//30)):
+        draw.line([(0, i), (w, i)], fill='#150828', width=1)
+    for i in range(0, w, max(20, w//30)):
+        draw.line([(i, 0), (i, h)], fill='#150828', width=1)
+    
+    # 四角光晕（中心保持暗色）
+    for cx, cy, r, c in [
+        (int(w*0.1), int(h*0.1), int(min(w,h)*0.35), '#00FFFF'),
+        (int(w*0.9), int(h*0.1), int(min(w,h)*0.25), '#FF00FF'),
+        (int(w*0.1), int(h*0.9), int(min(w,h)*0.25), '#9D00FF'),
+        (int(w*0.9), int(h*0.9), int(min(w,h)*0.2), '#00FFFF'),
+    ]:
+        for alpha in range(3, 0, -1):
+            color = tuple(int(c[i:i+2], 16) for i in (1, 3, 5))
+            draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=tuple(int(x*0.3) for x in color))
+    
+    # 字体加载
+    font_title = ImageFont.truetype(FONT_PATH, title_size)
+    font_subtitle = ImageFont.truetype(FONT_PATH, subtitle_size)
+    font_tag = ImageFont.truetype(FONT_PATH, tag_size)
+    font_url = ImageFont.truetype(FONT_PATH, url_size)
+    
+    # 自校验
+    bbox = draw.textbbox((0, 0), 'Title', font=font_title, anchor='mm')
+    title_height = bbox[3] - bbox[1]
+    ratio = title_height / h * 100
+    print(f"Title: {title_height}px ({ratio:.1f}%)")
+    assert ratio >= 10, f"Too small: {ratio:.1f}%"
+    
+    # 多层发光标题（字体突出）
+    title_y = int(h * title_y_ratio)
+    for glow_size, glow_color in [
+        (int(title_size*0.08), '#004444'),
+        (int(title_size*0.05), '#006666'),
+        (int(title_size*0.03), '#008888'),
+        (int(title_size*0.015), '#00CCCC'),
+    ]:
+        for dx, dy in [(0, -glow_size), (0, glow_size), (-glow_size, 0), (glow_size, 0)]:
+            draw.text((w//2 + dx, title_y + dy), 'Title', fill=glow_color, font=font_title, anchor='mm')
+    draw.text((w//2, title_y), 'Title', fill='#FFFFFF', font=font_title, anchor='mm')
+    
+    # 副标题/标签/URL...
+    img.save(output_path, 'PNG')
+    print(f"{output_path}: {os.path.getsize(output_path)/1024:.1f}KB")
+
+# 使用
+create_prominent_cover('cover.png', (1080,1920), 280, 80, 48, 32, 0.18)
+create_prominent_cover('cover-wechat.png', (900,383), 160, 48, 36, 24, 0.32)
+create_prominent_cover('cover-xhs.png', (1440,2560), 360, 100, 64, 44, 0.16)
+```
+
+**自校验机制**：生成后必须验证标题高度占比 ≥10%（竖屏/小红书）或 ≥15%（公众号）。
+
+**macOS 可用字体**：`/System/Library/Fonts/STHeiti Medium.ttc` ✅
+
+> ⚠️ PIL 封面必须自校验：1. 字体路径正确 2. 标题高度≥10% 3. 文件大小>30KB
 
 ### 6. 赛博朋克风格规范（默认风格）
 
