@@ -291,8 +291,8 @@ class BaoyuIntegration {
     console.log(`🔄 使用 SVG 生成器生成封面图`);
 
     const theme = THEMES[style] || THEMES['tech-modern'];
-    const svgPath = (outputPath || '').replace(/\.(webp|png|jpg)$/, '.svg');
-    const finalPath = svgPath || path.join(this.options.outputDir, 'images', 'cover.svg');
+    // 保留原始扩展名（.png），实际写入 SVG 内容以适应降级场景
+    const finalPath = outputPath || path.join(this.options.outputDir, 'docs', 'assets', 'cover.png');
 
     await generateCoverSvg({ title, theme, outputPath: finalPath });
 
@@ -353,8 +353,7 @@ class BaoyuIntegration {
 
     const theme = THEMES[style] || THEMES['tech-modern'];
     const dataPoints = this.extractDataPoints(content);
-    const svgPath = (outputPath || '').replace(/\.(webp|png|jpg)$/, '.svg');
-    const finalPath = svgPath || path.join(this.options.outputDir, 'images', 'infographic.svg');
+    const finalPath = outputPath || path.join(this.options.outputDir, 'docs', 'assets', 'infographic.png');
 
     await generateInfographicSvg({ dataPoints, theme, outputPath: finalPath });
 

@@ -291,7 +291,7 @@ class VideoCreator {
         title,
         content: this.content.substring(0, 500),
         style: this.options.style || 'tech-modern',
-        outputPath: path.join(imagesDir, 'cover.svg')
+        outputPath: path.join(imagesDir, 'cover.png')  // 输出 PNG，对齐 WORKFLOW.md 规范
       });
 
       if (coverResult.success) {

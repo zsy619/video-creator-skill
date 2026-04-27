@@ -175,8 +175,6 @@ sed -i '' "s/{project-name}/{project_name}/" "${PROJECT_DIR}/docs/session-log.md
 echo "✅ session-log.md 已初始化"
 ```
 
-
-
 | # | 文件 | 路径 | 说明 |
 |---|------|------|------|
 | 1 | 项目首页 | `docs/README.md` | 项目概览、规格、文件清单 |
@@ -195,10 +193,12 @@ echo "✅ session-log.md 已初始化"
 
 | # | 文件 | 路径 | 说明 |
 |---|------|------|------|
-| 12 | 封面图 | `docs/assets/cover.png` | **强制必填，9:16竖屏** |
-| 13 | 配音 | `audio/neural_1_2x.m4a` | edge-tts生成，1.2x语速 |
-| 14 | 字幕 | `audio/subtitles.ass` | ASS格式，12px黄色 |
-| 15 | 最终视频 | `video-project/out/final-with-subs.mp4` | 字幕已烧录 |
+| 12 | 封面图 | `docs/assets/cover.png` | **强制必填，9:16竖屏（1080×1920）** |
+| 13 | 微信公众号封面 | `docs/assets/cover-wechat.png` | **强制必填，900×383（约2.35:1）** |
+| 14 | 小红书封面 | `docs/assets/cover-xhs.png` | **强制必填，1440×2560（9:16）** |
+| 15 | 配音 | `audio/neural_1_2x.m4a` | edge-tts生成，1.2x语速 |
+| 16 | 字幕 | `audio/subtitles.ass` | ASS格式，12px黄色 |
+| 17 | 最终视频 | `video-project/out/final-with-subs.mp4` | 字幕已烧录 |
 
 ### Step 0 验证命令
 
