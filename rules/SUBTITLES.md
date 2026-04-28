@@ -38,6 +38,44 @@ Dialogue: 0,0:00:00.00,0:00:04.00,Default,,30,30,30,,想拥有一个自己的\NA
 2. **禁止使用 `\\N` 换行** - 必须用 `\N`
 3. **禁止字号低于36px** - 竖屏视频72px是最佳阅读尺寸，最低不低于36px
 
+### 🔴 致命Bug：Format 字段数与 Dialogue 字段数不匹配
+
+> **影响**：在 2026-04-27 的 cangjie-skill-video 项目中发现。
+> **症状**：烧录后的视频画面上，字幕文字前面出现 `Default,0,0,0,,` 等杂缀。
+
+#### 错误写法（导致杂缀）
+
+```
+Format: Layer, Start, End, Style, Text          ← 只有5个字段！
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,Default,0,0,0,,今天给大家介绍...  ← 写入了10个字段的值
+```
+
+解析时，`Default`（Name字段的值）和后面的 `Default,0,0,0,,` 全部被当作 **Text 文本内容**烧入画面。
+
+#### 正确写法
+
+```
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text  ← 10个字段
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,,0,0,50,,今天给大家介绍...           ← Name为空，MarginV=50
+```
+
+#### gen_subtitles.py 规范写法
+
+```python
+lines = [
+    "[Events]",
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+]
+for i, (start, end, text) in enumerate(subtitles):
+    text_escaped = text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+    if "/" in text_escaped:
+        text_escaped = text_escaped.replace("/", "\\N")
+    # Name=空, MarginL=0, MarginR=0, MarginV=50, Effect=空
+    lines.append(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,50,,{text_escaped}")
+```
+
+> **⚠️ 自动检查**：运行 `ffmpeg -i video.mp4 -filter_complex "ass=subs.ass" -f null -` 时，如果看到 `Track has custom format line(s)` 警告，说明 Format 行声明的字段数与实际 Dialogue 行字段数不匹配。
+
 ### 标准参数（必须严格遵守）
 
 | 参数 | 值 | 说明 |

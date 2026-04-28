@@ -8,8 +8,8 @@ related_skills:
   - THEMES.md
   - FONTS.md
   - THEME_ANIMATIONS.md
-version: 2.5.0
-last_updated: 2026-04-21
+version: 2.6.0
+last_updated: 2026-04-27
 ---
 
 # Remotion 视频组件规范 (Remotion Video Component Spec)
@@ -96,6 +96,84 @@ export const RemotionRoot: React.FC = () => {
 | 视频号 | 1080×1920 | 30/60fps | 8-12 Mbps |
 | 抖音 | 1080×1920 | 60fps | 10-15 Mbps |
 | YouTube Shorts | 1080×1920 | 30/60fps | 8-12 Mbps |
+
+---
+
+## ⚠️ 关键修复（v2.6.0 必须遵循）
+
+### 1. AbsoluteFill 尺寸失效问题
+
+> **问题**：`AbsoluteFill style={{ width: 1080, height: 1920 }}` 在新版 Remotion 中无法正确约束尺寸，渲染出的帧可能变成 1195×1920（或其他错误尺寸），导致 libx264 编码失败（`width not divisible by 2`）。
+
+> **原因**：Remotion 的 AbsoluteFill 在某些版本下不继承外层容器的 CSS 尺寸。
+
+> **解决方案**：在主组件中用普通 `<div>` 替代 `AbsoluteFill`，显式指定宽高：
+
+```tsx
+// ❌ 错误：AbsoluteFill 可能无法正确约束尺寸
+<AbsoluteFill style={{ width: 1080, height: 1920, backgroundColor: '#0F172A' }}>
+
+// ✅ 正确：使用普通 div + explicit 宽高
+<div style={{ width: 1080, height: 1920, position: 'relative', backgroundColor: '#0F172A', overflow: 'hidden' }}>
+```
+
+> **注意**：子场景组件（CoverScene、PainScene 等）仍然可以使用 `AbsoluteFill`，因为它们在 Sequence 内以 full-screen 模式运行。
+
+### 2. tsconfig.json 必须存在
+
+Remotion 项目根目录必须包含 `tsconfig.json`，否则编译直接失败：
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "noEmit": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "out"]
+}
+```
+
+### 3. remotion.config.ts 的 import 路径已变更
+
+Remotion 4+ 中 `remotion.config.ts` 的 import 路径变更，容易报错：
+
+```ts
+// ❌ 旧路径（Remotion 3）：
+import { Config } from '@remotion/cli/config';
+
+// ✅ 如非必要可不创建 remotion.config.ts
+// ✅ 如需配置，仅使用无害选项（如 setVideoImageFormat）
+```
+
+### 4. 场景居中布局规范
+
+所有场景的内容必须**上下左右全部居中**，使用以下模式：
+
+```tsx
+<div style={{
+  position: 'absolute', inset: 0,     // 覆盖整个画面
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'center',          // 垂直居中
+  alignItems: 'center',              // 水平居中
+  padding: '0 60px',                  // 左右对称 padding
+}}>
+  {/* 文字内容加 textAlign: center */}
+  <div style={{ textAlign: 'center', fontSize: 42 }}>标题</div>
+  {/* 网格/列表加 maxWidth 控制宽度 */}
+  <div style={{ width: '100%', maxWidth: 880 }}>...</div>
+</div>
+```
+
+> **⚠️ 禁止**：使用 `padding: '80px 50px 40px'`（上下不对称）或 `alignItems: 'flex-start'`（内容偏左）。
 
 ---
 
