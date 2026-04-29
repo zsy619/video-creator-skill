@@ -51,360 +51,106 @@ class HtmlBuilder {
     const tags = metadata.tags || [];
     const images = metadata.images || [];
     
-    const cdn = this.getCDNConfig();
-    
+    const p1 = '#FF0080', p2 = '#00FFFF';
     return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${this.escapeHtml(title)}</title>
-    
-    <!-- CSS资源 -->
-    ${cdn.tailwind}
-    ${cdn.fonts}
-    
-    <!-- 自定义样式 -->
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: ${this.options.fontFamily};
-            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
-            color: #ffffff;
-            min-height: 100vh;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 20px;
-        }
-        
-        .glass-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-        }
-        
-        .gradient-text {
-            background: linear-gradient(45deg, #00ffcc, #0099ff, #cc00ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .tag {
-            display: inline-block;
-            padding: 4px 12px;
-            background: rgba(0, 255, 204, 0.1);
-            border: 1px solid rgba(0, 255, 204, 0.3);
-            border-radius: 20px;
-            font-size: 14px;
-            color: #00ffcc;
-        }
-        
-        .image-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
-        }
-        
-        .image-item {
-            position: relative;
-            overflow: hidden;
-            border-radius: 15px;
-        }
-        
-        .image-item img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            transition: transform 0.3s ease;
-        }
-        
-        .image-item:hover img {
-            transform: scale(1.05);
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 0 15px;
-            }
-            
-            .image-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            h1 {
-                font-size: 2rem !important;
-            }
-            
-            h2 {
-                font-size: 1.5rem !important;
-            }
-        }
-        
-        /* 动画效果 */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .animate-fade-in {
-            animation: fadeIn 0.6s ease-out;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-        
-        .animate-float {
-            animation: float 3s ease-in-out infinite;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: ${this.options.fontFamily}; background: #0A0A14; color: #F8FAFC; line-height: 1.8; }
+        .container { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+        .grid-bg { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-image: linear-gradient(${p1}10 1px, transparent 1px), linear-gradient(90deg, ${p1}10 1px, transparent 1px), linear-gradient(${p2}08 1px, transparent 1px), linear-gradient(90deg, ${p2}08 1px, transparent 1px); background-size: 100px 100px, 100px 100px, 50px 50px, 50px 50px; pointer-events: none; z-index: -1; }
+        h1 { font-size: 72px; font-weight: 800; margin-bottom: 20px; background: linear-gradient(135deg, ${p1} 0%, ${p2} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.15; }
+        h2 { font-size: 36px; font-weight: 700; margin: 48px 0 20px; background: linear-gradient(135deg, ${p1} 0%, ${p2} 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h3 { font-size: 28px; font-weight: 600; margin: 32px 0 16px; color: #F8FAFC; }
+        p { font-size: 20px; color: #C0C0D0; margin-bottom: 20px; }
+        a { color: ${p2}; text-decoration: none; }
+        a:hover { opacity: 0.8; }
+        .stats { display: flex; justify-content: center; gap: 48px; margin: 48px 0; flex-wrap: wrap; }
+        .stat-card { text-align: center; }
+        .stat-num { font-size: 48px; font-weight: 800; color: ${p1}; }
+        .stat-label { font-size: 20px; color: #808090; margin-top: 6px; }
+        .card { background: linear-gradient(135deg, ${p1}10, ${p2}10); border: 1px solid ${p1}40; border-radius: 16px; padding: 28px 32px; margin-bottom: 28px; }
+        .tag { display: inline-block; padding: 6px 16px; background: ${p1}20; border: 1px solid ${p1}60; border-radius: 20px; font-size: 14px; color: ${p1}; margin: 4px; }
+        .image-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 30px 0; }
+        .image-item { overflow: hidden; border-radius: 12px; }
+        .image-item img { width: 100%; height: 200px; object-fit: cover; border-radius: 12px; }
+        .feature-row { display: flex; align-items: flex-start; margin-bottom: 20px; }
+        .feature-icon { width: 48px; height: 48px; background: ${p1}20; border: 2px solid ${p1}; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 20px; flex-shrink: 0; font-size: 24px; }
+        .feature-text { font-size: 24px; color: #F8FAFC; line-height: 1.6; }
+        .feature-text strong { color: ${p2}; }
+        .footer { text-align: center; padding: 40px 0; color: #808090; font-size: 14px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 60px; }
+        .footer a { color: ${p2}; margin: 0 12px; }
+        @media (max-width: 640px) { h1 { font-size: 48px; } h2 { font-size: 28px; } p { font-size: 18px; } .container { padding: 0 16px; } }
     </style>
 </head>
 <body>
-    <!-- 导航栏 -->
-    <nav class="py-4 glass-card sticky top-0 z-50">
-        <div class="container flex justify-between items-center">
-            <div class="text-xl font-bold gradient-text">
-                🎬 Video Creator
-            </div>
-            <div class="text-sm opacity-80">
-                生成时间: ${new Date().toLocaleDateString('zh-CN')}
-            </div>
-        </div>
-    </nav>
-    
-    <!-- 主内容 -->
-    <main class="container py-8">
-        <!-- 标题区域 -->
-        <div class="text-center mb-12 animate-fade-in">
-            <h1 class="text-4xl md:text-5xl font-bold mb-6 gradient-text">
-                ${this.escapeHtml(title)}
-            </h1>
-            <div class="w-32 h-1 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 mx-auto rounded-full mb-8"></div>
+    <div class="grid-bg"></div>
+    <div style="padding: 60px 0;">
+        <div class="container" style="text-align: center;">
+            <h1>${this.escapeHtml(title)}</h1>
+            <p style="font-size: 32px; color: #808090; margin-bottom: 48px;">${this.escapeHtml(summary)}</p>
             
-            <!-- 元数据 -->
-            <div class="flex flex-wrap justify-center gap-4 mb-8">
-                <div class="glass-card px-6 py-3">
-                    <div class="text-sm opacity-70">字数</div>
-                    <div class="text-xl font-bold">${metadata.words || 0}</div>
-                </div>
-                <div class="glass-card px-6 py-3">
-                    <div class="text-sm opacity-70">段落</div>
-                    <div class="text-xl font-bold">${metadata.paragraphs || 0}</div>
-                </div>
-                <div class="glass-card px-6 py-3">
-                    <div class="text-sm opacity-70">建议时长</div>
-                    <div class="text-xl font-bold">${metadata.suggestedDuration || 30}秒</div>
-                </div>
+            <div class="stats">
+                <div class="stat-card"><div class="stat-num">${metadata.words || 0}</div><div class="stat-label">字数</div></div>
+                <div class="stat-card"><div class="stat-num">${metadata.paragraphs || 0}</div><div class="stat-label">段落</div></div>
+                <div class="stat-card"><div class="stat-num">${metadata.suggestedDuration || 30}秒</div><div class="stat-label">建议时长</div></div>
             </div>
-        </div>
-        
-        <!-- 摘要卡片 -->
-        <div class="glass-card p-8 mb-12 animate-fade-in" style="animation-delay: 0.2s">
-            <h2 class="text-2xl font-bold mb-4 flex items-center">
-                <span class="mr-2">📋</span> 内容摘要
-            </h2>
-            <p class="text-lg leading-relaxed opacity-90">
-                ${this.escapeHtml(summary)}
-            </p>
-        </div>
-        
-        <!-- 标签区域 -->
-        <div class="mb-12 animate-fade-in" style="animation-delay: 0.4s">
-            <h2 class="text-2xl font-bold mb-4 flex items-center">
-                <span class="mr-2">🏷️</span> 标签
-            </h2>
-            <div class="flex flex-wrap gap-3">
-                ${tags.map(tag => `
-                    <span class="tag animate-float" style="animation-delay: ${Math.random() * 2}s">
-                        #${this.escapeHtml(tag)}
-                    </span>
-                `).join('')}
+            
+            <div class="card" style="text-align: left;">
+                <h2 style="margin-top: 0;">📋 内容摘要</h2>
+                <p>${this.escapeHtml(summary)}</p>
             </div>
-        </div>
-        
-        <!-- 图片展示 -->
-        ${images.length > 0 ? `
-        <div class="mb-12 animate-fade-in" style="animation-delay: 0.6s">
-            <h2 class="text-2xl font-bold mb-4 flex items-center">
-                <span class="mr-2">🖼️</span> 生成图片
-            </h2>
-            <div class="image-grid">
-                ${images.map((img, index) => `
-                    <div class="image-item glass-card overflow-hidden">
-                        <img src="${img.url || '#'}" alt="${img.alt || '图片'}" 
-                             onerror="this.src='https://picsum.photos/400/300?random=${index}'">
-                        <div class="p-4">
-                            <div class="font-medium">${img.title || '图片'}</div>
-                            <div class="text-sm opacity-70 mt-1">${img.description || ''}</div>
+            
+            ${tags.length > 0 ? `
+            <div class="card" style="text-align: left;">
+                <h2 style="margin-top: 0;">🏷️ 标签</h2>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${tags.map(tag => `<span class="tag">#${this.escapeHtml(tag)}</span>`).join('')}
+                </div>
+            </div>` : ''}
+            
+            ${images.length > 0 ? `
+            <div class="card" style="text-align: left;">
+                <h2 style="margin-top: 0;">🖼️ 生成图片</h2>
+                <div class="image-grid">
+                    ${images.map((img, index) => `
+                        <div class="image-item">
+                            <img src="${img.url || '#'}" alt="${img.alt || '图片'}" onerror="this.src='https://picsum.photos/400/300?random=${index}'">
+                            <p style="margin: 8px 0 0; font-size: 16px; color: #F8FAFC;">${img.title || '图片'}</p>
+                            <p style="margin: 4px 0 0; font-size: 14px; color: #808090;">${img.description || ''}</p>
                         </div>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-        ` : ''}
-        
-        <!-- 平台优化建议 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-            <!-- 小红书 -->
-            <div class="glass-card p-6 animate-fade-in" style="animation-delay: 0.8s">
-                <div class="flex items-center mb-4">
-                    <span class="text-2xl mr-2">📕</span>
-                    <h3 class="text-xl font-bold">小红书优化</h3>
+                    `).join('')}
                 </div>
-                <div class="space-y-3">
-                    <div>
-                        <div class="text-sm opacity-70">标题建议</div>
-                        <div class="font-medium">${metadata.xhsTitle || '🔥 ' + title.substring(0, 20)}</div>
-                    </div>
-                    <div>
-                        <div class="text-sm opacity-70">时长建议</div>
-                        <div class="font-medium">15-60秒</div>
-                    </div>
-                    <div>
-                        <div class="text-sm opacity-70">色彩风格</div>
-                        <div class="font-medium">高饱和度，明亮色彩</div>
-                    </div>
-                </div>
-            </div>
+            </div>` : ''}
             
-            <!-- 视频号 -->
-            <div class="glass-card p-6 animate-fade-in" style="animation-delay: 1s">
-                <div class="flex items-center mb-4">
-                    <span class="text-2xl mr-2">📱</span>
-                    <h3 class="text-xl font-bold">视频号优化</h3>
-                </div>
-                <div class="space-y-3">
-                    <div>
-                        <div class="text-sm opacity-70">标题建议</div>
-                        <div class="font-medium">${metadata.wechatTitle || '【科技】' + title.substring(0, 25)}</div>
-                    </div>
-                    <div>
-                        <div class="text-sm opacity-70">时长建议</div>
-                        <div class="font-medium">10-60秒</div>
-                    </div>
-                    <div>
-                        <div class="text-sm opacity-70">文字要求</div>
-                        <div class="font-medium">清晰可读，字体稍大</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 详细内容 -->
-        <div class="glass-card p-8 mb-12 animate-fade-in" style="animation-delay: 1.2s">
-            <h2 class="text-2xl font-bold mb-6 flex items-center">
-                <span class="mr-2">📄</span> 详细内容
-            </h2>
-            <div class="prose prose-invert max-w-none">
+            <div class="card" style="text-align: left;">
+                <h2 style="margin-top: 0;">📄 详细内容</h2>
                 ${this.formatContentForHtml(content)}
             </div>
+            
+            ${(metadata.keywords || []).length > 0 ? `
+            <div class="card" style="text-align: left;">
+                <h2 style="margin-top: 0;">🔑 关键词分析</h2>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${(metadata.keywords || []).map(k => `<span class="tag">${this.escapeHtml(k)}</span>`).join('')}
+                </div>
+            </div>` : ''}
         </div>
-        
-        <!-- 关键词 -->
-        <div class="glass-card p-6 animate-fade-in" style="animation-delay: 1.4s">
-            <h2 class="text-xl font-bold mb-4">关键词分析</h2>
-            <div class="flex flex-wrap gap-2">
-                ${(metadata.keywords || []).map((keyword, index) => `
-                    <div class="relative group">
-                        <span class="px-3 py-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 
-                                   rounded-full border border-blue-500/30 text-sm">
-                            ${this.escapeHtml(keyword)}
-                        </span>
-                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 
-                                   px-2 py-1 bg-gray-800 text-xs rounded opacity-0 group-hover:opacity-100 
-                                   transition-opacity whitespace-nowrap">
-                            出现 ${Math.floor(Math.random() * 10) + 1} 次
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    </main>
+    </div>
     
-    <!-- 页脚 -->
-    <footer class="py-8 text-center opacity-70 text-sm">
-        <div class="container">
-            <p>🎬 由 Video Creator 技能生成 • ${new Date().getFullYear()}</p>
-            <p class="mt-2">基于 Remotion + Tailwind CSS + 宝玉技能</p>
-            <div class="mt-4 flex justify-center gap-4">
-                <a href="#" class="hover:text-blue-400 transition">使用指南</a>
-                <a href="#" class="hover:text-blue-400 transition">技能文档</a>
-                <a href="#" class="hover:text-blue-400 transition">问题反馈</a>
-            </div>
+    <div class="footer">
+        <p>🎬 由 Video Creator 技能生成 • ${new Date().getFullYear()}</p>
+        <p style="margin-top: 8px;">基于 Remotion + 宝玉技能</p>
+        <div style="margin-top: 16px;">
+            <a href="#">使用指南</a>
+            <a href="#">技能文档</a>
+            <a href="#">问题反馈</a>
         </div>
-    </footer>
-    
-    <!-- 脚本 -->
-    <script>
-        // 简单的交互效果
-        document.addEventListener('DOMContentLoaded', function() {
-            // 图片懒加载
-            const images = document.querySelectorAll('img');
-            const imageObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const img = entry.target;
-                        if (img.dataset.src) {
-                            img.src = img.dataset.src;
-                        }
-                        imageObserver.unobserve(img);
-                    }
-                });
-            });
-            
-            images.forEach(img => {
-                if (img.src.includes('picsum.photos')) {
-                    img.dataset.src = img.src;
-                    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"%3E%3C/svg%3E';
-                    imageObserver.observe(img);
-                }
-            });
-            
-            // 标签点击效果
-            document.querySelectorAll('.tag').forEach(tag => {
-                tag.addEventListener('click', function() {
-                    this.style.transform = 'scale(0.95)';
-                    setTimeout(() => {
-                        this.style.transform = '';
-                    }, 150);
-                });
-            });
-            
-            // 滚动动画
-            const observerOptions = {
-                threshold: 0.1,
-                rootMargin: '0px 0px -50px 0px'
-            };
-            
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.style.opacity = '1';
-                        entry.target.style.transform = 'translateY(0)';
-                    }
-                });
-            }, observerOptions);
-            
-            document.querySelectorAll('.animate-fade-in').forEach(el => {
-                el.style.opacity = '0';
-                el.style.transform = 'translateY(20px)';
-                el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-                observer.observe(el);
-            });
-        });
-    </script>
+    </div>
 </body>
 </html>`;
   }

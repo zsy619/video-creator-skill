@@ -4,15 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{title}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; background: #0A0A14; color: #F8FAFC; line-height: 1.8; }
+    .container { max-width: 880px; margin: 0 auto; padding: 60px 40px; text-align: center; }
+    h1 { font-size: 72px; font-weight: 800; margin-bottom: 20px; background: linear-gradient(135deg, #FF0080 0%, #00FFFF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.15; }
+    .subtitle { font-size: 32px; color: #808090; margin-bottom: 48px; line-height: 1.5; }
+    .features { text-align: left; max-width: 860px; margin: 0 auto 48px; }
+    .feature-row { display: flex; align-items: flex-start; margin-bottom: 20px; }
+    .feature-icon { width: 48px; height: 48px; background: #FF008020; border: 2px solid #FF0080; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 20px; flex-shrink: 0; font-size: 24px; }
+    .feature-text { font-size: 24px; color: #F8FAFC; line-height: 1.6; }
+    .feature-text strong { color: #00FFFF; }
+    .stats { display: flex; justify-content: center; gap: 48px; margin: 48px 0; flex-wrap: wrap; }
+    .stat-item { text-align: center; }
+    .stat-num { font-size: 48px; font-weight: 800; color: #FF0080; }
+    .stat-label { font-size: 20px; color: #808090; margin-top: 6px; }
+    .cta-btn { display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #FF0080, #8A2BE2); color: white; border-radius: 50px; font-size: 24px; text-decoration: none; font-weight: 600; border: none; }
+    .highlight-box { background: linear-gradient(135deg, #FF008020, #00FFFF20); border: 2px solid #FF0080; border-radius: 16px; padding: 28px 36px; margin: 40px auto; max-width: 650px; }
+    .highlight-box p { font-size: 24px; color: #F8FAFC; font-weight: 600; }
+    .grid-bg { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-image: linear-gradient(#FF008010 1px, transparent 1px), linear-gradient(90deg, #FF008010 1px, transparent 1px), linear-gradient(#00FFFF08 1px, transparent 1px), linear-gradient(90deg, #00FFFF08 1px, transparent 1px); background-size: 100px 100px, 100px 100px, 50px 50px, 50px 50px; pointer-events: none; z-index: -1; }
+    @media (max-width: 640px) { h1 { font-size: 48px; } .subtitle { font-size: 24px; } .feature-text { font-size: 20px; } .container { padding: 40px 20px; } }
   </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
-  <main class="container mx-auto px-4 py-8 max-w-4xl">
-    <h1 class="text-4xl font-bold mb-6">{title}</h1>
+<body>
+  <div class="grid-bg"></div>
+  <div class="container">
+    <h1>{title}</h1>
+    <p class="subtitle">{summary}</p>
     {content}
-  </main>
+  </div>
 </body>
 </html>
