@@ -72,8 +72,8 @@ Step 11       Step 10        Step 9        Step 8        Step 7        Step 6
 ### 0.1 创建目录结构
 
 ```bash
-PROJECT_NAME="flowboard-video"   # 替换为实际项目名
-PROJECT_DIR="workspace/${PROJECT_NAME}"
+PROJECT_NAME="{project-name}"   # 替换为实际项目名
+PROJECT_DIR="{workspace}/${PROJECT_NAME}"
 mkdir -p "${PROJECT_DIR}/docs/assets/imgs"
 mkdir -p "${PROJECT_DIR}/docs/assets/illustrations"
 mkdir -p "${PROJECT_DIR}/audio"
@@ -86,8 +86,8 @@ echo "目录结构创建完成"
 ### 0.2 生成 session-log.md（必须写入文件）
 
 ```bash
-PROJECT_DIR="workspace/${PROJECT_NAME}"
-SKILL_SCRIPT="${HOME}/.hermes/skills/video-creator/scripts/session-log-append.py"
+PROJECT_DIR="{workspace}/${PROJECT_NAME}"
+SKILL_SCRIPT="${SKILL_DIR}/scripts/session-log-append.py"
 
 # Step 0.2a: 初始化 session-log.md 文件
 cat > "${PROJECT_DIR}/docs/session-log.md" << 'HDRY'
@@ -225,8 +225,8 @@ echo "✅ 封面检查通过"
 #   session_status > file.txt        # 输出在 tool result，不在 stdout
 #
 # ✅ 正确写法：先调用工具，将结果手动追加到 session-log.md
-PROJECT_DIR="workspace/${PROJECT_NAME}"
-SKILL_SCRIPT="${HOME}/.hermes/skills/video-creator/scripts/session-log-append.py"
+PROJECT_DIR="{workspace}/${PROJECT_NAME}"
+SKILL_SCRIPT="${SKILL_DIR}/scripts/session-log-append.py"
 
 # 手动追加一行（每次大步骤完成后执行）
 python3 "${SKILL_SCRIPT}" "${PROJECT_DIR}" "内容获取（baoyu-fetch）"
@@ -357,13 +357,13 @@ echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >>
 PROJECT_NAME="项目名称"
 
 # 创建完整的项目目录结构
-mkdir -p workspace/${PROJECT_NAME}/docs/assets
-mkdir -p workspace/${PROJECT_NAME}/video-project/src/components
-mkdir -p workspace/${PROJECT_NAME}/video-project/src/themes
-mkdir -p workspace/${PROJECT_NAME}/video-project/out
-mkdir -p workspace/${PROJECT_NAME}/audio/raw
-mkdir -p workspace/${PROJECT_NAME}/audio/processed
-mkdir -p workspace/${PROJECT_NAME}/fonts
+mkdir -p "{workspace}/{PROJECT_NAME}/docs/assets
+mkdir -p "{workspace}/{PROJECT_NAME}/video-project/src/components
+mkdir -p "{workspace}/{PROJECT_NAME}/video-project/src/themes
+mkdir -p "{workspace}/{PROJECT_NAME}/video-project/out
+mkdir -p "{workspace}/{PROJECT_NAME}/audio/raw
+mkdir -p "{workspace}/{PROJECT_NAME}/audio/processed
+mkdir -p "{workspace}/{PROJECT_NAME}/fonts
 ```
 
 ### 📁 目录结构说明
@@ -933,7 +933,7 @@ SKILL_SCRIPT="${HOME}/.hermes/skills/video-creator/scripts/session-log-append.py
 #    1. 先调用 session_status 工具，复制输出文本
 #    2. 将文本作为参数传入脚本
 STATUS_TEXT="🧮 Tokens: 85k in / 123 out · 💵 Cost: \$0.03 · 📚 Context: 111k/205k (54%)"
-python3 "${SKILL_SCRIPT}" "${PROJECT_DIR}" "最终报告生成" "${STATUS_TEXT}"
+python3 "${SKILL_DIR}/scripts/session-log-append.py}" "${PROJECT_DIR}" "最终报告生成" "${STATUS_TEXT}"
 
 # ✅ 方法二（备用）：直接追加一行（无 token 数据）
 TS=$(date '+%Y-%m-%d %H:%M:%S %Z')

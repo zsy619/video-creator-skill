@@ -12,10 +12,10 @@
 **处理流程：**
 1. 使用 `baoyu-url-to-markdown --download-media` 获取链接内容**并下载图片**
    ```bash
-   bun $SKILL_DIR/scripts/vendor/baoyu-fetch/src/cli.ts <url> \
+   bun "${SKILL_DIR}/scripts/vendor/baoyu-fetch/src/cli.ts <url> \
      --output docs/article.md \
      --download-media \
-     --media-dir docs/assets/imgs/
+     --media-dir ${PROJECT_DIR}/docs/assets/imgs/
    ```
 2. 解析 Markdown 提取标题、正文、关键信息
 3. 联网搜索相关内容，补充信息和背景知识
