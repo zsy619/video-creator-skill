@@ -27,21 +27,21 @@
 ### 1. 字幕规格（强制）
 
 ```
-Fontsize: 72px     ← 竖屏(1080x1920)必须≥72px
+Fontsize: 72px     ← 竖屏(1080x1920)必须≥72px（约40px视觉，已验证）
 Font: PingFang SC
 Color: &H00FFFF (黄色)
 Alignment: 2 (底部居中)
 MarginL: 30px      ← 左边距30px
 MarginR: 30px      ← 右边距30px
-MarginV: 30px       ← 距底边30px
+MarginV: 50px      ← 距底边50px（增加避免贴边）
 Outline: 1px
 WrapStyle: 0        ← 多行支持（必须设置）
 换行符: \N          ← ASS格式必须用\N，不是\n
-每行字数: ≤25字符   ← 60-72px字体下25字符约900px，1080px内安全
+
+每行字数: ≤25字符   ← 72px字体下25字符约900px，1080px内安全
 PlayResX: 1080
 PlayResY: 1920
 ```
-
 ⚠️ **铁律警告**：
 - 换行符必须用 `\N`（ASS格式），不是 `\n`
 - 每行最多25字符，避免超出1080px画面

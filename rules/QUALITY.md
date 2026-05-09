@@ -38,6 +38,14 @@
 - [ ] 音画同步（无明显偏差）
 - [ ] 音量一致（无忽大忽小）
 - [ ] 无回音/杂音
+- [ ] **⚠️【新增】音频 RMS 验证**：最终视频每个音频样本 RMS > -60dB（禁止全 -inf）
+  ```bash
+  # 验证命令（0个样本表示全静音 = 无效）
+  ffmpeg -i final-video.mp4 \
+    -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" \
+    -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l
+  # 非0个样本 = 有效音频
+  ```
 
 ## 字幕检查 ⚠️ 重点
 
@@ -45,8 +53,8 @@
 - [ ] **字幕已烧入画面**：使用 `ffmpeg -vf "ass=xxx.ass"` 烧录，MP4 不支持嵌入 ASS 轨道
 - [ ] **字幕时长 ≤ 视频时长**：检查最后一条字幕的结束时间是否 ≤ 视频总时长
 - [ ] **字体为 PingFang SC**：macOS 系统字体，禁止 STHeiti Medium（不存在）
-- [ ] **字号 10px**：符合竖屏 1080×1920 阅读标准
-- [ ] **颜色黄色**：`&H0000FFFF`（底部居中，MarginV=30）
+- [ ] **字号 72px**：符合竖屏 1080×1920 阅读标准（Fontsize=72，约40px视觉，已验证）
+- [ ] **颜色黄色**：`&H00FFFF`（底部居中，MarginV=50）
 
 ### 字幕轨道验证（独立字幕流方案）
 

@@ -690,11 +690,25 @@ else:  # 竖版图片
 
 # 2. 音频后处理
 # ⚠️ atempo 值决定最终时长 → 必须记录 DURATION 供字幕生成使用
-# 推荐 atempo=1.2（1.3 以上语音失真）
-ffmpeg -i raw/audio.mp3 -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-50dB:detection=peak,atempo=1.2" processed/audio.mp3
+# ⚠️ 必须用 -c:a aac -b:a 256k 强制重编码（禁止 -c:a copy）
+ffmpeg -y -i raw/audio.mp3 \
+  -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-50dB:detection=peak,atempo=1.2" \
+  -c:a aac -b:a 256k -ar 48000 -ac 2 \
+  processed/audio_1_2x.m4a
 
-# 3. 获取音频时长（供 Step 8 字幕生成使用，禁止跳过）
-DURATION=$(ffprobe -i processed/audio.mp3 -show_entries format=duration -v quiet -of csv="p=0")
+# 3. ⚠️【强制】音频有效性验证（禁止跳过）
+# RMS=-inf 表示静音/无效音频；非0个样本表示有声音
+RMS_COUNT=$(ffmpeg -i processed/audio_1_2x.m4a \
+  -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" \
+  -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l)
+if [ "$RMS_COUNT" -eq 0 ]; then
+  echo "❌ 音频无效（RMS 全为 -inf），停止执行"
+  exit 1
+fi
+echo "✅ 音频有效（$RMS_COUNT 个有效样本）"
+
+# 4. 获取音频时长（供 Step 8 字幕生成使用，禁止跳过）
+DURATION=$(ffprobe -i processed/audio_1_2x.m4a -show_entries format=duration -v quiet -of csv="p=0")
 echo "最终音频时长: ${DURATION}s"
 ```
 
@@ -870,14 +884,30 @@ npx remotion render VerticalVideo \
 ### 10.5 音频混流
 
 ```bash
-# 使用 ffmpeg 混流（stream copy 保持音频质量）
+# ⚠️ 必须用 -c:a aac -b:a 256k 强制重编码（禁止 -c:a copy）
+# ⚠️ Remotion raw 视频的音频轨道可能为空（RMS=-inf），必须完全替换
 ffmpeg -y \
   -i out/video_noaudio.mp4 \
-  -i processed/audio.mp3 \
-  -c:v copy -c:a copy \
+  -i processed/audio_1_2x.m4a \
+  -c:v copy \
+  -c:a aac -b:a 256k \
   -map 0:v -map 1:a \
   -shortest \
   out/final-video.mp4
+
+# ⚠️【强制】混流后音频验证（禁止跳过）
+# 最终视频的音频必须来自 edge-tts 文件，Remotion raw 视频只取视频流
+RMS_COUNT=$(ffmpeg -i out/final-video.mp4 \
+  -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" \
+  -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l)
+if [ "$RMS_COUNT" -eq 0 ]; then
+  echo "❌ 最终视频音频无效（RMS 全为 -inf），检查音频源"
+  exit 1
+fi
+echo "✅ 最终视频音频有效（$RMS_COUNT 个有效样本）"
+
+# volumedetect 辅助验证
+ffmpeg -i out/final-video.mp4 -vn -af "volumedetect" -f null - 2>&1 | grep -E "mean_volume|max_volume"
 ```
 
 ### 10.6 记录 Session 日志

@@ -5,9 +5,11 @@
 > ## ⚠️ 强制执行：违反以下任何一条将导致音画不同步或音质问题
 >
 > 1. **禁止分段拼接** — 必须整段连续生成配音
-> 2. **禁止跳过音频后处理** — 必须去静音 + 1.2x 语速
-> 3. **禁止在 Remotion 内嵌音频** — 必须 Remotion 无音频 → ffmpeg 混流
+> 2. **禁止跳过音频后处理** — 必须去静音 + 1.2x 语速 + AAC 256k
+> 3. **禁止在 Remotion 内嵌音频** — Remotion 渲染无音频 → ffmpeg 混流
 > 4. **音频文件必须命名** `neural_1_2x.m4a`
+> 5. **⚠️【新增】音频隔离原则** — Remotion raw 视频的音频轨道可能为空（结构正常但 RMS=-inf），所有音频必须来自 edge-tts 生成文件，raw 视频只用 `-map 0:v` 取视频流
+> 6. **⚠️【新增】音频码率强制** — 禁止 `-c:a copy`，必须 `-c:a aac -b:a 256k` 强制重编码
 
 ---
 
@@ -185,15 +187,21 @@ const App = () => (
 
 ```bash
 # Remotion 渲染无音频视频，然后用 ffmpeg 混流
+# ⚠️【重要】必须用 -c:a aac -b:a 256k 强制重编码，禁止 -c:a copy
 ffmpeg -y \
   -i out/video_noaudio.mp4 \
   -i audio/neural_1_2x.m4a \
   -c:v copy \
-  -c:a copy \
+  -c:a aac -b:a 256k \
   -map 0:v -map 1:a \
   -shortest \
   out/final_video.mp4
 ```
+
+**为什么禁止 `-c:a copy`？**
+- Remotion raw 视频的音频轨道可能结构正常（codec_name=aac, bit_rate=317k）但实际内容为空（RMS=-inf）
+- `-c:a copy` 会忠实复制这个"看起来正常但实际静音"的音频流
+- 必须强制重新编码，用 edge-tts 生成的有效音频完全替换
 
 ---
 
@@ -262,13 +270,22 @@ echo "Done: $(ffprobe -v error -show_entries format=duration \
 
 ## Remotion 音频渲染问题
 
-⚠️ Remotion 渲染的视频，音频可能有编码层面的杂音。推荐做法：
+⚠️ Remotion 渲染的视频，音频可能有编码层面的杂音或静音轨道问题。推荐做法：
 
-1. 用 Remotion 渲染**无音频**的视频
-2. 用 ffmpeg 将处理好的音频与视频合并（stream copy）
+1. 用 Remotion 渲染**无音频**的视频（渲染时不包含 Audio 组件）
+2. 用 ffmpeg 将处理好的音频与视频合并（**必须重新编码**，禁止 stream copy）
 
 ```bash
-# 用 ffmpeg 混流（视频 + 音频均为 stream copy，不重编码）
+# ✅ 正确：用 -c:a aac -b:a 256k 强制重编码（禁止 -c:a copy）
+ffmpeg -y \
+  -i out/video_noaudio.mp4 \
+  -i audio/neural_1_2x.m4a \
+  -c:v copy -c:a aac -b:a 256k \
+  -map 0:v -map 1:a \
+  -shortest \
+  out/final_video.mp4
+
+# ❌ 错误：-c:a copy 会复制 Remotion raw 视频的静音音频轨道
 ffmpeg -y \
   -i out/video_noaudio.mp4 \
   -i audio/neural_1_2x.m4a \
@@ -277,3 +294,5 @@ ffmpeg -y \
   -shortest \
   out/final_video.mp4
 ```
+
+⚠️ **关键区别**：`-c:a copy` 只是流复制，不会重新编码。如果 Remotion raw 视频的音频轨道内容为空，复制后依然为空。必须用 `-c:a aac -b:a 256k` 强制重新编码。

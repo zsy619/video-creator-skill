@@ -2,16 +2,16 @@
 
 ## ⚠️ 强制执行规范（违反将导致烧录失败或显示异常）
 
-> **核心铁律（必须严格遵守）**：
->
-> | 规则 | 正确做法 | ❌ 错误做法 |
-> |------|---------|-----------|
-> | 字号 | **fontSize=12**（PlayResY=1920时） | 使用 10/14/72px |
-> | 换行符 | `\N`（单个反斜杠） | `\\N`（双反斜杠） |
-> | 字幕格式 | ASS 烧录到画面 | MP4 内嵌（不支持） |
-> | 时间轴基准 | **最终音频时长**（后处理后） | 原始音频时长 |
-> | PlayRes | **PlayResX=1080, PlayResY=1920** | 不设置 |
-> | 字段数 | Format 声明10字段，Dialogue 写10字段 | 字段数不匹配 |
+**核心铁律（必须严格遵守）**：
+
+| 规则 | 正确做法 | ❌ 错误做法 |
+|------|---------|-----------|
+| 字号 | **fontSize=72**（PlayResY=1920时，约40px视觉，已验证） | 使用 10/12/36/48px |
+| 换行符 | `\N`（单个反斜杠） | `\\N`（双反斜杠） |
+| 字幕格式 | ASS 烧录到画面 | MP4 内嵌（不支持） |
+| 时间轴基准 | **最终音频时长**（后处理后） | 原始音频时长 |
+| PlayRes | **PlayResX=1080, PlayResY=1920** | 不设置 |
+| 字段数 | Format 声明10字段，Dialogue 写10字段 | 字段数不匹配 |
 >
 > **⚠️ 字幕时间轴必须基于最终音频时长**。在音频后处理（atempo）完成之前，禁止生成字幕。
 
@@ -99,14 +99,14 @@ for i, (start, end, text) in enumerate(subtitles):
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| `Fontsize` | **48** | ASS字幕标准化像素值（PlayResY=1920 时） |
+| `Fontsize` | **72** | ASS字幕标准化像素值（PlayResY=1920时，约40px视觉，已验证） |
 | `PlayResX` | **1080** | 竖屏视频宽度 |
 | `PlayResY` | **1920** | 竖屏视频高度 |
 | `PrimaryColour` | `&H00FFFF` | 黄色（#FFFF00）|
 | `Alignment` | **2** | 底部居中 |
 | `MarginL` | **30** | 左侧边距 30px |
 | `MarginR` | **30** | 右侧边距 30px |
-| `MarginV` | **30** | 底部边距 30px |
+| `MarginV` | **50** | 底部边距 50px（比旧规范增加20px，避免贴边） |
 | `WrapStyle` | **0** | 支持 `\N` 换行符 |
 | `Fontname` | `PingFang SC` | macOS 系统中文字体 |
 | `Outline` | 1 | 1px 黑色描边 |
@@ -193,7 +193,7 @@ const SubtitleGenerator = require('./scripts/subtitle-generator');
 
 // 创建实例 - 必须传入 fontSize=12
 const generator = new SubtitleGenerator({
-  fontSize: 48,  // 必须是48（PlayResY=1920时）
+  fontSize: 72,  // 必须是72（PlayResY=1920时，约40px视觉，已验证）
   color: '&H00FFFF' // 黄色
 });
 
@@ -307,7 +307,7 @@ node scripts/video-check.js batch-process --directory ./workspace --output batch
 |---------|---------|
 | 先生成字幕，再调音频语速 | 先调音频语速，确认最终时长，再生成字幕 |
 | 用 `ffmpeg -c:s ass` 嵌入 ASS 到 MP4 | 用 `ffmpeg -vf "ass=xxx.ass"` 烧录到画面 |
-| 字号使用 14px/18px/28px/36px | **必须使用 10px** |
+| 字号使用 14px/18px/28px/36px | **必须使用 72px**（约40px视觉，已验证） |
 | 使用 `\\N` 换行 | 必须使用 `\N` 换行 |
 | 使用 PlayResX/PlayResY | 不要设置分辨率 |
 

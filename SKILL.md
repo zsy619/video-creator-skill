@@ -79,6 +79,13 @@ metadata:
 11. **Step 10: 生成视频**
 12. **Step 11: 生成报告 + 强制清单检查**
 
+## 参考文档
+- [低码率音频修复](references/low-bitrate-audio-fix.md) — edge-tts 音频 2kbps 导致无声的根因与修复
+- [Remotion 版本冲突修复](references/remotion-version-conflict.md) — EISDIR 错误的根因与修复
+- [音频验证协议](references/audio-validation-protocol.md) — ⚠️ **【新增·强制阅读】** 音频有效性验证完整协议（4个验证节点 + 快速验证脚本）
+
+---
+
 ## ⚠️ 音频与字幕铁律（强制执行，违反将导致质量问题）
 
 > **执行音频步骤前必须阅读** `rules/VOICE.md`
@@ -90,6 +97,22 @@ metadata:
 | 禁止分段拼接配音 | 整段连续生成 |
 | 禁止跳过音频后处理 | 去静音 + 1.2x 语速 + AAC 256k |
 | 禁止在 Remotion 内嵌音频 | Remotion 渲染无音频 → ffmpeg 混流 |
+
+### ⚠️ 音频验证（必须执行）
+
+> **根因**：Remotion 渲染的 raw 视频可能含结构正常但实际静音的音频轨道（`codec_name=aac` + 正常bit_rate，但 RMS 全为 `-inf`）。`ffprobe` 显示正常但播放无声音。
+
+**诊断命令**：
+```bash
+ffmpeg -i video.mp4 -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l
+```
+- 结果 = 0：音频轨道静默，**禁止用 `-c:a copy`**
+- 结果 > 0：音频正常
+
+**正确流程**：始终从处理后的音频文件（`neural_256k_final.m4a`）重新编码混流，绝不直接复制 Remotion raw 视频的音频轨道。
+| **禁止 `-c:a copy` 复制低码率音频** | **必须 `-c:a aac -b:a 256k` 强制重编码** |
+| 禁止音频码率低于 128k | edge-tts 原始输出码率极低，混流前必须重新编码 |
+| 禁止 Remotion 版本碎片化 | 所有 remotion/* 包必须同版本（如 4.0.448），版本不一致会导致 EISDIR 错误 |
 
 ### 字幕六禁止
 | 禁止 | 正确做法 |

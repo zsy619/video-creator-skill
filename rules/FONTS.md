@@ -156,12 +156,12 @@ create_prominent_cover('cover-xhs.png', (1440,2560), 360, 100, 64, 44, 0.16)
 | 副标题 |   **52px** | 配合主标题的说明文字 |
 | 内容 |   **40-12px** | 正文内容 |
 | 命令行 |   **22-28px** | 代码/命令展示 |
-| **字幕** | **12px** | ASS字幕，底部居中，黄色（&H00FFFF），PingFang SC，MarginV=30 |
+| **字幕** | **72px** | ASS字幕，底部居中，黄色（&H00FFFF），PingFang SC，MarginV=50 |
 
 > ⚠️ **字幕字体说明**（见 rules/SUBTITLES.md）：
-> - **ASS字幕必须使用 12px**（Fontsize=12，PlayResY=1920时）
+> - **ASS字幕必须使用 72px**（Fontsize=72，PlayResY=1920时，约40px视觉，已验证）
 > - 这是相对于 PlayResY(1920) 的标准化像素值
-> - **统一标准**：Fontsize=12, Alignment=2, MarginL=30, MarginR=30, MarginV=30, PlayResX=1080, PlayResY=1920
+> - **统一标准**：Fontsize=72, Alignment=2, MarginL=30, MarginR=30, MarginV=50, PlayResX=1080, PlayResY=1920
 > - 多行用 `\N` 分隔（WrapStyle=0）
 
 ## 字幕系统规范（必须严格遵守）
@@ -170,11 +170,11 @@ create_prominent_cover('cover-xhs.png', (1440,2560), 360, 100, 64, 44, 0.16)
 
 | 属性 | 规范值 | 说明 |
 |------|--------|------|
-| **字体大小** | **12px** | ASS字幕标准化像素值（Fontsize=12，PlayResY=1920时） |
+| **字体大小** | **72px** | ASS字幕标准化像素值（Fontsize=72，PlayResY=1920时，约40px视觉，已验证） |
 | **字体颜色** | **醒目的黄色** | `&H00FFFF` (ARGB格式，纯黄色) |
 | **字体** | **PingFang SC** | macOS系统中文字体，确保跨平台兼容 |
 | **位置** | **底部居中** | `Alignment=2` (底部居中) |
-| **距底边距离** | **30px** | `MarginV=30` |
+| **距底边距离** | **50px** | `MarginV=50` |
 | **描边** | **1px黑色** | `Outline=1, OutlineColour=&H00000000` |
 | **换行支持** | **支持多行，左右边距30px** | `WrapStyle=0` |
 
@@ -189,18 +189,18 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,10,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,1
+Style: Default,PingFang SC,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:05.00,Default,,30,30,30,,字幕内容（可换行）
+Dialogue: 0,0:00:00.00,0:00:05.00,Default,,30,30,50,,字幕内容（可换行）
 ```
 
 ### 关键参数说明
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| `Fontsize` | `10` | ASS字幕标准化像素值（相对于PlayResY=1920） |
+| `Fontsize` | `72` | ASS字幕标准化像素值（PlayResY=1920时，约40px视觉，已验证） |
 | `PrimaryColour` | `&H00FFFF` | 醒目的黄色（ARGB格式） |
 | `Fontname` | `PingFang SC` | macOS中文字体，避免STHeiti Medium等不兼容字体 |
 | `Alignment` | `2` | 底部居中（其他值：1=左下，3=右下，5=正中，6=右中，8=中上） |
