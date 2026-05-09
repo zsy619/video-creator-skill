@@ -192,3 +192,33 @@ export const Video: React.FC = () => {
 **计算方式**：中文字符约等于 1em，4字 × 72px = 288px，加上 letterSpacing（8px × 3 = 24px），总约 312px。竖屏可用宽度约 1000px，72px 安全。96px 则 4 × 96 + 8 × 3 = 408px，可能溢出。
 
 **原则**：竖屏视频宽度仅 1080px，主标题超过 80px 就有溢出风险。优先减小字号而非压缩字间距（字间距太紧影响可读性）。
+
+## 6. ffmpeg ASS 字幕烧录 — `force_style` 选项不存在
+
+**症状**：
+```
+[fc#-1] Error applying option 'force_style' to filter 'ass': Option not found
+Error opening output file final_with_subtitles.mp4.
+```
+
+**根因**：ffmpeg 的 `-vf "ass=file.ass:force_style='FontSize=72'"` 语法在标准 libass 构建中不支持 `force_style` 参数。
+
+**正确做法**：将所有样式（字号、颜色、字体、位置）直接写入 `.ass` 文件，不依赖 ffmpeg 的 `force_style` 覆盖。
+
+**工作流程**：
+```
+1. 生成 ASS 文件时指定完整 Style（含 Fontsize、PrimaryColour、Alignment 等）
+2. 烧录时只用：ffmpeg -i video.mp4 -vf "ass=subs.ass" -c:v libx264 ... out.mp4
+```
+
+**ASS Style 正确模板**：
+```ass
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,2,2,2,30,30,30,1
+```
+- `Fontsize=72`（竖屏视频最佳阅读尺寸）
+- `PrimaryColour=&H00FFFF`（青色）
+- `Alignment=2`（底部居中）
+- `Bold=-1`（加粗）
+- `Outline=2, Shadow=2`（2px描边+阴影，可见性保障）

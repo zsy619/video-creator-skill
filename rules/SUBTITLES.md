@@ -6,11 +6,11 @@
 >
 > | 规则 | 正确做法 | ❌ 错误做法 |
 > |------|---------|-----------|
-> | 字号 | **fontSize=10** | 使用 14/18/28/36/72px |
-> | 换行符 | `**\N**`（单个反斜杠） | `\\N`（双反斜杠） |
+> | 字号 | **fontSize=12**（PlayResY=1920时） | 使用 10/14/72px |
+> | 换行符 | `\N`（单个反斜杠） | `\\N`（双反斜杠） |
 > | 字幕格式 | ASS 烧录到画面 | MP4 内嵌（不支持） |
 > | 时间轴基准 | **最终音频时长**（后处理后） | 原始音频时长 |
-> | PlayRes | **不设置**（由视频决定） | 设置 PlayResX/PlayResY |
+> | PlayRes | **PlayResX=1080, PlayResY=1920** | 不设置 |
 > | 字段数 | Format 声明10字段，Dialogue 写10字段 | 字段数不匹配 |
 >
 > **⚠️ 字幕时间轴必须基于最终音频时长**。在音频后处理（atempo）完成之前，禁止生成字幕。
@@ -93,9 +93,15 @@ for i, (start, end, text) in enumerate(subtitles):
 
 ### 标准参数（必须严格遵守）
 
+> ⚠️ **Fontsize 值取决于是否设置 PlayResX/PlayResY**：
+> - 设置 PlayResX/PlayResY=1080x1920 时，Fontsize=12（相对于 1920 高度的标准化值）
+> - 不设置 PlayRes 时，Fontsize=10（旧规范，已废弃）
+
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| `Fontsize` | **10** | ASS字幕标准化像素值 |
+| `Fontsize` | **48** | ASS字幕标准化像素值（PlayResY=1920 时） |
+| `PlayResX` | **1080** | 竖屏视频宽度 |
+| `PlayResY` | **1920** | 竖屏视频高度 |
 | `PrimaryColour` | `&H00FFFF` | 黄色（#FFFF00）|
 | `Alignment` | **2** | 底部居中 |
 | `MarginL` | **30** | 左侧边距 30px |
@@ -185,9 +191,9 @@ video-creator batch --directory ./workspace --fix
 ```javascript
 const SubtitleGenerator = require('./scripts/subtitle-generator');
 
-// 创建实例 - 必须传入 fontSize=10
+// 创建实例 - 必须传入 fontSize=12
 const generator = new SubtitleGenerator({
-  fontSize: 10,  // 必须是10！
+  fontSize: 48,  // 必须是48（PlayResY=1920时）
   color: '&H00FFFF' // 黄色
 });
 
@@ -213,7 +219,7 @@ await generator.generateASS(subtitles, 'audio/subtitles.ass');
          ↓
 3. Remotion 渲染视频（帧数 = T × 60fps）
          ↓
-4. 生成 ASS 字幕（基于 T 时长，fontSize=10）
+4. 生成 ASS 字幕（基于 T 时长，fontSize=12）
          ↓
 5. ffmpeg 合并视频+音频（stream copy）
          ↓
@@ -251,7 +257,7 @@ ffmpeg -y \
 1. **项目结构**：检查必需的目录和文件
 2. **字体兼容性**：检查并修复不兼容字体
 3. **音频质量**：检查音频文件格式、时长、码率
-4. **字幕质量**：检查ASS格式、时间轴、fontSize=10
+4. **字幕质量**：检查ASS格式、时间轴、fontSize=12
 5. **视频质量**：检查分辨率、帧率、时长、文件大小
 
 ### 检查报告示例

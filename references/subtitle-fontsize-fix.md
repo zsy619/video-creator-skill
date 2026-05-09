@@ -1,11 +1,11 @@
 # 字幕字号规范（2026-05 实测修正）
 
-## 核心修正
+## 核心修正（最终版）
 
 | 平台 | 字号 | 说明 |
 |------|------|------|
-| **竖屏视频**（小红书/抖音/视频号） | **28px** | 2026-05 实测通过，28px 在 1080x1920 上清晰可读 |
-| 桌面端/横屏视频 | 10px | ASS 字幕标准化像素值 |
+| **竖屏视频**（小红书/抖音/视频号） | **12px** | Fontsize=12, PlayResX=1080, PlayResY=1920，实测清晰可读 |
+| 旧规范（已废弃） | 10px | 无 PlayRes 时使用，已不使用 |
 
 ## 矛盾根源
 
@@ -15,6 +15,7 @@
 - 旧版还写 `72px黄色`
 
 实际 session（ian-handdrawn-ppt，2026-05-09）用 **28px** 成功烧录，人眼可读。
+**2026-05-10 最终修订**：改用 12px + PlayResX=1080 + PlayResY=1920，实测清晰。
 
 ## ffmpeg 烧录命令（已验证）
 
@@ -30,13 +31,13 @@ ffmpeg -y \
 ffmpeg -y -i video.mp4 -vf "ass=subs.ass:fontsdir=...:force_style=..." final.mp4
 ```
 
-## 字幕生成脚本核心参数（竖屏 28px）
+## 字幕生成脚本核心参数（竖屏 12px + PlayRes）
 
 ```python
-def generate_ass(subtitles, output_path, font_size=28):
+def generate_ass(subtitles, output_path, font_size=48):
     style_line = (
         "Style: Default,PingFang SC,"
-        f"{font_size},"          # ← 竖屏用 28
+        f"{font_size},"          # ← 竖屏用 48 + PlayResY=1920
         "&H00FFFF,"              # 黄色
         ...
     )
@@ -49,6 +50,35 @@ def generate_ass(subtitles, output_path, font_size=28):
 | 视频开头 0-0.5s 黑屏 | fadeIn/slideUp 动画 25-20 帧太长 | 改为 15 帧内完成 |
 
 动画太长会导致首帧看起来是黑屏，实际内容在动画结束后才完全显示。
+
+## ASS 烧录工作流（标准流程）
+
+### ⚠️ 双字幕陷阱（常见错误）
+
+| 症状 | 原因 | 修复 |
+|------|------|------|
+| 画面叠加两层字幕，一大一小 | Video.tsx 中有 `SubtitleOverlay` 组件，同时又用 ffmpeg 烧录 ASS | 移除 Video.tsx 中的 `<SubtitleOverlay />` 组件 |
+
+**标准流程**：
+1. Video.tsx **不包含** SubtitleOverlay 组件
+2. Remotion 渲染无音频视频 → `/tmp/raw.mp4`
+3. edge-tts 生成配音 → `neural_full.mp3`
+4. ffmpeg 混流（视频 + 音频）→ `/tmp/with_audio.mp4`
+5. ffmpeg 烧录 ASS 字幕 → `final.mp4`
+
+```bash
+# 正确：Video.tsx 中无 SubtitleOverlay
+# 1. 混流
+ffmpeg -y -i /tmp/raw.mp4 -i neural_full.mp3 \
+  -c:v copy -c:a aac -b:a 256k -map 0:v -map 1:a -shortest \
+  /tmp/with_audio.mp4
+
+# 2. 烧录（ASS 须含 PlayResX/PlayResY）
+ffmpeg -y -i /tmp/with_audio.mp4 \
+  -vf "ass=subtitles.ass" \
+  -c:v libx264 -preset fast -crf 22 -c:a copy \
+  final.mp4
+```
 
 ## 封面标题溢出
 

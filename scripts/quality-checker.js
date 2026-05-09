@@ -192,8 +192,8 @@ class QualityChecker {
             this.issues.push({
               type: 'FONT_SIZE',
               severity: 'ERROR',
-              message: `字体大小 ${fontSize}px 不符合标准（应为 10px）`,
-              solution: '使用 SubtitleGenerator 生成字幕，默认 fontSize=10',
+              message: `字体大小 ${fontSize}px 不符合标准（应为 12px）`,
+              solution: '使用 SubtitleGenerator 生成字幕，默认 fontSize=12',
               path: file,
               fixable: true,
               fixAction: 'adjustFontSize'
@@ -561,8 +561,8 @@ class QualityChecker {
   }
 
   /**
-   * 验证 ASS 文件中的字体大小是否符合标准（10px）
-   * 查找 Style 行中的 Fontsize 参数，低于 10px 或高于 20px 的需要报告
+   * 验证 ASS 文件中的字体大小是否符合标准（12px）
+   * 查找 Style 行中的 Fontsize 参数，低于 36px 或高于 72px 的需要报告
    *
    * @param {string} filePath - ASS 文件路径
    */
@@ -572,15 +572,15 @@ class QualityChecker {
     if (!styleMatch) return { valid: false, message: '未找到 Style 行' };
     
     const fontsize = parseInt(styleMatch[1], 10);
-    if (fontsize === 10) {
-      return { valid: true, fontsize, message: 'Fontsize=10 符合标准' };
+    if (fonts === 12) {
+      return { valid: true, fontsize, message: 'Fontsize=48 符合标准' };
     }
-    return { valid: false, fontsize, message: `Fontsize=${fontsize}，应为 10` };
+    return { valid: false, fontsize, message: `Fontsize=${fontsize}，应为 12` };
   }
 
   /**
-   * 调整 ASS 文件中的字体大小为标准 10px
-   * 查找 Style 行中的 Fontsize 参数，将不是 10px 的值修正为 10px
+   * 调整 ASS 文件中的字体大小为标准 48px
+   * 查找 Style 行中的 Fontsize 参数，将不是 48px 的值修正为 48px
    *
    * @param {string} filePath - ASS 文件路径
    */
@@ -589,8 +589,8 @@ class QualityChecker {
     const lines = fileContent.split('\n');
     const adjustedLines = lines.map(function(line) {
       if (!line.startsWith('Style:')) return line;
-      // 修正任何非 10 的值为 10
-      return line.replace(/Fontsize,\d+/g, 'Fontsize,10');
+      // 修正任何非 48 的值为 48
+      return line.replace(/Fontsize,\d+/g, 'Fontsize,12');
     });
     await fs.writeFile(filePath, adjustedLines.join('\n'), 'utf8');
   }

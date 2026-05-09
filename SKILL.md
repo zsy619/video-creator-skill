@@ -2,13 +2,28 @@
 name: video-creator
 description: 自动化视频创作技能：从文章/URL/主题生成竖屏社交媒体视频（小红书/视频号/抖音）。整合宝玉技能生态进行内容获取、图片生成、HTML构建和Remotion视频渲染。集成字幕生成、质量检查、自动修复功能，支持批量处理多个视频项目。
 homepage: https://github.com/zsy619/video-creator-skill
-metadata: 
-    tags: "video-creator", "创建视频", "生成视频", "视频创作", "竖屏视频", "make video", "create video", "检查视频质量", "修复字幕字体", "批量处理视频", "发布公众号", "公众号封面图", "wechat-cover", "微信公众号", "企业级文案"
+metadata:
+    tags:
+      - "video-creator"
+      - "创建视频"
+      - "生成视频"
+      - "视频创作"
+      - "竖屏视频"
+      - "make video"
+      - "create video"
+      - "检查视频质量"
+      - "修复字幕字体"
+      - "批量处理视频"
+      - "发布公众号"
+      - "公众号封面图"
+      - "wechat-cover"
+      - "微信公众号"
+      - "企业级文案"
     "clawdbot":
-        "emoji":"🎬"
+        "emoji": "🎬"
         "requires":
-            "bins":["node"]
-            "env":[]
+            "bins": ["node"]
+            "env": []
 ---
 
 ## 何时使用
@@ -79,12 +94,12 @@ metadata:
 ### 字幕六禁止
 | 禁止 | 正确做法 |
 |------|---------|
-| 禁止字号 ≠ 10px | 必须 fontSize=10 |
+| 禁止字号 ≠ 72px | 必须 Fontsize=72（PlayResY=1920 时，约40px视觉，已验证） |
 | 禁止 `\\N` 换行 | 必须 `\N` 换行 |
 | 禁止字段数不匹配 | Format 10字段，Dialogue 10字段 |
 | 禁止先于音频生成字幕 | 必须音频后处理完成后生成 |
 | 禁止 MP4 内嵌 ASS | 必须用 `-vf "ass=..."` 烧录 |
-| 禁止设置 PlayResX/PlayResY | 不设置，由视频决定 |
+| 禁止不设 PlayRes | 必须设置 PlayResX=1080, PlayResY=1920 |
 
 ### 执行顺序（不可颠倒）
 ```
@@ -92,7 +107,7 @@ metadata:
          ↓
 2. ffmpeg 后处理（去静音 + 1.2x + AAC）→ neural_1_2x.m4a
          ↓（确认最终时长）
-3. 生成 ASS 字幕（基于最终时长，fontSize=10）
+3. 生成 ASS 字幕（基于最终时长，Fontsize=72）
          ↓
 4. Remotion 渲染无音频视频
          ↓
@@ -100,6 +115,19 @@ metadata:
          ↓
 6. ffmpeg 烧录字幕（-vf "ass=subtitles.ass"）
 ```
+
+### ⚠️ TTS 工具长度限制
+
+> **重要**：`text_to_speech` 工具单次调用上限约 24 秒。
+> - 短文本（≤24s）：直接调用一次生成完整音频
+> - 长文本（>24s）：先生成原始音频，再用 ffmpeg atempo 1.2x 处理
+>
+> **当前 session 教训**：text_to_speech 生成 23.9s 音频后无法继续，拼接后音频太短。最终改用原始 62s 音频经 atempo 1.2x 处理为 51.7s，再用 apad 补齐到视频长度。
+
+### ⚠️ TTS 工具长度限制
+
+> **重要**：`text_to_speech` 工具单次调用上限约 24 秒，长文本会被截断。
+> 详见 [references/tts-length-limit.md](references/tts-length-limit.md) — 包含 atempo/apad 补齐等应对策略。
 
 ### ⚠️ Step 0 强制检查清单（禁止跳过）
 
@@ -234,7 +262,7 @@ echo "✅ session-log.md 已初始化"
 | 13 | 微信公众号封面 | `docs/assets/cover-wechat.png` | **强制必填，900×383（约2.35:1）** |
 | 14 | 小红书封面 | `docs/assets/cover-xhs.png` | **强制必填，1440×2560（9:16）** |
 | 15 | 配音 | `audio/neural_1_2x.m4a` | edge-tts生成，1.2x语速 |
-| 16 | 字幕 | `audio/subtitles.ass` | ASS格式，72px黄色 |
+| 16 | 字幕 | `audio/subtitles.ass` | ASS格式，Fontsize=72（视觉40px）黄色，PlayResX=1080, PlayResY=1920 |
 | 17 | 最终视频 | `video-project/out/final-with-subs.mp4` | 字幕已烧录 |
 
 ### Step 0 验证命令
@@ -266,7 +294,7 @@ done
 - [rules/SUBTITLES.md](rules/SUBTITLES.md) - 集成智能字幕生成（ASS格式）、质量检查（字体/音频/字幕/视频）及自动修复功能，支持批量处理多个视频项目。
 - [rules/QUALITY.md](rules/QUALITY.md) - 定义视频质量检查清单，涵盖内容、视觉、文件、技术、音频五大维度的检查标准。
 - [rules/INPUT.md](rules/INPUT.md) - 定义三种内容输入模式：链接输入（baoyu-url-to-markdown抓取）、主题输入（web_search搜索）、详细内容输入（直接解析），并规定各自的处理流程。
-- [rules/THEMES.md](rules/THEMES.md) - 定义20种视频主题风格（科技、创意、生活、自然、专业四大类），包含主色、辅色、背景色、字体、粒子数等视觉参数及平台规格（小红书/视频号/抖音/油管）。
+- [rules/THEMES.md](rules/THEMES.md) - 定义20种视频主题风格（科技、创意、生活，自然，专业四大类），包含主色、辅色、背景色、字体、粒子数等视觉参数及平台规格（小红书/视频号/抖音/油管）。
 - [rules/THEME_ANIMATIONS.md](rules/THEME_ANIMATIONS.md) - 定义20种主题的动画参数预设（spring/fade/slide/scale/glow/particle配置），配合 `scripts/themes.js` 和 `scripts/useThemeAnimation.ts` 实现主题适配的动画效果。
 - [rules/PLATFORM.md](rules/PLATFORM.md) - 定义视频号、小红书、抖音/快手的平台规格（分辨率、帧率、时长、文件大小、编码）及 Remotion 竖屏配置参数。
 - [rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md) - 提供视频渲染失败、baoyu获取内容、字体异常、音频回音/拼接、Remotion编码杂音、Chrome下载失败等常见问题的解决方案。
