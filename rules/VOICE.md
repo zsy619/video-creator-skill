@@ -102,11 +102,14 @@ ffmpeg -y -i audio/neural_full.mp3 \
       silenceremove=stop_periods=-1:stop_duration=0.2:stop_threshold=-50dB:detection=peak,\
       atempo=1.2" \
   -c:a aac -b:a 256k -ar 48000 -ac 2 \
-  audio/neural_processed.m4a
+  audio/neural_1_2x.m4a
 
 # 检查时长
 ffprobe -v error -show_entries format=duration \
-  -of default=noprint_wrappers=1 audio/neural_processed.m4a
+  -of default=noprint_wrappers=1 audio/neural_1_2x.m4a
+
+# ⚠️ 重要：音频文件必须重命名为 neural_1_2x.m4a
+# 这是 video-creator 技能的标准命名规范，用于后续验证
 ```
 
 ### Step 3: 计算场景帧边界
@@ -163,7 +166,7 @@ const App = () => (
     component={() => (
       <>
         {/* ✅ 整段音频，无拼接 */}
-        <Audio src={require("../../audio/neural_processed.m4a")} />
+        <Audio src={require("../../audio/neural_1_2x.m4a")} />
         <Scene1 /> <Scene2 /> <Scene3 /> ...
       </>
     )}
@@ -177,7 +180,7 @@ const App = () => (
 # Remotion 渲染无音频视频，然后用 ffmpeg 混流
 ffmpeg -y \
   -i out/video_noaudio.mp4 \
-  -i audio/neural_processed.m4a \
+  -i audio/neural_1_2x.m4a \
   -c:v copy \
   -c:a copy \
   -map 0:v -map 1:a \
@@ -229,10 +232,10 @@ ffmpeg -y -i audio/neural_full.mp3 \
       silenceremove=stop_periods=-1:stop_duration=0.2:stop_threshold=-50dB:detection=peak,\
       atempo=$SPEED" \
   -c:a aac -b:a 256k -ar 48000 -ac 2 \
-  audio/neural_processed.m4a
+  audio/neural_1_2x.m4a
 
 echo "Done: $(ffprobe -v error -show_entries format=duration \
-  -of default=noprint_wrappers=1 audio/neural_processed.m4a)s"
+  -of default=noprint_wrappers=1 audio/neural_1_2x.m4a)s"
 ```
 
 ---
@@ -261,7 +264,7 @@ echo "Done: $(ffprobe -v error -show_entries format=duration \
 # 用 ffmpeg 混流（视频 + 音频均为 stream copy，不重编码）
 ffmpeg -y \
   -i out/video_noaudio.mp4 \
-  -i audio/neural_processed.m4a \
+  -i audio/neural_1_2x.m4a \
   -c:v copy -c:a copy \
   -map 0:v -map 1:a \
   -shortest \

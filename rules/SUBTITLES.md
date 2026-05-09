@@ -26,7 +26,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,1
+Style: Default,PingFang SC,10,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -80,7 +80,7 @@ for i, (start, end, text) in enumerate(subtitles):
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| `Fontsize` | **72** | 72px，竖屏视频最佳阅读尺寸 |
+| `Fontsize` | **10** | ASS字幕标准化像素值 |
 | `PrimaryColour` | `&H00FFFF` | 黄色（#FFFF00）|
 | `Alignment` | **2** | 底部居中 |
 | `MarginL` | **30** | 左侧边距 30px |
