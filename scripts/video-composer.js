@@ -311,7 +311,7 @@ export const RemotionVideo: React.FC = () => {
   async renderVideo(projectDir) {
     console.log('🔄 开始渲染视频...');
     
-    const outputPath = path.join(this.options.outputDir, 'video-project', 'out', 'output.mp4');
+    const outputPath = path.join(this.options.outputDir, 'video-project', 'out', 'final-video.mp4');
     
     try {
       // 安装依赖

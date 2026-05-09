@@ -184,16 +184,16 @@ class QualityChecker {
           }
         }
 
-        // 检查 ASS 中 Fontsize 参数是否在合理范围内（标准 72px，最低 36px）
+        // 检查 ASS 中 Fontsize 参数是否为标准值 10
         const fontSizeMatch = content.match(/Fontsize,(\d+)/);
         if (fontSizeMatch) {
           const fontSize = parseInt(fontSizeMatch[1]);
-          if (fontSize < 36) {
+          if (fontSize !== 10) {
             this.issues.push({
               type: 'FONT_SIZE',
-              severity: 'WARNING',
-              message: `字体大小 ${fontSize}px 可能过小`,
-              solution: '建议使用72px字体（竖屏视频标准），最低不低于36px',
+              severity: 'ERROR',
+              message: `字体大小 ${fontSize}px 不符合标准（应为 10px）`,
+              solution: '使用 SubtitleGenerator 生成字幕，默认 fontSize=10',
               path: file,
               fixable: true,
               fixAction: 'adjustFontSize'
@@ -561,8 +561,26 @@ class QualityChecker {
   }
 
   /**
-   * 调整 ASS 文件中的字体大小为默认 72px
-   * 查找 Style 行中的 Fontsize 参数，将低于 36px 的值重置为 72px
+   * 验证 ASS 文件中的字体大小是否符合标准（10px）
+   * 查找 Style 行中的 Fontsize 参数，低于 10px 或高于 20px 的需要报告
+   *
+   * @param {string} filePath - ASS 文件路径
+   */
+  async validateFontSize(filePath) {
+    const fileContent = await fs.readFile(filePath, 'utf8');
+    const styleMatch = fileContent.match(/Style:.*?,(\d+),/);
+    if (!styleMatch) return { valid: false, message: '未找到 Style 行' };
+    
+    const fontsize = parseInt(styleMatch[1], 10);
+    if (fontsize === 10) {
+      return { valid: true, fontsize, message: 'Fontsize=10 符合标准' };
+    }
+    return { valid: false, fontsize, message: `Fontsize=${fontsize}，应为 10` };
+  }
+
+  /**
+   * 调整 ASS 文件中的字体大小为标准 10px
+   * 查找 Style 行中的 Fontsize 参数，将不是 10px 的值修正为 10px
    *
    * @param {string} filePath - ASS 文件路径
    */
@@ -571,9 +589,8 @@ class QualityChecker {
     const lines = fileContent.split('\n');
     const adjustedLines = lines.map(function(line) {
       if (!line.startsWith('Style:')) return line;
-      return line.replace(/Fontsize,\d+/g, function() {
-        return 'Fontsize,72';
-      });
+      // 修正任何非 10 的值为 10
+      return line.replace(/Fontsize,\d+/g, 'Fontsize,10');
     });
     await fs.writeFile(filePath, adjustedLines.join('\n'), 'utf8');
   }

@@ -176,9 +176,10 @@ class VideoCreatorSupervised {
         name: '生成视觉内容',
         function: async () => await this.generateVisualContentSupervised(),
         options: {
-          critical: false,
+          critical: true,  // 改为 critical，封面缺失应立即失败
           maxRetries: 3,
           validateResult: async (result) => await this.validateVisualContentResult(result),
+          postValidate: async () => await this._validateCoverAssets(),  // 封面资产验证
           fallbackFunction: async () => await this.generateVisualContentFallback()
         }
       },
@@ -467,6 +468,38 @@ class VideoCreatorSupervised {
     } catch (e) {
       return { success: true, fallback: true };
     }
+  }
+
+  /**
+   * 验证封面资产（Step 6 后强制验证）
+   */
+  async _validateCoverAssets() {
+    const fs = require('fs').promises;
+    const { execSync } = require('child_process');
+    const assetsDir = path.join(this.options.outputDir, 'docs', 'assets');
+    const covers = [
+      { file: 'cover.png', w: 1080, h: 1920 },
+      { file: 'cover-wechat.png', w: 900, h: 383 },
+      { file: 'cover-xhs.png', w: 1440, h: 2560 }
+    ];
+
+    for (const cover of covers) {
+      const coverPath = path.join(assetsDir, cover.file);
+      try {
+        await fs.access(coverPath);
+        const dim = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${coverPath}"`, { encoding: 'utf8' }).trim();
+        const [w, h] = dim.split('x').map(Number);
+        if (w !== cover.w || h !== cover.h) {
+          throw new Error(`${cover.file} 尺寸错误: ${w}x${h} (期望 ${cover.w}x${cover.h})`);
+        }
+      } catch (e) {
+        if (e.code === 'ENOENT') {
+          throw new Error(`缺少封面: ${cover.file}`);
+        }
+        throw e;
+      }
+    }
+    return { success: true };
   }
 }
 

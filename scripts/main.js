@@ -21,6 +21,7 @@ const { THEMES, CONFIG, VALID_STYLES, VALID_PLATFORMS } = require('./themes');
 class VideoCreator {
   constructor(options = {}) {
     this.options = { ...CONFIG, ...options };
+    this.strictMode = this.options.strict || false;
     this.content = null;
     this.metadata = {};
     this.generatedFiles = [];
@@ -28,6 +29,7 @@ class VideoCreator {
     this.sessionLogPath = null;
     this.baoyuConfig = {};
     this.cdnMapping = {};
+    this.stepResults = {};  // 记录每步执行结果
     this.baoyu = new BaoyuIntegration({
       outputDir: this.options.outputDir
     });
@@ -41,6 +43,122 @@ class VideoCreator {
       outputDir: this.options.outputDir
     });
     this._loadReferences();
+  }
+
+  /**
+   * 步骤验证辅助方法
+   * 在每个关键步骤后调用，确保该步骤产出正确
+   */
+  async _validateStep(stepName, checkFn, errorMsg) {
+    try {
+      const result = await checkFn();
+      this.stepResults[stepName] = { success: result, error: null };
+      if (!result) {
+        console.error(`❌ ${errorMsg}`);
+        if (this.strictMode) {
+          throw new Error(`${stepName} 验证失败: ${errorMsg}`);
+        }
+        return false;
+      }
+      console.log(`✅ ${stepName} 验证通过`);
+      return true;
+    } catch (e) {
+      this.stepResults[stepName] = { success: false, error: e.message };
+      console.error(`❌ ${stepName} 验证异常: ${e.message}`);
+      if (this.strictMode) {
+        throw e;
+      }
+      return false;
+    }
+  }
+
+  /**
+   * 检查封面是否已生成（Step 6 后强制验证）
+   */
+  async checkCoverGenerated() {
+    return this._validateStep('Step6-Cover', async () => {
+      const assetsDir = path.join(this.options.outputDir, 'docs', 'assets');
+      const covers = [
+        { file: 'cover.png', w: 1080, h: 1920 },
+        { file: 'cover-wechat.png', w: 900, h: 383 },
+        { file: 'cover-xhs.png', w: 1440, h: 2560 }
+      ];
+      
+      for (const cover of covers) {
+        const coverPath = path.join(assetsDir, cover.file);
+        const exists = await fs.access(coverPath).then(() => true).catch(() => false);
+        if (!exists) {
+          console.error(`   ❌ 缺少 ${cover.file}`);
+          return false;
+        }
+        // 验证尺寸
+        try {
+          const { execSync } = require('child_process');
+          const dim = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${coverPath}"`, { encoding: 'utf8' }).trim();
+          const [w, h] = dim.split('x').map(Number);
+          if (w !== cover.w || h !== cover.h) {
+            console.error(`   ❌ ${cover.file} 尺寸错误: ${w}x${h} (期望 ${cover.w}x${cover.h})`);
+            return false;
+          }
+        } catch (e) {
+          console.error(`   ❌ 无法验证 ${cover.file} 尺寸`);
+          return false;
+        }
+      }
+      this.coverGenerated = true;
+      return true;
+    }, '封面验证失败：缺少封面图或尺寸不正确');
+  }
+
+  /**
+   * 最终清单检查（Step 11 后强制验证）
+   */
+  async runFinalChecklist() {
+    return this._validateStep('Step11-FinalCheck', async () => {
+      const docsDir = path.join(this.options.outputDir, 'docs');
+      const requiredDocs = [
+        'README.md', 'article.md', 'video-script.md', 'copy.md', 'wechat-copy.md',
+        'posting-guide.md', 'landing-page.html', 'article-page.html', 'wechat-page.html',
+        'session-log.md'
+      ];
+      
+      let missing = [];
+      for (const doc of requiredDocs) {
+        const docPath = path.join(docsDir, doc);
+        const exists = await fs.access(docPath).then(() => true).catch(() => false);
+        if (!exists) {
+          missing.push(doc);
+        }
+      }
+      
+      if (missing.length > 0) {
+        console.error(`   ❌ 缺少文档: ${missing.join(', ')}`);
+        return false;
+      }
+      
+      // 检查音频
+      const audioPath = path.join(this.options.outputDir, 'audio', 'neural_1_2x.m4a');
+      const audioExists = await fs.access(audioPath).then(() => true).catch(() => false);
+      if (!audioExists) {
+        console.warn(`   ⚠️  音频文件不存在: ${audioPath}`);
+      }
+      
+      // 检查字幕
+      const subtitlePath = path.join(this.options.outputDir, 'audio', 'subtitles.ass');
+      const subtitleExists = await fs.access(subtitlePath).then(() => true).catch(() => false);
+      if (!subtitleExists) {
+        console.warn(`   ⚠️  字幕文件不存在: ${subtitlePath}`);
+      }
+      
+      // 检查视频
+      const videoPath = path.join(this.options.outputDir, 'video-project', 'out', 'final-with-subs.mp4');
+      const videoExists = await fs.access(videoPath).then(() => true).catch(() => false);
+      if (!videoExists) {
+        console.warn(`   ⚠️  视频文件不存在: ${videoPath}`);
+      }
+      
+      return true;
+    }, '最终清单验证失败：缺少必需文件');
   }
 
   async _loadReferences() {
@@ -77,7 +195,7 @@ class VideoCreator {
       await this.buildHtmlPage();
       // Step 6: 生成视觉（封面强制优先）
       await this.generateVisualContent();
-      this.checkCoverGenerated();
+      await this.checkCoverGenerated();
       // Step 7: 生成音频
       await this.generateAudio();
       // Step 8: 生成字幕
@@ -663,7 +781,7 @@ class VideoCreator {
   /**
    * Step 8: 生成字幕 + FFmpeg 烧录
    * 使用 SubtitleGenerator 生成 ASS 格式字幕，然后用 ffmpeg 烧录到视频
-   * 规范：Fontsize=72, 黄色, PingFang SC, MarginL/R/V=30, 底部居中
+   * 规范：Fontsize=10, 黄色, PingFang SC, MarginL/R/V=30, 底部居中
    */
   async generateSubtitles() {
     if (this.options.skipSubtitles) {
@@ -675,7 +793,7 @@ class VideoCreator {
 
     try {
       const subtitleGenerator = new SubtitleGenerator({
-        fontSize: 72,
+        fontSize: 10,  // ASS 标准像素值，不是 72
         color: '&H00FFFF'
       });
 
@@ -684,9 +802,8 @@ class VideoCreator {
 
       const subtitles = await subtitleGenerator.generateFromText(narrationText, audioDuration);
 
-      // 文件名含时长信息，对齐 WORKFLOW.md 规范
-      const durationLabel = Math.round(audioDuration);
-      const outputPath = path.join(this.options.outputDir, 'audio', `subtitles_${durationLabel}s.ass`);
+      // 统一字幕文件名：audio/subtitles.ass（validator.js 要求）
+      const outputPath = path.join(this.options.outputDir, 'audio', 'subtitles.ass');
       await subtitleGenerator.generateASS(subtitles, outputPath);
 
       this.generatedFiles.push(outputPath);
@@ -698,17 +815,38 @@ class VideoCreator {
       // FFmpeg 烧录字幕到视频（如果有视频需要烧录）
       const finalVideo = path.join(this.options.outputDir, 'video-project', 'out', 'final-video.mp4');
       const outputWithSubs = path.join(this.options.outputDir, 'video-project', 'out', 'final-with-subs.mp4');
+      const audioPath = path.join(this.options.outputDir, 'audio', 'neural_1_2x.m4a');
+      
       try {
         await fs.access(finalVideo);
-        const burnCmd = `ffmpeg -y -i "${finalVideo}" -vf "ass='${outputPath}'" -c:v libx264 -crf 18 -preset fast -c:a copy "${outputWithSubs}"`;
-        await execAsync(burnCmd, { timeout: 120000 });
+        
+        // 检查音频是否存在
+        let hasAudio = false;
+        try {
+          await fs.access(audioPath);
+          hasAudio = true;
+        } catch (e) {
+          // 音频不存在，继续使用视频原有音频（如果有）
+        }
+        
+        if (hasAudio) {
+          // 有音频：混流音频 + 烧录字幕
+          const cmd = `ffmpeg -y -i "${finalVideo}" -i "${audioPath}" -vf "ass='${outputPath}'" -c:v libx264 -crf 18 -preset fast -c:a aac -b:a 128k -shortest "${outputWithSubs}"`;
+          await execAsync(cmd, { timeout: 180000 });
+          console.log(`✅ 音频+字幕已混流: ${outputWithSubs}`);
+        } else {
+          // 无音频：只烧录字幕，视频音频原样保留
+          const cmd = `ffmpeg -y -i "${finalVideo}" -vf "ass='${outputPath}'" -c:v libx264 -crf 18 -preset fast -c:a copy "${outputWithSubs}"`;
+          await execAsync(cmd, { timeout: 120000 });
+          console.log(`✅ 字幕已烧录: ${outputWithSubs}`);
+        }
+        
         this.generatedFiles.push(outputWithSubs);
-        console.log(`✅ 字幕已烧录: ${outputWithSubs}`);
       } catch (e) {
         if (e.code === 'ENOENT') {
-          console.log('⏭️  无可烧录的视频（视频尚未渲染），字幕文件已就绪');
+          console.log('⏭️  无可烧录的视频（视频尚未渲染），字幕和音频文件已就绪');
         } else {
-          console.warn(`⚠️  字幕烧录失败（不影响使用）: ${e.message}`);
+          console.warn(`⚠️  字幕烧录/混流失败: ${e.message}`);
         }
       }
     } catch (error) {
@@ -936,6 +1074,39 @@ ${this.generatedFiles.map(f => `- \`${path.relative(this.options.outputDir, f)}\
       logger.debug('baoyu-config.json 主题映射已加载');
     }
   }
+}
+
+// ============================================================
+// CLI 入口
+// ============================================================
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  const projectDir = path.resolve(args[0] || './workspace');
+  const strictMode = args.includes('--strict');
+  
+  console.log(`
+🎬 Video Creator 主程序
+============================================================
+项目目录: ${projectDir}
+严格模式: ${strictMode ? '开启' : '关闭'}
+============================================================
+`);
+  
+  const creator = new VideoCreator({
+    outputDir: projectDir,
+    strict: strictMode,
+    style: 'tech-modern'
+  });
+  
+  creator.run()
+    .then(() => {
+      console.log('\n✅ 执行完成');
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('\n❌ 执行失败:', err.message);
+      process.exit(1);
+    });
 }
 
 module.exports = VideoCreator;

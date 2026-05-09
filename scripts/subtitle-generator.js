@@ -3,7 +3,7 @@
  * 智能生成ASS字幕文件，支持字体兼容性修复
  *
  * 规范（与 rules/FONTS.md 一致）：
- * - Fontsize: 72
+ * - Fontsize: 10（ASS 标准像素单位，不是 pt）
  * - Font: PingFang SC (macOS) / Microsoft YaHei (Windows)
  * - PrimaryColour: &H00FFFF（黄色）
  * - Alignment: 2（底部居中）
@@ -20,7 +20,7 @@ class SubtitleGenerator {
   constructor(options = {}) {
     this.options = {
       font: 'PingFang SC',
-      fontSize: 72,
+      fontSize: 10,  // ASS 标准像素值，不是 72
       color: '&H00FFFF', // 亮黄色
       outlineColor: '&H00000000', // 黑色描边
       backgroundColor: '&H00000000', // 透明背景
