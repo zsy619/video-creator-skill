@@ -14,27 +14,57 @@
 
 ### PIL 封面字体速查表
 
-| 封面类型 | 画布尺寸 | 标题字号 | 副标题字号 | 标签字号 | URL字号 | 标题高度占比 |
-|---------|---------|---------|-----------|---------|---------|-------------|
-| 竖屏 | 1080×1920 | **260-300px** | 80px | 48px | 32px | ≥10% |
-| 公众号 | 900×383 | **140-180px** | 48px | 36px | 24px | ≥15% |
-| 小红书 | 1440×2560 | **360-400px** | 100px | 64px | 44px | ≥10% |
+> ⚠️ **字体大小根据画布宽度比例计算，而非固定值**，确保各尺寸封面字体协调。
+
+| 封面类型 | 画布尺寸 | 标题字号 | 副标题字号 | 计算公式 |
+|---------|---------|-----------|-----------|---------|
+| 竖屏 | 1080×1920 | **~108px** | ~48px | 宽度×10% / 宽度×4.5% |
+| 公众号 | 900×383 | **~90px** | ~40px | 宽度×10% / 宽度×4.5% |
+| 小红书 | 1440×2560 | **~144px** | ~64px | 宽度×10% / 宽度×4.5% |
+
+> ✅ **经验值**：主标题约为画布宽度的10%，副标题约为4.5%，这样比例最协调。
 
 ### PIL 自校验机制
+
+> ✅ **推荐方案**：根据宽度比例计算字体大小，代码更简洁。
 
 ```python
 from PIL import Image, ImageDraw, ImageFont
 FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
 
-# 验证字体加载
-font = ImageFont.truetype(FONT_PATH, 280)
-bbox = draw.textbbox((0, 0), 'Title', font=font, anchor='mm')
-height = bbox[3] - bbox[1]
-assert height > 100, f"Font failed: {height}px"
+def create_cover(width, height, output_path, title_text, sub_text):
+    """根据宽度比例计算字体大小"""
+    img = Image.new('RGB', (width, height), '#0D0221')
+    draw = ImageDraw.Draw(img)
+    
+    # 字体大小 = 宽度 × 比例
+    title_size = int(width * 0.1)   # 主标题约为宽度的10%
+    sub_size = int(width * 0.045)    # 副标题约为宽度的4.5%
+    
+    title_font = ImageFont.truetype(FONT_PATH, title_size)
+    sub_font = ImageFont.truetype(FONT_PATH, sub_size)
+    
+    # 主标题（居中）
+    title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
+    title_width = title_bbox[2] - title_bbox[0]
+    title_height = title_bbox[3] - title_bbox[1]
+    title_x = (width - title_width) // 2
+    title_y = height // 2 - title_height - int(sub_size * 0.8)
+    draw.text((title_x, title_y), title_text, font=title_font, fill='white')
+    
+    # 副标题（居中）
+    sub_bbox = draw.textbbox((0, 0), sub_text, font=sub_font)
+    sub_width = sub_bbox[2] - sub_bbox[0]
+    sub_x = (width - sub_width) // 2
+    sub_y = height // 2 + int(title_size * 0.1)
+    draw.text((sub_x, sub_y), sub_text, font=sub_font, fill='#00FFFF')
+    
+    img.save(output_path)
 
-# 验证标题占比
-ratio = height / canvas_height * 100
-assert ratio >= 10, f"Title too small: {ratio:.1f}% < 10%"
+# 使用
+create_cover(1080, 1920, 'cover.png', 'GOAL-DRIVEN', '目标驱动的多智能体协作系统')
+create_cover(900, 383, 'cover-wechat.png', 'GOAL-DRIVEN', '目标驱动的多智能体协作系统')
+create_cover(1440, 2560, 'cover-xhs.png', 'GOAL-DRIVEN', '目标驱动的多智能体协作系统')
 ```
 
 ### 字体突出设计（多层发光效果）
@@ -112,8 +142,8 @@ create_prominent_cover('cover-xhs.png', (1440,2560), 360, 100, 64, 44, 0.16)
 ## 字体大小规范
 
 | 场景类型 | 主标题字体 | 副标题字体 | 说明字体 |
-|----------|-----------|-----------|
-| 封面/核心场景 | **≥300px** | **≥200px** | **≥80px** |
+|----------|-----------|-----------|---------|
+| 封面/核心场景 | **130px** | **52px** | **48px** |
 | 内容场景 | **64-96px** | **40-56px** | **28-36px** |
 | 数据展示 | **72-120px** | **36-48px** | **24-32px** |
 | CTA/结尾 | **64-96px** | **40-56px** | **32-40px** |
@@ -122,8 +152,8 @@ create_prominent_cover('cover-xhs.png', (1440,2560), 360, 100, 64, 44, 0.16)
 ## 视频字体规范（竖屏 1080×1920）
 | 元素 |   字体大小 |  说明 |
 | --------   | ---------- |  ------- |
-| 主标题 |   **≥300px** | 封面/核心场景 |
-| 副标题 |   **≥200px** | 特征/功能描述 |
+| 主标题 |   **130px** | 大字体封面场景（12字符英文内不换行） |
+| 副标题 |   **52px** | 配合主标题的说明文字 |
 | 内容 |   **40-48px** | 正文内容 |
 | 命令行 |   **22-28px** | 代码/命令展示 |
 | **字幕** | **10px** | ASS字幕，底部居中，黄色（&H00FFFF），PingFang SC，MarginV=30 |
@@ -259,13 +289,13 @@ const LargeCenteredScene: React.FC<{
 // 竖屏视频字体规范（1080×1920）
 // | 元素 |   字体大小 |  说明 |
 // | --------   | ---------- |  ------- |
-// | 主标题 |   120-180px | 封面核心场景用160-180px |
-// | 副标题 |   44-56px | 特征/功能描述 |
+// | 主标题 |   130px | 封面核心场景（安全值，12字符内不换行） |
+// | 副标题 |   52px | 特征/功能描述 |
 // | 内容 |   40-48px | 正文内容 |
 // | 命令行 |   22-28px | 代码/命令展示 |
 // | 字幕 |   10px | ASS字幕规范，底部居中 |
 
-// 使用示例 - 封面（160px大字）
+// 使用示例 - 封面（130px大字）
 const CoverScene: React.FC = () => {
   const frame = useCurrentFrame();
   const opacity = spring({ frame, fps: FPS, config: { damping: 12 } });
@@ -275,22 +305,22 @@ const CoverScene: React.FC = () => {
     <LargeCenteredScene>
       <div style={{ opacity, transform: `scale(${scale})` }}>
         <div style={{
-          fontSize: '160px',  // 封面用160px大标题
+          fontSize: 130,  // 封面用130px大标题（安全不换行）
           fontWeight: 'bold',
           color: COLORS.textPrimary,
-          marginBottom: '40px',
+          marginBottom: '32px',
           lineHeight: 1,
-          letterSpacing: '-4px'
+          letterSpacing: '-2px'
         }}>
-          AI Reads Books
+          GOAL-DRIVEN
         </div>
         <div style={{
-          fontSize: '56px',  // 副标题56px
+          fontSize: 52,  // 副标题52px
           color: COLORS.accent,
           marginBottom: '40px',
           fontWeight: 'bold'
         }}>
-          逐页分析PDF，自动提取知识精华
+          目标驱动的多智能体协作系统
         </div>
       </div>
     </LargeCenteredScene>

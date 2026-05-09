@@ -37,8 +37,16 @@ bun scripts/vendor/baoyu-fetch/src/cli.ts <url> --wait-for interaction
 
 ### Q: 音频有回音/重叠
 
-- 原因：多个 `<Audio>` 组件同时播放
-- 解决：只使用 1 个 `<Audio>` 组件从头播到尾。详见 `VOICE.md`
+- 原因：多个 `<Audio>` 组件同时播放，或 Remotion 渲染时内嵌了音频
+- **解决方案：整个视频只用 1 个 `<Audio>` 组件，且必须通过 ffmpeg 混流嵌入，禁止在 Remotion 渲染时内嵌音频**
+
+### Q: Remotion 渲染后音频混入
+
+- **问题**：即使移除 `<Audio>` 组件，Remotion 4 仍会生成带静音音轨的视频
+- **解决方案**：
+  1. 确认 `VerticalVideo.tsx` 中**完全没有** `Audio` 和 `staticFile` 导入
+  2. `grep -n "Audio" src/VerticalVideo.tsx` 应只返回导入行
+  3. 如仍有音轨，用 ffmpeg 替换音频：`ffmpeg -y -i in.mp4 -c:v copy -c:a aac -b:a 256k -an out.mp4`
 
 ### Q: 音频有拼接感
 
