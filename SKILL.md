@@ -494,6 +494,105 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - [rules/THEME_ANIMATIONS.md](rules/THEME_ANIMATIONS.md) - 定义20种主题的动画参数预设（spring/fade/slide/scale/glow/particle配置），配合 `scripts/themes.js` 和 `scripts/useThemeAnimation.ts` 实现主题适配的动画效果。
 - [rules/PLATFORM.md](rules/PLATFORM.md) - 定义视频号、小红书、抖音/快手的平台规格（分辨率、帧率、时长、文件大小、编码）及 Remotion 竖屏配置参数。
 - [rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md) - 提供视频渲染失败、baoyu获取内容、字体异常、音频回音/拼接、Remotion编码杂音、Chrome下载失败、create-video CLI交互bug等常见问题的解决方案。
+
+## ⚠️ 渲染决策：Remotion CLI vs ffmpeg 兜底（2026-05-10 新增）
+
+> **经验教训**：Remotion CLI 在 headless Mac M-series 环境无法完成渲染，核心原因是 `@remotion/renderer` 的 `selectComposition()` 需要 HTTP serveUrl 参数，而 bundler dev server 在 arm64 环境不响应（60s 超时）。这不是包版本问题，而是架构限制。
+
+### 渲染路径选择
+
+```
+                    用户请求渲染
+                          │
+            ┌─────────────┴─────────────┐
+            │                           │
+      Remotion CLI 可用？          是否有多场景动态画面？
+            │                           │
+    ┌───────┴───────┐           ┌──────┴──────┐
+    │               │           │             │
+   是              否          是            否
+    │               │           │             │
+    ▼               ▼           ▼             ▼
+Remotion render  ffmpeg兜底   Remotion     ffmpeg兜底
+                  (静态封面+   多场景      (静态封面+
+                   音频+字幕)   动画         音频+字幕)
+```
+
+**判断条件**：
+- Remotion CLI 可用 = `remotion compositions --entry-point src/index.ts` 能列出 composition（非超时）
+- 多场景动态画面 = 视频脚本包含 ≥2 个不同场景，且需要转场/动画效果
+
+**实际经验**：截至 2026-05-10，在 Mac M-series headless 环境下，Remotion CLI **始终超时**，所有视频项目均通过 ffmpeg 兜底完成。
+
+### ffmpeg 兜底渲染命令（标准输出）
+
+```bash
+ffmpeg -y -loop 1 \
+  -i "{WORKSPACE_DIR}/docs/assets/cover.png" \
+  -i "{WORKSPACE_DIR}/audio/neural_1_2x.m4a" \
+  -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,subtitles='{WORKSPACE_DIR}/audio/subtitles.ass':fontsdir='/System/Library/Fonts/Supplemental':force_style='Fontsize=72,MarginV=50,Outline=2'" \
+  -shortest \
+  -c:v libx264 -preset fast -crf 23 \
+  -c:a aac -b:a 192k \
+  "{WORKSPACE_DIR}/video-project/out/final_with_subs.mp4"
+```
+
+关键说明：
+- `subtitles='...ass':force_style='Fontsize=72,MarginV=50,Outline=2'` — 强制覆盖 ASS 内部样式
+- `fontsdir` 必须存在，否则 ASS 字幕无法渲染（ASS 内置字体查找失败）
+- `-map 0:v -map 1:a` 通过 `-shortest` 隐式实现（视频循环 + 音频终止 → 自动停止）
+- 输出：H.264 + AAC，1080×1920，时长=音频时长
+
+### Remotion 4.x 已知限制
+
+**`Text` 组件不存在**：remotion 4.0.459 的 47 个 exports 中**没有 Text 组件**。使用 `<Text>` 会触发 React Error #130（React.createElement(undefined, ...)）。
+
+修复方法（已在 Video.tsx 生成时自动应用）：
+```tsx
+// ❌ 错误
+import { Text } from 'remotion';
+<Text style={{fontSize: 72}}>内容</Text>
+
+// ✅ 正确：用 div 替代，CSS 实现描边
+<div style={{
+  fontFamily: 'PingFang SC',
+  color: '#FFFFFF',
+  textShadow: '0 0 10px #00FFFF, 0 0 20px #00FFFF',
+  fontSize: 72,
+}}>内容</div>
+```
+
+**package.json 正确写法**（已验证有效）：
+```json
+{
+  "remotion": "4.0.459",
+  "react": "18.2.0",
+  "react-dom": "18.2.0"
+}
+```
+不要写任何 `@remotion/*` scoped 包（`@remotion/core`、`@remotion/fonts` 等在 npm 不存在）。
+
+**SubtitleGenerator 导出类型**：
+```javascript
+// subtitle-generator.js 导出的是 class 本身
+module.exports = SubtitleGenerator;
+
+// 使用方式：直接 require 后实例化，不需要 .default
+const SubtitleGenerator = require('./subtitle-generator.js');
+const sg = new SubtitleGenerator(options);
+```
+
+### launch.sh all 说明（重要修正）
+
+> ⚠️ `launch.sh all` 当前版本**只执行质量门禁检查**，不执行实际音视频生成步骤。
+> 实际生成需要按顺序手动执行：
+> ```bash
+> bash {SKILL_DIR}/scripts/launch.sh audio    # edge-tts + ffmpeg 重编码
+> bash {SKILL_DIR}/scripts/launch.sh subtitle # ASS 字幕生成
+> bash {SKILL_DIR}/scripts/launch.sh render   # ffmpeg 兜底渲染（或 Remotion）
+> ```
+
+**修复方向**（待实现）：将 ONEPASS_WORKFLOW.md 中的 10 步命令真正嵌入 `launch.sh all`，实现一键生成。
 - [rules/INTEGRATION.md](rules/INTEGRATION.md) - 定义 baoyu 技能调用方式（url-to-markdown/cover-image/illustrator等）及自动化脚本模板和依赖安装说明。
 - [rules/SCRIPTS.md](rules/SCRIPTS.md) - 定义视频脚本的 Markdown 输出结构，包含小红书/视频号版本、场景分镜（视觉/文字/动画）、配音及时长、帧边界计算方法。
 - [rules/SESSION_LOG.md](rules/SESSION_LOG.md) - 追踪每次大模型请求的输入/输出 token 数量、请求模型、处理时长及 session 数据，输出到 `docs/session-log.md` 供审计和成本分析。

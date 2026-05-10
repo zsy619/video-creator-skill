@@ -134,27 +134,47 @@ node {SKILL_DIR}/scripts/video-quality-gate.js subtitle
 
 ---
 
-### Step 7：Remotion 渲染（无音频）
+### Step 7：渲染（Remotion CLI vs ffmpeg 兜底）
 
 ```bash
-cd video-project/video-project
-npx remotion render VerticalVideo out/video_noaudio.mp4 \
-  --concurrency=8 \
-  --帧率=60 \
-  --duration-in-frames=3540
+cd video-project
+
+# 先测试 Remotion CLI 是否可用
+timeout 30 npx remotion compositions --entry-point src/index.ts 2>&1 | grep -q "VerticalVideo"
+
+if [ $? -eq 0 ]; then
+  # ✅ Remotion CLI 可用：标准渲染路径
+  npx remotion render VerticalVideo out/video_noaudio.mp4 \
+    --concurrency=8 --fps=60 --duration-in-frames=3540
+else
+  # ❌ headless 环境：ffmpeg 兜底（一步到位：封面+音频+字幕烧录）
+  ffmpeg -y -loop 1 \
+    -i "{WORKSPACE_DIR}/docs/assets/cover.png" \
+    -i "{WORKSPACE_DIR}/audio/neural_1_2x.m4a" \
+    -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,subtitles='{WORKSPACE_DIR}/audio/subtitles.ass':fontsdir='/System/Library/Fonts/Supplemental':force_style='Fontsize=72,MarginV=50,Outline=2'" \
+    -shortest -c:v libx264 -preset fast -crf 23 \
+    -c:a aac -b:a 192k \
+    "{WORKSPACE_DIR}/video-project/out/final_with_subs.mp4"
+
+  # ffmpeg 兜底直接输出最终视频，跳到门禁 D
+  node {SKILL_DIR}/scripts/video-quality-gate.js "{WORKSPACE_DIR}" final
+  exit $?
+fi
 ```
 
 **关键**：
-- duration/fps 来自 `video-project/video-config.json`
-- 不需要 `--props` 参数
+- `video-config.json` 中的 `duration` 和 `fps` 是唯一配置源
 - Remotion 渲染**无音频**（AudioContext 问题）
+- ffmpeg 兜底方案**一步到位**（音频 + 字幕直接烧录进 MP4）
 - 使用 `remotion` 包（不是 `@remotion/core`），版本 4.0.459
 
 **⚠️ 如果 Video.tsx 使用了 `<Text>` 组件（不存在），先修复**：
 
 ```bash
-node {SKILL_DIR}/scripts/fix-text-component.js video-project/video-project/Video.tsx
+node {SKILL_DIR}/scripts/fix-text-component.js video-project/src
 ```
+
+> **完整 headless 渲染问题分析**：见 [references/remotion-headless-rendering.md](references/remotion-headless-rendering.md)
 
 ---
 
