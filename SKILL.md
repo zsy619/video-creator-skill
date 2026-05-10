@@ -83,6 +83,8 @@ metadata:
 - [低码率音频修复](references/low-bitrate-audio-fix.md) — edge-tts 音频 2kbps 导致无声的根因与修复
 - [Remotion 版本冲突修复](references/remotion-version-conflict.md) — EISDIR 错误的根因与修复
 - [音频验证协议](references/audio-validation-protocol.md) — ⚠️ **【新增·强制阅读】** 音频有效性验证完整协议（4个验证节点 + 快速验证脚本）
+- [ASS字幕 ms()函数Bug修复](references/subtitle-ms-function-bug.md) — ⚠️ **【重要】** ms()时间戳格式Bug：0:04:00.00=4分钟而非4秒，正确函数及参数
+- [atempo 加速+裁剪反模式](references/atempo-crop-anti-pattern.md) — ⚠️ **【致命】** 长音频atempo加速+裁剪导致音画不同步，正确流程
 
 ---
 
@@ -117,12 +119,12 @@ ffmpeg -i video.mp4 -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.ast
 ### 字幕六禁止
 | 禁止 | 正确做法 |
 |------|---------|
-| 禁止字号 ≠ 72px | 必须 Fontsize=72（PlayResY=1920 时，约40px视觉，已验证） |
-| 禁止 `\\N` 换行 | 必须 `\N` 换行 |
+| 禁止字号 ≠ 72px | 必须 Fontsize=72（PlayResY=1920 时，约40px视觉） |
+| 禁止 `\\\\N` 换行 | 必须 `\N` 换行 |
 | 禁止字段数不匹配 | Format 10字段，Dialogue 10字段 |
 | 禁止先于音频生成字幕 | 必须音频后处理完成后生成 |
 | 禁止 MP4 内嵌 ASS | 必须用 `-vf "ass=..."` 烧录 |
-| 禁止不设 PlayRes | 必须设置 PlayResX=1080, PlayResY=1920 |
+| 禁止 Outline=1 | 必须 Outline=2（1px太细） |
 
 ### 执行顺序（不可颠倒）
 ```
@@ -286,7 +288,7 @@ echo "✅ session-log.md 已初始化"
 | 14 | 小红书封面 | `docs/assets/cover-xhs.png` | **强制必填，1440×2560（9:16）** |
 | 15 | 配音 | `audio/neural_1_2x.m4a` | edge-tts生成，1.2x语速 |
 | 16 | 字幕 | `audio/subtitles.ass` | ASS格式，Fontsize=72（视觉40px）黄色，PlayResX=1080, PlayResY=1920 |
-| 17 | 最终视频 | `video-project/out/final-with-subs.mp4` | 字幕已烧录 |
+| 17 | 最终视频 | `video-project/out/final_with_subs.mp4` | 字幕已烧录，59秒@60fps |
 
 ### Step 0 验证命令
 
@@ -320,7 +322,7 @@ done
 - [rules/THEMES.md](rules/THEMES.md) - 定义20种视频主题风格（科技、创意、生活，自然，专业四大类），包含主色、辅色、背景色、字体、粒子数等视觉参数及平台规格（小红书/视频号/抖音/油管）。
 - [rules/THEME_ANIMATIONS.md](rules/THEME_ANIMATIONS.md) - 定义20种主题的动画参数预设（spring/fade/slide/scale/glow/particle配置），配合 `scripts/themes.js` 和 `scripts/useThemeAnimation.ts` 实现主题适配的动画效果。
 - [rules/PLATFORM.md](rules/PLATFORM.md) - 定义视频号、小红书、抖音/快手的平台规格（分辨率、帧率、时长、文件大小、编码）及 Remotion 竖屏配置参数。
-- [rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md) - 提供视频渲染失败、baoyu获取内容、字体异常、音频回音/拼接、Remotion编码杂音、Chrome下载失败等常见问题的解决方案。
+- [rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md) - 提供视频渲染失败、baoyu获取内容、字体异常、音频回音/拼接、Remotion编码杂音、Chrome下载失败、create-video CLI交互bug等常见问题的解决方案。
 - [rules/INTEGRATION.md](rules/INTEGRATION.md) - 定义 baoyu 技能调用方式（url-to-markdown/cover-image/illustrator等）及自动化脚本模板和依赖安装说明。
 - [rules/SCRIPTS.md](rules/SCRIPTS.md) - 定义视频脚本的 Markdown 输出结构，包含小红书/视频号版本、场景分镜（视觉/文字/动画）、配音及时长、帧边界计算方法。
 - [rules/SESSION_LOG.md](rules/SESSION_LOG.md) - 追踪每次大模型请求的输入/输出 token 数量、请求模型、处理时长及 session 数据，输出到 `docs/session-log.md` 供审计和成本分析。
