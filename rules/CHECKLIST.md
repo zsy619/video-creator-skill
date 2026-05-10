@@ -247,7 +247,7 @@ echo "通过: $PASS | 失败: $FAIL"
 | 封面尺寸错误 | 使用了错误的分辨率 | 重新生成正确尺寸的封面 |
 | 音频命名为 neural_processed.m4a | 未遵循命名规范 | `mv audio/neural_processed.m4a audio/neural_1_2x.m4a` |
 | 字幕为 .srt 格式 | 生成了错误的格式 | 使用 ASS 格式重新生成 |
-| 字幕 Fontsize=72 | 使用了错误的字号 | 修改为 Fontsize=10 |
+| 字幕 Fontsize≠72 | 使用了错误的字号 | 修改为 Fontsize=72（竖屏必须≥72px） |
 | 视频无音频 | Remotion 渲染问题 | 使用 ffmpeg 混流音频 |
 | 视频尺寸错误 | 渲染时分辨率设置错误 | 修改 Remotion 配置为 1080×1920 |
 

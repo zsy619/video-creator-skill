@@ -118,32 +118,139 @@ echo "✅ session-log.md 已初始化"
 
 > ⚠️ **封面是唯一可以在 Step 6.1 预先生成的视觉素材。**
 > 如果视频渲染还未开始，先把封面生成了——这样后续流程不会被封面缺失卡住。
-> **所有 API 不可用时，必须用 PIL 生成（见 TROUBLESHOOTING.md 方案二），禁止跳过。**
+> **所有 API 不可用时，必须用 PIL 生成（禁止跳过）。**
+
+#### Step 0.3a：生成 AI Prompt 文件
+
+> 在调用 baoyu-imagine 之前，必须先生成 `prompt-cover.txt`。
+> 该文件包含标题处理策略，让 AI 知道如何处理长标题。
 
 ```bash
-# 优先尝试 baoyu-imagine
-SKILL_DIR="$HOME/.agents/skills/baoyu-imagine"
-BUN_PATH="$HOME/.bun/bin/bun"
-PROMPT=$(cat "${PROJECT_DIR}/docs/assets/prompt-cover.txt" 2>/dev/null || echo "AI科技风格封面，9比16竖屏格式")
+# 从 docs/video-script.md 提取主标题（第一行 # 标题）
+PROJECT_DIR="{workspace}/${PROJECT_NAME}"
+TITLE=$(head -1 "${PROJECT_DIR}/docs/video-script.md" | sed 's/^#* *//' | tr -d '\n')
+SUBTITLE=$(grep -A1 '^## ' "${PROJECT_DIR}/docs/video-script.md" | tail -1 | sed 's/^#* *//' | tr -d '\n')
 
-# 小红书用 1440x2560，其他平台用 1080x1920
+# 生成 AI Prompt 文件（包含长标题处理指令）
+cat > "${PROJECT_DIR}/docs/assets/prompt-cover.txt" << 'PROMPT_EOF'
+# 封面图生成 Prompt
+
+## 主题
+{TITLE}
+
+## 副标题
+{SUBTITLE}
+
+## 画面风格
+- 赛博朋克风格，深色背景（#0D0221）
+- 四角霓虹光晕（青色#00FFFF、品红#FF00FF、紫色#9D00FF）
+- 背景网格线（#150828）
+- 科技感粒子装饰
+
+## 标题文字处理规则（必须遵守）
+1. 标题必须完整显示，不得截断或省略任何字
+2. 如标题超过 8 个字：自动缩小字体但必须保持清晰可读（不得小于 48px）
+3. 如标题超过 14 个字：可拆分为两行展示（主标题 + 副标题结构）
+4. 字体颜色：白色（#FFFFFF），外发光青色（#00FFFF）效果
+5. 标题位置：画面垂直方向约 18-25% 高度处居中
+
+## 技术规格
+- 尺寸：9比16竖屏格式
+- 主标题字号：建议 80-130px（根据字数自动调整）
+- 副标题字号：建议 48-60px
+- 安全边距：画布左右各留 5% 空白
+
+## 参考元素（可选添加）
+- 抽象数据流线条
+- 电路板纹理
+- 霓虹光效
+PROMPT_EOF
+
+# 替换占位符
+sed -i '' "s/{TITLE}/${TITLE}/" "${PROJECT_DIR}/docs/assets/prompt-cover.txt"
+sed -i '' "s/{SUBTITLE}/${SUBTITLE}/" "${PROJECT_DIR}/docs/assets/prompt-cover.txt"
+echo "✅ prompt-cover.txt 已生成"
+```
+
+#### Step 0.3b：AI 生成（首选）
+
+```bash
+SKILL_DIR="$HOME/.hermes/skills/baoyu-imagine"
+BUN_PATH="$HOME/.bun/bin/bun"
+
+# 优先尝试 baoyu-imagine
 $BUN_PATH "$SKILL_DIR/scripts/main.ts" \
-  --promptfiles "${PROJECT_DIR}/docs/assets/prompt-cover.txt" \
+  --promptfile "${PROJECT_DIR}/docs/assets/prompt-cover.txt" \
   --image "${PROJECT_DIR}/docs/assets/cover.png" \
   --ar 9:16 --quality 2k 2>&1
 
-if [ $? -ne 0 ]; then
-  echo "⚠️ baoyu-imagine 失败，尝试 PIL 兜底..."
-  python3 "${PROJECT_DIR}/docs/assets/generate_cover.py"
-fi
-
-if [ -f "${PROJECT_DIR}/docs/assets/cover.png" ]; then
-  echo "✅ 封面已生成"
+if [ $? -eq 0 ] && [ -f "${PROJECT_DIR}/docs/assets/cover.png" ]; then
+  echo "✅ AI 封面生成成功"
+  # 执行 Step 0.3c 质量门禁
+  node "$SKILL_DIR/scripts/cover-quality-gate.js" \
+    "${PROJECT_DIR}/docs/assets/cover.png" vertical || exit 1
 else
-  echo "❌ 封面生成失败，禁止继续 Step 7 和 Step 10"
-  exit 1
+  echo "⚠️ baoyu-imagine 失败，切换到 PIL 兜底..."
 fi
 ```
+
+#### Step 0.3c：PIL 兜底（仅在 AI 不可用时）
+
+> ⚠️ **PIL 生成脚本已强制使用 `smart_resize_text()` 自动缩放**
+> ——所有文字都会在超宽时自动缩小，不再出现标题溢出错
+
+```bash
+SKILL_COVER="$HOME/.hermes/skills/video-creator/scripts/generate_cover.py"
+
+# 从 video-script.md 提取标题
+TITLE=$(head -1 "${PROJECT_DIR}/docs/video-script.md" | sed 's/^#* *//' | tr -d '\n')
+SUBTITLE=$(grep -A1 '^## ' "${PROJECT_DIR}/docs/video-script.md" | tail -1 | sed 's/^#* *//' | tr -d '\n')
+
+# 三种画布全部生成
+python3 "$SKILL_COVER" "$TITLE" "$SUBTITLE" "${PROJECT_DIR}/docs/assets" vertical
+python3 "$SKILL_COVER" "$TITLE" "$SUBTITLE" "${PROJECT_DIR}/docs/assets" wechat
+python3 "$SKILL_COVER" "$TITLE" "$SUBTITLE" "${PROJECT_DIR}/docs/assets" xhs
+```
+
+#### Step 0.3d：质量门禁（强制）
+
+```bash
+# 封面质量门禁 — 校验尺寸和文件大小
+EXPECTED_SIZES="
+${PROJECT_DIR}/docs/assets/cover.png|1080|1920
+${PROJECT_DIR}/docs/assets/cover-wechat.png|900|383
+${PROJECT_DIR}/docs/assets/cover-xhs.png|1440|2560
+"
+
+while IFS='|' read -r path exp_w exp_h; do
+  if [ ! -f "$path" ]; then
+    echo "❌ 封面缺失: $path"
+    exit 1
+  fi
+  SIZE=$(python3 -c "from PIL import Image; w,h=Image.open('$path').size; print(f'{w}x{h}')" 2>/dev/null)
+  if [ "$SIZE" != "${exp_w}x${exp_h}" ]; then
+    echo "❌ 封面尺寸错误: $path ($SIZE，期望 ${exp_w}x${exp_h})"
+    exit 1
+  fi
+  KB=$(du -k "$path" | cut -f1)
+  if [ "$KB" -lt 20 ]; then
+    echo "❌ 封面文件过小: $path (${KB}KB < 20KB)"
+    exit 1
+  fi
+  echo "✅ $path: $SIZE ${KB}KB"
+done <<< "$EXPECTED_SIZES"
+echo "✅ 封面质量门禁全部通过"
+```
+
+#### Step 0.3e：强制检查（禁止跳过）
+
+```bash
+# ⚠️ 此检查在 Step 7（音频）之前必须执行
+if [ ! -f "${PROJECT_DIR}/docs/assets/cover.png" ]; then
+  echo "❌ 封面缺失！必须先生成封面图（Step 0.3）才能继续音频和渲染步骤"
+  exit 1
+fi
+echo "✅ 封面检查通过"
 
 ### 0.4 验证文档完整性
 
@@ -680,7 +787,21 @@ else:  # 竖版图片
 ## Step 7: 生成音频
 
 > ⚠️ **前置条件：封面图必须已生成（Step 6.1）。封面未生成则不开始本步骤。**
+> ⚠️ **⚠️ 渲染前必须通过质量门禁（见 Step 10 前置检查）。**
 > **⚠️ 详细说明**: 请参考 [VOICE.md](VOICE.md) - Azure Neural TTS 自然语音合成最佳实践
+
+### 7.0 ⚠️ 强制质量门禁（禁止跳过）
+
+```bash
+# ⚠️ 渲染前必须先通过 audio 节点门禁，退出码≠0 时禁止继续
+SKILL_DIR="$HOME/.hermes/skills/video-creator"
+GATE="${SKILL_DIR}/scripts/video-quality-gate.js"
+if ! node "${GATE}" "${PROJECT_DIR}" "audio"; then
+  echo "❌ 音频节点未通过，请修复上述问题"
+  exit 1
+fi
+echo "✅ audio 节点门禁通过"
+```
 
 ### 7.1 音频生成流程
 
@@ -734,33 +855,64 @@ session_status
 
 **参考**: [SUBTITLES.md](SUBTITLES.md) - 字幕生成与质量检查文档
 
-> ⚠️ **必须先完成 Step 7.2（音频后处理）确认最终时长，再生成字幕**
+> ⚠️ **必须先完成 Step 7（音频后处理）确认最终时长，再生成字幕**
 > 字幕时间轴必须基于 `atempo` 处理后的最终音频时长，禁止用原速时长。
 
-### 8.1 字幕生成
+### 8.0 ⚠️ 强制前置检查（禁止跳过）
+
+```bash
+# ⚠️ 生成字幕前必须执行此检查，退出码≠0 时禁止继续
+SKILL_DIR="$HOME/.hermes/skills/video-creator"
+node "${SKILL_DIR}/scripts/pre-subtitle-check.js" "${PROJECT_DIR}"
+# 检查内容：音频文件存在、时长有效、非静音、文本长度合理
+# 不通过 → 修复音频问题，禁止强行生成字幕
+
+# ⚠️ 同时执行字幕节点质量门禁
+node "${SKILL_DIR}/scripts/video-quality-gate.js" "${PROJECT_DIR}" "subtitle"
+# 不通过 → 修复字幕格式问题
+```
+
+### 8.1 字幕生成（Fontsize=72，禁止其他值）
 
 ```javascript
-// 先执行 Step 7.2 音频后处理，确认最终时长
-const DURATION = 58.16; // 最终音频时长（atempo 1.2x 处理后）
+// ⚠️ 必须先执行 8.0 前置检查，确认最终时长
+const DURATION = 58.16; // 最终音频时长（atempo 1.2x 处理后），从 Step 7 获取
 
+// 字幕规范（统一值，禁止修改）：
+//   Fontsize: 72, PlayResX: 1080, PlayResY: 1920
+//   PrimaryColour: &H00FFFF (黄色)
+//   Alignment: 2 (底部居中)
+//   MarginV: 50, Outline: 2
 const generator = new SubtitleGenerator();
-const subtitles = await generator.generateFromText(text, DURATION); // ← 必须用最终时长
+const subtitles = await generator.generateFromText(text, DURATION);
 await generator.generateASS(subtitles, 'audio/subtitles.ass');
 ```
 
-### 8.2 字幕格式
+### 8.2 字幕格式规范（2026-05-10 统一值）
 
-| 格式 | 用途 | 扩展名 |
-|------|------|--------|
-| ASS | 高级字幕 | `.ass` |
-| SRT | 通用字幕 | `.srt` |
+| 参数 | 值 | 说明 |
+|------|-----|-----|
+| **Fontsize** | **72** | 竖屏1080×1920标准，禁止10/12/36 |
+| **PlayResX/PlayResY** | **1080/1920** | 必须设置 |
+| **PrimaryColour** | `&H00FFFF` | 黄色 |
+| **Alignment** | **2** | 底部居中 |
+| **MarginV** | **50** | 距底边50px |
+| **Outline** | **2** | 2px描边，禁止1 |
+| **Format字段数** | **10** | Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text |
+| **Dialogue字段数** | **10** | 必须与Format一致 |
+| **换行符** | `\N` | 禁止`\\N` |
 
-### 8.3 字幕规范
+### 8.3 字幕质量验证
 
-- **字体**: 使用系统字体栈（PingFang SC / Microsoft YaHei）
-- **字号**: 40-48px
-- **颜色**: 白色（#FFFFFF）带黑色描边
-- **位置**: 底部居中，距底部 10-15%
+```bash
+# 烧录一帧截图验证字幕显示效果
+ffmpeg -y -i video-project/out/final-video.mp4 \
+  -vf "ass=audio/subtitles.ass" \
+  -frames:v 1 -q:v 2 /tmp/subtitle-check.png
+
+# 检查字幕文件时长覆盖
+ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 audio/subtitles.ass
+```
 
 ### 8.4 记录 Session 日志
 
@@ -802,6 +954,41 @@ const report = await checker.runFullCheck();
 ## Step 10: 生成视频
 
 > ⚠️ **前置条件：封面图和音频必须都已生成。两者缺一则不开始本步骤。**
+
+### 10.0 ⚠️ 强制前置检查（禁止跳过）
+
+```bash
+# ⚠️ 渲染前必须执行此检查，退出码≠0 时禁止渲染
+SKILL_DIR="$HOME/.hermes/skills/video-creator"
+GATE="${SKILL_DIR}/scripts/video-quality-gate.js"
+
+# A. 音频节点门禁
+if ! node "${GATE}" "${PROJECT_DIR}" "audio"; then
+  echo "❌ audio 节点未通过"
+  exit 1
+fi
+
+# B. 字幕节点门禁
+if ! node "${GATE}" "${PROJECT_DIR}" "subtitle"; then
+  echo "❌ subtitle 节点未通过"
+  exit 1
+fi
+
+# C. 渲染前检（新增：2026-05-10）
+# 检查：package.json使用remotion、Video.tsx无<Text>、node_modules/remotion存在
+if ! node "${GATE}" "${PROJECT_DIR}" "render"; then
+  echo "❌ render 节点未通过"
+  echo "常见问题："
+  echo "  1. package.json 使用 @remotion/core（应改为 remotion）"
+  echo "  2. Video.tsx 存在 <Text> 组件（应改为 <div>）"
+  echo "  3. node_modules/remotion 未安装"
+  exit 1
+fi
+
+# D. 代码级预检（原有）
+node "${SKILL_DIR}/scripts/pre-render-check.js" \
+  "video-project/src/Video.tsx" 60 "${DURATION}"
+```
 
 ### 10.1 Remotion 项目初始化
 
@@ -873,6 +1060,8 @@ export const VerticalVideo: React.FC<{
 ### 10.4 视频渲染
 
 ```bash
+# ⚠️ 必须先执行 10.0 前置检查（Sequence帧数、帧数和验证）
+
 # 渲染无音频视频
 npx remotion render VerticalVideo \
   --output out/video_noaudio.mp4 \

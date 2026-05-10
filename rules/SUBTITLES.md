@@ -1,19 +1,42 @@
 # 📝 字幕生成与质量检查系统
 
-## ⚠️ 强制执行规范（违反将导致烧录失败或显示异常）
+> 所属模块：video-creator / SKILL.md → 字幕生成
+>
+> ## ⚠️ 最终权威规范（以本文为准，冲突时以此为准）
 
 **核心铁律（必须严格遵守）**：
 
 | 规则 | 正确做法 | ❌ 错误做法 |
 |------|---------|-----------|
-| 字号 | **fontSize=72**（PlayResY=1920时，约40px视觉，已验证） | 使用 10/12/36/48px |
+| 字号 | **fontSize=72**（PlayResY=1920时，约40px视觉，已验证） | ~~10/12/18/36px~~ |
+| Outline | **2px**（1px太细） | ~~1px~~ |
+| MarginV | **50px** | ~~30px~~ |
 | 换行符 | `\N`（单个反斜杠） | `\\N`（双反斜杠） |
 | 字幕格式 | ASS 烧录到画面 | MP4 内嵌（不支持） |
 | 时间轴基准 | **最终音频时长**（后处理后） | 原始音频时长 |
 | PlayRes | **PlayResX=1080, PlayResY=1920** | 不设置 |
 | 字段数 | Format 声明10字段，Dialogue 写10字段 | 字段数不匹配 |
->
+| 时间戳格式 | **2位厘秒**（如 `0:00:04.50`） | ~~3位毫秒~~ |
+
 > **⚠️ 字幕时间轴必须基于最终音频时长**。在音频后处理（atempo）完成之前，禁止生成字幕。
+
+### 规范冲突记录（已废弃的值）
+
+| 废弃值 | 废弃原因 | 正确值 |
+|--------|---------|--------|
+| Fontsize 10/12/18/36px | 竖屏1080×1920下不可读 | 72px |
+| Outline 1px | 描边太细 | 2px |
+| MarginV 30px | 距底边太近 | 50px |
+| Format 5字段 | 字段不完整 | 10字段 |
+| 3位毫秒时间戳 | ms() bug导致时间错误 | 2位厘秒 |
+
+### 验证命令
+
+```bash
+# 验证字幕 Fontsize=72
+ffmpeg -y -i final_with_subs.mp4 -vf "subtitles=audio/subtitles.ass" -frames:v 1 /tmp/check.png
+# 检查截图中的字幕大小（应约40px视觉）
+```
 
 ## 🎯 功能概述
 
@@ -29,7 +52,7 @@ video-creator 技能现在集成了完整的字幕生成和质量检查系统，
 
 ## ⚠️ 字幕格式规范（强制执行）
 
-> **经过多个项目验证，本技能统一使用 quantdinger 字幕格式作为标准。**
+> **经过多个项目验证，本技能统一使用以下字幕规范。**
 
 ### 正确格式示例
 ```ass
@@ -38,14 +61,16 @@ Title: Video Creator Subtitles
 ScriptType: v4.00+
 WrapStyle: 0
 ScaledBorderAndShadow: yes
+PlayResX: 1080
+PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,10,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,30,1
+Style: Default,PingFang SC,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,30,30,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:04.00,Default,,30,30,30,,想拥有一个自己的\NAI 量化交易系统？
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,,30,30,50,,想拥有一个自己的\NAI 量化交易系统？
 ```
 
 ### ❌ 禁止的格式
@@ -98,7 +123,7 @@ for i, (start, end, text) in enumerate(subtitles):
 > - 不设置 PlayRes 时，Fontsize=10（旧规范，已废弃）
 
 | 参数 | 值 | 说明 |
-|------|-----|------|
+|------|-----|-----|
 | `Fontsize` | **72** | ASS字幕标准化像素值（PlayResY=1920时，约40px视觉，已验证） |
 | `PlayResX` | **1080** | 竖屏视频宽度 |
 | `PlayResY` | **1920** | 竖屏视频高度 |
@@ -106,10 +131,11 @@ for i, (start, end, text) in enumerate(subtitles):
 | `Alignment` | **2** | 底部居中 |
 | `MarginL` | **30** | 左侧边距 30px |
 | `MarginR` | **30** | 右侧边距 30px |
-| `MarginV` | **50** | 底部边距 50px（比旧规范增加20px，避免贴边） |
+| `MarginV` | **50** | 底部边距 50px |
 | `WrapStyle` | **0** | 支持 `\N` 换行符 |
 | `Fontname` | `PingFang SC` | macOS 系统中文字体 |
-| `Outline` | 1 | 1px 黑色描边 |
+| `Outline` | **2** | 2px 黑色描边（1px太细） |
+| `Shadow` | **0** | 无阴影（霓虹风格用发光效果更好） |
 
 ### ⚠️ 多行字幕显示规范（强制！）
 
@@ -313,12 +339,21 @@ node scripts/video-check.js batch-process --directory ./workspace --output batch
 
 ---
 
-## 🎯 总结
+## 🎯 统一字幕规范（最终结论）
 
-1. **字幕字号**：必须使用 **10px**
-2. **换行符**：必须使用 `\N`（不是 `\\N`）
-3. **Script Info**：不要设置 PlayResX/PlayResY
-4. **底部边距**：MarginV=30
-5. **颜色**：PrimaryColour=&H00FFFF（黄色）
+| 参数 | 值 | 说明 |
+|------|-----|-----|
+| Fontsize | 72 | PlayResY=1920时约40px视觉 |
+| PlayResX/PlayResY | 1080/1920 | 必须设置 |
+| PrimaryColour | &H00FFFF | 黄色 |
+| Alignment | 2 | 底部居中 |
+| MarginL/MarginR | 30 | 左右边距 |
+| MarginV | 50 | 底部边距 |
+| Outline | 2 | 2px描边 |
+| Shadow | 0 | 无阴影 |
+| WrapStyle | 0 | \N换行 |
+| Fontname | PingFang SC | macOS字体 |
+
+> **重要**：Fontsize=72 是相对于 PlayResY=1920 的标准化值，不是实际像素值。
 
 通过遵循 quantdinger 字幕格式标准，确保所有视频的字幕显示效果一致且可读。

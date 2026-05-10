@@ -209,7 +209,7 @@ create_prominent_cover('cover-xhs.png', (1440,2560), 360, 100, 64, 44, 0.16)
 | **字体** | **PingFang SC** | macOS系统中文字体，确保跨平台兼容 |
 | **位置** | **底部居中** | `Alignment=2` (底部居中) |
 | **距底边距离** | **50px** | `MarginV=50` |
-| **描边** | **1px黑色** | `Outline=1, OutlineColour=&H00000000` |
+| **描边** | **2px黑色** | `Outline=2, OutlineColour=&H00000000` |
 | **换行支持** | **支持多行，左右边距30px** | `WrapStyle=0` |
 
 ### ASS字幕格式模板
@@ -223,11 +223,11 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,30,30,50,1
+Style: Default,PingFang SC,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,30,30,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:05.00,Default,,30,30,50,,字幕内容（可换行）
+Dialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,50,,字幕内容（可换行）
 ```
 
 ### 关键参数说明
@@ -238,8 +238,8 @@ Dialogue: 0,0:00:00.00,0:00:05.00,Default,,30,30,50,,字幕内容（可换行）
 | `PrimaryColour` | `&H00FFFF` | 醒目的黄色（ARGB格式） |
 | `Fontname` | `PingFang SC` | macOS中文字体，避免STHeiti Medium等不兼容字体 |
 | `Alignment` | `2` | 底部居中（其他值：1=左下，3=右下，5=正中，6=右中，8=中上） |
-| `MarginV` | `30` | 距底边30px |
-| `Outline` | `1` | 1px描边 |
+| `MarginV` | `50` | 距底边50px |
+| `Outline` | `2` | 2px描边 |
 | `OutlineColour` | `&H00000000` | 黑色描边 |
 
 ### 字幕内容要求

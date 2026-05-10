@@ -34,9 +34,10 @@ Alignment: 2 (底部居中)
 MarginL: 30px      ← 左边距30px
 MarginR: 30px      ← 右边距30px
 MarginV: 50px      ← 距底边50px（增加避免贴边）
-Outline: 1px
+Outline: 2px       ← 2px黑色描边（1px太细）
+Shadow: 0          ← 无阴影（霓虹风格用发光效果更好）
 WrapStyle: 0        ← 多行支持（必须设置）
-换行符: \N          ← ASS格式必须用\N，不是\n
+换行符: \N          ← ASS格式必须用\N，不是\\n
 
 每行字数: ≤25字符   ← 72px字体下25字符约900px，1080px内安全
 PlayResX: 1080
@@ -95,104 +96,266 @@ const SCENES = [
 
 ### 5. 封面图规格
 
+#### 5.1 三种画布类型
+
 | 类型 | 尺寸 | 用途 |
 |------|------|------|
 | 竖屏封面 | 1080×1920 | 视频封面、抖音/视频号 |
 | 微信公众号封面 | 900×383 | 公众号文章封面（必须单独生成！） |
 | 小红书封面 | 1440×2560 | 小红书 |
 
-**封面生成方式（按优先级）**：
-1. **baoyu-imagine（AI 生成）** ← 首选，字体大、效果好
-2. **PIL（兜底）** ← 仅在 AI 不可用时使用，必须遵循字体规范
+#### 5.2 封面生成优先级
 
-#### 5.1 PIL 封面字体规范（2026-04-27 更新）
+1. **baoyu-imagine（AI 生成）** ← 首选，字体大、效果好，AI 自动处理长标题
+2. **PIL（兜底）** ← 仅在 AI 不可用时使用，必须使用 `smart_resize_text()` 自动缩放
 
-> ⚠️ **字体路径必须是 `/System/Library/Fonts/STHeiti Medium.ttc`**，不得使用 `LiHei Pro Medium.ttc`（会导致字体无法加载）。
+#### 5.3 字号规范（安全字号上限）
 
-**PIL 封面字体速查表**：
+> ⚠️ **字号是上限，不是固定值**。所有文字必须经过 `smart_resize_text()` 检测，超出画布 90% 宽度时自动缩小。
 
-| 封面类型 | 画布尺寸 | 标题字号 | 副标题字号 | 标签字号 | URL字号 | 标题高度占比 |
-|---------|---------|---------|-----------|---------|---------|-------------|
-| 竖屏 | 1080×1920 | **260-300px** | 80px | 48px | 32px | ≥10% |
-| 公众号 | 900×383 | **140-180px** | 48px | 36px | 24px | ≥15% |
-| 小红书 | 1440×2560 | **360-400px** | 100px | 64px | 44px | ≥10% |
+| 封面类型 | 画布尺寸 | 主标题安全上限 | 副标题安全上限 | 标签 | URL |
+|---------|---------|--------------|--------------|------|-----|
+| 竖屏 | 1080×1920 | **130px** | 60px | 42px | 24px |
+| 公众号 | 900×383 | **100px** | 48px | 36px | 20px |
+| 小红书 | 1440×2560 | **180px** | 80px | 56px | 32px |
 
-**推荐字号（实测验证）**：
+**说明**：130px 的意思是"不超过 130px"，实际使用 `smart_resize_text()` 从此值开始向下缩放。
 
-| 封面 | 标题 | 副标题 | 标签 | URL |
-|------|------|--------|------|-----|
-| 竖屏 (1080×1920) | 280px | 80px | 48px | 32px |
-| 公众号 (900×383) | 160px | 48px | 36px | 24px |
-| 小红书 (1440×2560) | 360px | 100px | 64px | 44px |
+#### 5.4 `smart_resize_text()` — 标题自动缩放函数
 
-**PIL 封面完整代码（字体突出设计）**：
+> **核心铁律**：PIL 封面生成时，所有文字（主标题/副标题/标签/URL）必须经过此函数检测。
+> 禁止直接用固定字号渲染而不检测宽度。
+
+```python
+from PIL import Image, ImageDraw, ImageFont
+
+FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
+
+def measure_text(draw, text, font):
+    """测量文字渲染后的 (width, height)"""
+    bbox = draw.textbbox((0, 0), text, font=font, anchor='mm')
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+def smart_resize_text(text, font_path, start_size, canvas_width, max_ratio=0.90, min_size=24):
+    """
+    自动缩小字号直到文字宽度 < canvas_width * max_ratio。
+
+    参数:
+        text: 要渲染的文字
+        font_path: 字体文件路径
+        start_size: 起始字号（安全上限）
+        canvas_width: 画布宽度（像素）
+        max_ratio: 最大宽度占比（默认 90%）
+        min_size: 最小字号（低于此值报错，不继续缩）
+
+    返回: (font对象, 最终宽度, 最终高度)
+
+    示例:
+        font, w, h = smart_resize_text("很长的主标题", FONT_PATH, 130, 1080)
+        draw.text((540, 300), "很长的主标题", fill='white', font=font, anchor='mm')
+    """
+    size = start_size
+    dummy_img = Image.new('RGB', (1, 1))
+    dummy_draw = ImageDraw.Draw(dummy_img)
+
+    while size >= min_size:
+        font = ImageFont.truetype(font_path, size)
+        w, h = measure_text(dummy_draw, text, font)
+        if w <= 0:
+            break
+        if w <= canvas_width * max_ratio:
+            return font, w, h
+        size -= 4  # 每次缩小 4px
+
+    # 达到最小字号仍超出，报错（不能静默截断）
+    font = ImageFont.truetype(font_path, min_size)
+    w, h = measure_text(dummy_draw, text, font)
+    raise ValueError(
+        f"标题宽度({w}px)即使缩到最小字号({min_size}px)仍超过画布90%({canvas_width * max_ratio:.0f}px)，"
+        f"请缩短标题文字或修改 canvas_width"
+    )
+```
+
+**调用模式**：
+
+```python
+# 主标题（从 130px 开始向下缩放，最小 24px）
+font_title, title_w, title_h = smart_resize_text(
+    "AI工作流自动化实战指南",
+    FONT_PATH, 130, 1080
+)
+
+# 副标题（从 60px 开始）
+font_sub, sub_w, sub_h = smart_resize_text(
+    "多平台同步管理",
+    FONT_PATH, 60, 1080
+)
+```
+
+#### 5.5 PIL 封面完整代码（使用 smart_resize_text）
+
 ```python
 from PIL import Image, ImageDraw, ImageFont
 import os
+
 FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
 
-def create_prominent_cover(output_path, size, title_size, subtitle_size, tag_size, url_size, title_y_ratio=0.18):
-    w, h = size
-    img = Image.new('RGB', size, color='#0D0221')
+# ========== 字号安全上限（不能超过这些值）==========
+TITLE_SIZES = {
+    'vertical': 130,    # 竖屏 1080x1920
+    'wechat':  100,     # 公众号 900x383
+    'xhs':     180,     # 小红书 1440x2560
+}
+SUBTITLE_SIZES = {
+    'vertical': 60,
+    'wechat':  48,
+    'xhs':     80,
+}
+TAG_SIZES = {
+    'vertical': 42,
+    'wechat':  36,
+    'xhs':     56,
+}
+URL_SIZES = {
+    'vertical': 24,
+    'wechat':  20,
+    'xhs':     32,
+}
+CANVAS_SIZES = {
+    'vertical': (1080, 1920),
+    'wechat':  (900, 383),
+    'xhs':     (1440, 2560),
+}
+
+def smart_resize_text(text, font_path, start_size, canvas_width, max_ratio=0.90, min_size=24):
+    size = start_size
+    dummy_img = Image.new('RGB', (1, 1))
+    dummy_draw = ImageDraw.Draw(dummy_img)
+    while size >= min_size:
+        font = ImageFont.truetype(font_path, size)
+        bbox = dummy_draw.textbbox((0, 0), text, font=font, anchor='mm')
+        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        if w <= 0: break
+        if w <= canvas_width * max_ratio:
+            return font, w, h
+        size -= 4
+    font = ImageFont.truetype(font_path, min_size)
+    bbox = dummy_draw.textbbox((0, 0), text, font=font, anchor='mm')
+    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    raise ValueError(f"标题宽度({w}px)即使缩到最小({min_size}px)仍超画布90%，请缩短标题")
+
+def create_cover(title, subtitle, output_path, canvas_type='vertical'):
+    """
+    生成封面图。使用 smart_resize_text() 自动处理长标题。
+
+    参数:
+        title: 主标题（超过8字会自动缩放）
+        subtitle: 副标题
+        output_path: 输出文件路径
+        canvas_type: 'vertical' | 'wechat' | 'xhs'
+    """
+    w, h = CANVAS_SIZES[canvas_type]
+    img = Image.new('RGB', (w, h), '#0D0221')
     draw = ImageDraw.Draw(img)
-    
-    # 暗色背景网格（不抢字体风头）
-    for i in range(0, h, max(20, h//30)):
+
+    # 背景网格
+    for i in range(0, h, max(20, h // 30)):
         draw.line([(0, i), (w, i)], fill='#150828', width=1)
-    for i in range(0, w, max(20, w//30)):
+    for i in range(0, w, max(20, w // 30)):
         draw.line([(i, 0), (i, h)], fill='#150828', width=1)
-    
-    # 四角光晕（中心保持暗色）
-    for cx, cy, r, c in [
-        (int(w*0.1), int(h*0.1), int(min(w,h)*0.35), '#00FFFF'),
-        (int(w*0.9), int(h*0.1), int(min(w,h)*0.25), '#FF00FF'),
-        (int(w*0.1), int(h*0.9), int(min(w,h)*0.25), '#9D00FF'),
-        (int(w*0.9), int(h*0.9), int(min(w,h)*0.2), '#00FFFF'),
+
+    # 四角光晕
+    for cx_pct, cy_pct, r_pct, color in [
+        (0.1, 0.1, 0.35, '#00FFFF'),
+        (0.9, 0.1, 0.25, '#FF00FF'),
+        (0.1, 0.9, 0.25, '#9D00FF'),
+        (0.9, 0.9, 0.2,  '#00FFFF'),
     ]:
-        for alpha in range(3, 0, -1):
-            color = tuple(int(c[i:i+2], 16) for i in (1, 3, 5))
-            draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=tuple(int(x*0.3) for x in color))
-    
-    # 字体加载
-    font_title = ImageFont.truetype(FONT_PATH, title_size)
-    font_subtitle = ImageFont.truetype(FONT_PATH, subtitle_size)
-    font_tag = ImageFont.truetype(FONT_PATH, tag_size)
-    font_url = ImageFont.truetype(FONT_PATH, url_size)
-    
-    # 自校验
-    bbox = draw.textbbox((0, 0), 'Title', font=font_title, anchor='mm')
-    title_height = bbox[3] - bbox[1]
-    ratio = title_height / h * 100
-    print(f"Title: {title_height}px ({ratio:.1f}%)")
-    assert ratio >= 10, f"Too small: {ratio:.1f}%"
-    
-    # 多层发光标题（字体突出）
-    title_y = int(h * title_y_ratio)
+        cx, cy = int(w * cx_pct), int(h * cy_pct)
+        r = int(min(w, h) * r_pct)
+        rgb = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
+        draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=tuple(int(x * 0.3) for x in rgb))
+
+    # ========== 文字渲染（全部使用 smart_resize_text）==========
+    X = w // 2
+
+    # 1. 主标题 — 核心：必须经过 smart_resize_text
+    font_title, title_w, title_h = smart_resize_text(title, FONT_PATH, TITLE_SIZES[canvas_type], w)
+    title_y = int(h * 0.18)
+    # 多层发光效果
     for glow_size, glow_color in [
-        (int(title_size*0.08), '#004444'),
-        (int(title_size*0.05), '#006666'),
-        (int(title_size*0.03), '#008888'),
-        (int(title_size*0.015), '#00CCCC'),
+        (int(TITLE_SIZES[canvas_type] * 0.08), '#004444'),
+        (int(TITLE_SIZES[canvas_type] * 0.05), '#006666'),
+        (int(TITLE_SIZES[canvas_type] * 0.03), '#008888'),
+        (int(TITLE_SIZES[canvas_type] * 0.015), '#00CCCC'),
     ]:
         for dx, dy in [(0, -glow_size), (0, glow_size), (-glow_size, 0), (glow_size, 0)]:
-            draw.text((w//2 + dx, title_y + dy), 'Title', fill=glow_color, font=font_title, anchor='mm')
-    draw.text((w//2, title_y), 'Title', fill='#FFFFFF', font=font_title, anchor='mm')
-    
-    # 副标题/标签/URL...
-    img.save(output_path, 'PNG')
-    print(f"{output_path}: {os.path.getsize(output_path)/1024:.1f}KB")
+            draw.text((X + dx, title_y + dy), title, fill=glow_color, font=font_title, anchor='mm')
+    draw.text((X, title_y), title, fill='#FFFFFF', font=font_title, anchor='mm')
 
-# 使用
-create_prominent_cover('cover.png', (1080,1920), 280, 80, 48, 32, 0.18)
-create_prominent_cover('cover-wechat.png', (900,383), 160, 48, 36, 24, 0.32)
-create_prominent_cover('cover-xhs.png', (1440,2560), 360, 100, 64, 44, 0.16)
+    # 2. 副标题（如果提供）
+    if subtitle:
+        font_sub, sub_w, sub_h = smart_resize_text(subtitle, FONT_PATH, SUBTITLE_SIZES[canvas_type], w)
+        sub_y = title_y + title_h // 2 + 40
+        draw.text((X, sub_y), subtitle, fill='#00FFFF', font=font_sub, anchor='mm')
+
+    # 3. 自校验：标题高度占比 ≥8%
+    height_ratio = title_h / h * 100
+    assert height_ratio >= 8, f"标题高度占比 {height_ratio:.1f}% < 8%，字号可能过小"
+    assert title_w <= w * 0.90, f"标题宽度 {title_w}px > 画布90% {w * 0.9:.0f}px"
+
+    img.save(output_path, 'PNG')
+    size_kb = os.path.getsize(output_path) / 1024
+    print(f"✅ {output_path} | {w}x{h} | 标题{height_ratio:.1f}%画布 | {size_kb:.0f}KB")
+
+# 使用示例
+if __name__ == '__main__':
+    create_cover(
+        "AI工作流自动化实战指南",
+        "多平台同步管理",
+        "docs/assets/cover.png",
+        canvas_type='vertical'    # 竖屏 1080x1920
+    )
+    create_cover(
+        "AI工作流自动化实战指南",
+        "多平台同步管理",
+        "docs/assets/cover-wechat.png",
+        canvas_type='wechat'      # 公众号 900x383
+    )
+    create_cover(
+        "AI工作流自动化实战指南",
+        "多平台同步管理",
+        "docs/assets/cover-xhs.png",
+        canvas_type='xhs'         # 小红书 1440x2560
+    )
 ```
 
-**自校验机制**：生成后必须验证标题高度占比 ≥10%（竖屏/小红书）或 ≥15%（公众号）。
+#### 5.6 自校验机制（生成后必须验证）
 
-**macOS 可用字体**：`/System/Library/Fonts/STHeiti Medium.ttc` ✅
+| 检查项 | 标准 | 失败处理 |
+|--------|------|---------|
+| 主标题宽度 | ≤ 画布宽 × 90% | 报错（由 smart_resize_text 抛出） |
+| 标题高度占比 | ≥ 8%（竖屏/小红书）/ ≥ 10%（公众号） | 报错 |
+| 字体路径 | `/System/Library/Fonts/STHeiti Medium.ttc` 存在 | 报错 |
+| 文件大小 | > 20KB | 重新生成 |
+| 画布尺寸 | 与声明一致 | 报错 |
 
-> ⚠️ PIL 封面必须自校验：1. 字体路径正确 2. 标题高度≥10% 3. 文件大小>30KB
+#### 5.7 AI 生成封面（baoyu-imagine）的标题策略
+
+> baoyu-imagine AI 生成时，必须在 prompt 中明确告知 AI 如何处理长标题。
+
+**AI Prompt 关键指令**：
+
+```
+【标题文字处理规则 — 必须遵守】
+1. 标题必须完整显示，不得截断或省略任何字
+2. 如标题超过 8 个字：自动缩小字体但必须保持清晰可读（不得小于 48px）
+3. 如标题超过 14 个字：可拆分为两行展示（主标题 + 副标题结构）
+4. 字体颜色：白色（#FFFFFF），外发光青色（#00FFFF）效果
+5. 标题位置：画面垂直方向约 18-25% 高度处居中
+```
+
+**macOS 可用字体**：`/System/Library/Fonts/STHeiti Medium.ttc` ✅（仅 PIL 兜底使用）
 
 ### 6. 赛博朋克风格规范（默认风格）
 

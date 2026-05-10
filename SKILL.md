@@ -83,16 +83,16 @@ metadata:
 12. **Step 11: 生成报告 + 强制清单检查**
 
 ## 参考文档
+- [references/remotion-package-discovery.md](references/remotion-package-discovery.md) — `@remotion/core` 不存在；正确包名 `remotion`；47个 exports（Text 不存在）；React Error #130 根因；package.json 正确写法；渲染+混流命令
 - [低码率音频修复](references/low-bitrate-audio-fix.md) — edge-tts 音频 2kbps 导致无声的根因与修复
 - [Remotion 版本冲突修复](references/remotion-version-conflict.md) — EISDIR 错误的根因与修复
-- [音频验证协议](references/audio-validation-protocol.md) — ⚠️ **【新增·强制阅读】** 音频有效性验证完整协议（4个验证节点 + 快速验证脚本）
-- [ASS字幕 ms()函数Bug修复](references/subtitle-ms-function-bug.md) — ⚠️ **【重要】** ms()时间戳格式Bug：0:04:00.00=4分钟而非4秒，正确函数及参数
-- [ASS字幕规范2026验证](references/ass-subtitle-spec-2026-05-10.md) — ⚠️ **【最新验证】** 72px/Fontsize=72/PlayResX=1080/MarginV=50/Outline=2，2026-05-10验证通过
-- [atempo 加速+裁剪反模式](references/atempo-crop-anti-pattern.md) — ⚠️ **【致命】** 长音频atempo加速+裁剪导致音画不同步，正确流程
-- [Remotion Sequence 黑屏修复](references/remotion-sequence-black-screen-fix.md) — ⚠️ **【重要】** Sequence 内场景动画不推进导致黑屏
-- [Remotion 双字幕问题修复](references/remotion-subtitles-double-fix.md) — ⚠️ **【新增】** `<Subtitles />` 组件 + ASS 烧录导致双层字幕
-- [赛博朋克视觉组件库](references/cyberpunk-visual-components.md) — ⚠️ **【新增】** 粒子/数据流/网格/扫描线/HUD/脉冲环/故障文字等9种组件
-- [ASS字幕规范2026验证](references/ass-subtitle-spec-2026-05-10.md) — ⚠️ **【最新验证】** 72px/Fontsize=72/PlayResX=1080/MarginV=50/Outline=2
+- [音频验证协议](references/audio-validation-protocol.md) — 音频有效性验证完整协议（4个验证节点）
+- [ASS字幕 ms()函数Bug修复](references/subtitle-ms-function-bug.md) — ms()时间戳格式Bug：3位毫秒→2位厘秒
+- [references/ass-subtitle-spec-2026-05-10.md](references/ass-subtitle-spec-2026-05-10.md) — **最终权威值**：Fontsize=72/PlayResX=1080/PlayResY=1920/MarginV=50/Outline=2/Format 10字段
+- [references/cover-smart-resize.md](references/cover-smart-resize.md) — PIL 封面 `smart_resize_text()` 自动缩放函数；实测 STHeiti 130px 字体渲染实际高度 81px（62%效率），长标题自动缩至 36px；以及封面质量门禁节点 E 检查项
+- [atempo 加速+裁剪反模式](references/atempo-crop-anti-pattern.md) — 长音频atempo加速+裁剪导致音画不同步
+- [Remotion Sequence 黑屏修复](references/remotion-sequence-black-screen-fix.md) — Sequence内帧计算错误（局部帧vs全局帧）
+- [Remotion 双字幕问题修复](references/remotion-subtitles-double-fix.md) — `<Subtitles />` 组件 + ASS 烧录导致双层字幕
 
 ---
 
@@ -100,6 +100,26 @@ metadata:
 
 > **执行音频步骤前必须阅读** `rules/VOICE.md`
 > **执行字幕步骤前必须阅读** `rules/SUBTITLES.md`
+
+### 强约束：文本长度 → 目标时长
+
+> **核心问题**：配音文本太长导致音频时长超过目标，反复用 atempo 压缩会损失质量，且压缩后时长仍与视频帧数不匹配。
+>
+> **修复**：在生成配音前强制校验文本长度，超长则必须精简。
+
+| 目标时长 | 文本字数上限 | 语速 | 说明 |
+|---------|-------------|------|------|
+| 45秒 | ≤540字 | 1.2x | 45s ÷ 1.2 = 37.5s 原始 ≈ 450字@4字/秒 |
+| 60秒 | ≤720字 | 1.2x | 60s ÷ 1.2 = 50s 原始 ≈ 600字@4字/秒 |
+| 90秒 | ≤1080字 | 1.2x | 90s ÷ 1.2 = 75s 原始 ≈ 900字@4字/秒 |
+
+**计算公式**：`字数上限 = 目标时长(秒) ÷ 1.2 × 4`
+
+**检查命令**：
+```bash
+# 生成音频前执行文本长度检查
+node ~/.hermes/skills/video-creator/scripts/pre-subtitle-check.js <project-dir> --target-duration 60
+```
 
 ### 音频三禁止
 | 禁止 | 正确做法 |
@@ -127,10 +147,24 @@ ffmpeg -i video.mp4 -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.ast
 - 结果 = 0：音频轨道静默，**禁止用 `-c:a copy`**
 - 结果 > 0：音频正常
 
-**正确流程**：始终从处理后的音频文件（`neural_256k_final.m4a`）重新编码混流，绝不直接复制 Remotion raw 视频的音频轨道。
+**正确流程**：始终从处理后的音频文件（`neural_1_2x.m4a`）重新编码混流，绝不直接复制 Remotion raw 视频的音频轨道。
+
+**字幕生成前置检查**：
+```bash
+# ⚠️ 生成字幕前必须执行此检查
+node {SKILL_DIR}/video-creator/scripts/pre-subtitle-check.js <project-dir>
+# 检查通过后才能生成字幕
+```
+
+**Remotion 渲染前置检查**：
+```bash
+# ⚠️ 渲染前必须执行此检查
+node {SKILL_DIR}/video-creator/scripts/pre-render-check.js <Video.tsx> <fps> <duration>
+# 检查通过后才能渲染
+```
 | **禁止 `-c:a copy` 复制低码率音频** | **必须 `-c:a aac -b:a 256k` 强制重编码** |
 | 禁止音频码率低于 128k | edge-tts 原始输出码率极低，混流前必须重新编码 |
-| 禁止 Remotion 版本碎片化 | 所有 remotion/* 包必须同版本（如 4.0.448），版本不一致会导致 EISDIR 错误 |
+| 禁止 Remotion 版本碎片化 | 所有 remotion/* 包必须同版本（如 4.0.459），版本不一致会导致 EISDIR 错误。**注意**：`@remotion/core` 在 npm 不存在，正确包名是 `remotion` |
 
 ### 字幕六禁止
 | 禁止 | 正确做法 |
@@ -318,6 +352,73 @@ for f in README.md article.md video-script.md copy.md wechat-copy.md posting-gui
 done
 ```
 
+## ⚠️ 致命错误修复记录（2026-05-10）
+
+> 以下是已确认的技能文档级错误，正在分阶段修复。遇到文档与实际行为冲突时，以本文为准。
+
+### ❌ 错误1：技能文档引用不存在的 `@remotion/core`
+
+**影响**：所有使用 `@remotion/core` 的视频项目从第一天就无法运行（"could not determine executable" 或 React Error #130）。
+
+**根因**：`@remotion/core` 在 npm 上**不存在**（只有 `1.0.0-y.x` 预发布版本）。Remotion 4.x 的正确包名是 **`remotion`**（无 `@` 前缀）。
+
+**正确 import**：
+```tsx
+// ✅ 正确（remotion 4.x）
+import { AbsoluteFill, Sequence, useCurrentFrame, interpolate } from 'remotion';
+
+// ❌ 错误（@remotion/core 不存在）
+import { AbsoluteFill } from '@remotion/core';
+```
+
+**正确 package.json**：
+```json
+{
+  "dependencies": {
+    "remotion": "4.0.459",
+    "@remotion/cli": "4.0.459",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  }
+}
+```
+
+**注意**：`@remotion/cli`、`@remotion/bundler`、`@remotion/renderer` 等是独立包，由 `remotion` 主包统一版本号。安装 `@remotion/cli` 时会自动引入所有依赖，**无需单独安装**。
+
+### ❌ 错误2：`Text` 组件在 Remotion 4.x 中被移除
+
+**影响**：代码中的 `<Text>` 导致 `React.createElement(undefined, ...)` → React Error #130。
+
+**根因**：remotion 4.0.459 的 47 个 exports 中**没有 Text**。
+
+**正确修复**：用 `<div>` DOM 元素替代 `<Text>`，CSS `textShadow` 实现描边效果：
+```tsx
+// ✅ 正确：div + inline style
+<div style={{
+  fontFamily: 'PingFang SC',
+  color: '#FFFFFF',
+  textShadow: '0 0 20px #00FFFF, 0 0 40px #00FFFF',
+  fontSize: 72,
+}}>{children}</div>
+
+// ❌ 错误：Text 不存在于 remotion 4.x
+<Text style={{...}}>{children}</Text>
+```
+
+### ❌ 错误3：字幕字号规范冲突（18px vs 72px）
+
+**影响**：FONTS.md 说"字幕必须18px"，与实际需求（竖屏1080×1920下可读性）冲突，导致字幕太小。
+
+**正确值**：ASS Fontsize=72（PlayResY=1920 时约40px视觉，足够可读）。
+
+**验证命令**：
+```bash
+grep -i "fontsize" {project}/audio/subtitles.ass
+# 输出应为 Fontsize: 72
+```
+
+---
+
 ## 如何使用
 
 阅读各个规则文件以获取详细说明和代码示例：
@@ -329,10 +430,38 @@ done
 - [rules/REMOTION.md](rules/REMOTION.md) - 详细规定了使用 Remotion 框架创建视频组件的规范，包括组件结构、动画效果（打字机、词高亮、渐入等）、主题配置、字体选择以及视频渲染参数。
 - [rules/VOICE.md](rules/VOICE.md) - 规定了使用微软 Azure Neural TTS（推荐 zh-CN-YunjianNeural）进行自然人声合成的工作流程，强调整段连续生成、音频后处理及通过 ffmpeg 混流避免 Remotion 编码杂音。
 - [rules/HTML.md](rules/HTML.md) - 规定国内CDN资源引用规范，提供落地页、公众号适配页、文章阅读页三种HTML模板。
-- [rules/FONTS.md](rules/FONTS.md) - 规定视频字幕和正文的字体大小规范（主标题120px/副标题44px/内容40px）、ASS字幕格式（PingFang SC/黄色/底部居中）及大字体居中设计原则。
+- [rules/FONTS.md](rules/FONTS.md) - 视频字幕和正文字体大小规范（主标题130px/副标题52px/内容72-96px）、ASS字幕格式及大字体居中设计原则。⚠️ **注意**：FONTS.md 中 ASS 字幕 Outline=1 与统一规范 Outline=2 冲突，以 [rules/SUBTITLES.md](rules/SUBTITLES.md) 为准。
 - [rules/WORKFLOW.md](rules/WORKFLOW.md) - 定义视频创作从内容获取到报告生成的11步完整工作流程。
 - [rules/COPY.md](rules/COPY.md) - 规定公众号文案的输出格式、标题规范（8-32字）、摘要规范（≤44字）及正文结构（开头→引出→解决→功能→效果→号召→结尾）。
 - [rules/SUBTITLES.md](rules/SUBTITLES.md) - 集成智能字幕生成（ASS格式）、质量检查（字体/音频/字幕/视频）及自动修复功能，支持批量处理多个视频项目。
+
+### ⚠️ 强制质量门禁（2026-05-10 升级版）
+
+> **根因**：每次生成视频要反复修订音频、字幕（格式/位置/大小）、画面与字幕与音频同步问题，核心原因是缺乏强制验证节点。
+>
+> **修复**：升级 `video-quality-gate.js` 一键门禁脚本，新增 C 节点（render）检查项。**所有节点退出码=0才能进入下一步。**
+
+```bash
+# 完整检查（推荐：渲染前必做全部检查）
+node ~/.hermes/skills/video-creator/scripts/video-quality-gate.js <project-dir> all
+
+# 渲染前必须通过 render 节点检查
+# 新增检查项（2026-05-10）：
+#   C1. package.json 包名验证（@remotion/core → remotion）
+#   C2. <Text> 组件检查（Remotion 4.x 不存在）
+#   C3. node_modules/remotion 存在性
+#   C4. useCurrentFrame 动画
+#   C5. Sequence 内无全局帧误用
+#   C6. AbsoluteFill 使用
+node ~/.hermes/skills/video-creator/scripts/video-quality-gate.js <project-dir> render
+```
+
+**launch.sh 快速启动**（推荐）：
+```bash
+bash ~/.hermes/skills/video-creator/scripts/launch.sh init <项目名>   # 创建项目
+bash ~/.hermes/skills/video-creator/scripts/launch.sh gate all         # 质量门禁
+bash ~/.hermes/skills/video-creator/scripts/launch.sh all             # 完整流程
+```
 - [rules/QUALITY.md](rules/QUALITY.md) - 定义视频质量检查清单，涵盖内容、视觉、文件、技术、音频五大维度的检查标准。
 - [rules/INPUT.md](rules/INPUT.md) - 定义三种内容输入模式：链接输入（baoyu-url-to-markdown抓取）、主题输入（web_search搜索）、详细内容输入（直接解析），并规定各自的处理流程。
 - [rules/THEMES.md](rules/THEMES.md) - 定义20种视频主题风格（科技、创意、生活，自然，专业四大类），包含主色、辅色、背景色、字体、粒子数等视觉参数及平台规格（小红书/视频号/抖音/油管）。

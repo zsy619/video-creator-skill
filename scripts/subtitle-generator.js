@@ -2,14 +2,20 @@
  * 字幕生成器
  * 智能生成ASS字幕文件，支持字体兼容性修复
  *
- * 规范（与 rules/FONTS.md 一致）：
- * - Fontsize: 10（ASS 标准像素单位，不是 pt）
+ * 规范（统一遵循 rules/SUBTITLES.md + UNIFIED_RULES.md）：
+ * - Fontsize: 72（PlayResY=1920时，约40px视觉，竖屏标准）
  * - Font: PingFang SC (macOS) / Microsoft YaHei (Windows)
  * - PrimaryColour: &H00FFFF（黄色）
  * - Alignment: 2（底部居中）
- * - MarginL/MarginR/MarginV: 30/30/30
- * - Outline: 1（1px黑色描边）
- * - 语义换行：\N 分隔多行，每行约15字符
+ * - MarginL/MarginR: 30/30，MarginV: 50
+ * - Outline: 2（2px黑色描边，1px太细）
+ * - 语义换行：\N 分隔多行，每行≤25字符
+ * - Dialogue: 10字段格式（Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text）
+ *
+ * ⚠️ 规范冲突说明（2026-05-10）：
+ * - Fontsize: 统一72，禁止使用10/12（旧规范已废弃）
+ * - Outline: 统一2，禁止使用1（旧规范已废弃）
+ * - 如与其他文档冲突，以本脚本注释的规范为准
  */
 
 const fs = require('fs').promises;
@@ -20,15 +26,15 @@ class SubtitleGenerator {
   constructor(options = {}) {
     this.options = {
       font: 'PingFang SC',
-      fontSize: 10,  // ASS 标准像素值，不是 72
+      fontSize: 72,    // 竖屏1080×1920标准值（PlayResY=1920时约40px视觉）
       color: '&H00FFFF', // 亮黄色
       outlineColor: '&H00000000', // 黑色描边
       backgroundColor: '&H00000000', // 透明背景
       alignment: 2, // 底部居中
       marginL: 30,  // 左边距30px
       marginR: 30,  // 右边距30px
-      marginV: 30,  // 距底边30px
-      outline: 1,   // 1px描边
+      marginV: 50,  // 距底边50px（增加避免贴边）
+      outline: 2,   // 2px描边（1px太细）
       shadow: 0,
       bold: 0,
       italic: 0,
@@ -129,10 +135,13 @@ class SubtitleGenerator {
     lines.push('');
 
     lines.push('[Events]');
-    lines.push('Format: Layer, Start, End, Style, Text');
+    // ⚠️ 必须10字段：Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    lines.push('Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text');
 
     subtitles.forEach((sub) => {
-      lines.push(`Dialogue: 0,${sub.start},${sub.end},Default,${sub.text}`);
+      // Name=空, MarginL=0, MarginR=0, MarginV=50, Effect=空 → 共10字段
+      const text = sub.text.replace(/\r\n/g, '\n').replace(/\n/g, '\\N');
+      lines.push(`Dialogue: 0,${sub.start},${sub.end},Default,,0,0,50,,${text}`);
     });
 
     return lines.join('\n');
@@ -146,7 +155,8 @@ class SubtitleGenerator {
    * - 最后一行不足一半则合并到上一行（避免孤行）
    */
   async generateFromText(text, totalDuration, options = {}) {
-    const { maxCharsPerLine = 15, minDuration = 2, maxDuration = 6 } = options;
+    // 72px字体在1080px宽度下单行最多25字符（已验证）
+    const { maxCharsPerLine = 25, minDuration = 2, maxDuration = 6 } = options;
 
     // Step 1: 按结束标点拆分为语义段落
     const paragraphs = text
@@ -282,22 +292,29 @@ class SubtitleGenerator {
   }
 
   isValidTime(timeStr) {
-    return /^\d{1,2}:\d{2}:\d{2}\.\d{2,3}$/.test(timeStr);
+    // ASS格式: H:MM:SS.CC（CC=2位厘秒，不是3位毫秒）
+    return /^\d{1,2}:\d{2}:\d{2}\.\d{2}$/.test(timeStr);
   }
 
   timeToMs(timeStr) {
+    // 解析 ASS H:MM:SS.CC 格式（CC=2位厘秒）
     const [h, m, s] = timeStr.split(':');
-    const [sec, ms] = s.split('.');
-    return (parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(sec)) * 1000 + parseInt(ms);
+    const [sec, cs] = s.split('.');
+    // 将厘秒转为毫秒：CC/100*1000 = CC*10
+    return (parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(sec)) * 1000 + parseInt(cs) * 10;
   }
 
+  /**
+   * 将毫秒转换为 ASS 时间格式 H:MM:SS.CC（2位厘秒，不是3位毫秒）
+   * ⚠️ ASS 格式使用 centiseconds (CC) = 2位小数，不是3位
+   */
   msToTime(ms) {
     const totalSeconds = Math.floor(ms / 1000);
-    const milliseconds = ms % 1000;
+    const centiseconds = Math.floor((ms % 1000) / 10); // 转厘秒，2位
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}`;
   }
 }
 

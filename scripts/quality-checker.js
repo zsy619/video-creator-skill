@@ -188,12 +188,12 @@ class QualityChecker {
         const fontSizeMatch = content.match(/Fontsize,(\d+)/);
         if (fontSizeMatch) {
           const fontSize = parseInt(fontSizeMatch[1]);
-          if (fontSize !== 10) {
+          if (fontSize < 72) {
             this.issues.push({
               type: 'FONT_SIZE',
               severity: 'ERROR',
-              message: `字体大小 ${fontSize}px 不符合标准（应为 12px）`,
-              solution: '使用 SubtitleGenerator 生成字幕，默认 fontSize=12',
+              message: `字体大小 ${fontSize}px 不符合标准（竖屏字幕必须≥72px）`,
+              solution: '使用 scripts/subtitle-generator.js 生成字幕，默认 fontSize=72',
               path: file,
               fixable: true,
               fixAction: 'adjustFontSize'
