@@ -4,7 +4,7 @@
 #
 # 用法:
 #   cd ~/VideoProjects/my-project
-#   bash $HOME/.hermes/skills/video-creator/scripts/launch.sh
+#   bash {SKILL_DIR}/scripts/launch.sh
 #
 # 环境变量:
 #   SKILL_DIR   — 技能根目录（默认 ~/.hermes/skills/video-creator）
@@ -140,28 +140,19 @@ cmd_gate() {
 # ── 子命令: audio ─────────────────────────────────────────────────────────────
 cmd_audio() {
   local proj_dir="${PROJECT_DIR:-$(pwd)}"
+  local GATE="${SCRIPT_DIR}/video-quality-gate.js"
 
-  log "生成音频（Step 7）..."
+  log "生成音频（Step 2-3）..."
 
-  # 检查前置条件
-  if [ ! -f "${proj_dir}/docs/video-script.md" ]; then
-    err "缺少 video-script.md，请先创建内容"
+  # 检查配音文本
+  if [ ! -f "${proj_dir}/docs/narration.txt" ]; then
+    err "缺少配音文本: docs/narration.txt"
     exit 1
   fi
 
-  # 检查封面
-  if [ ! -f "${proj_dir}/docs/assets/cover.png" ]; then
-    err "缺少封面图 docs/assets/cover.png"
-    exit 1
-  fi
-
-  ok "音频生成就绪（请参考 VOICE.md 配置 edge-tts）"
   echo ""
-  echo "请在 AI 对话中执行以下步骤:"
-  echo "  1. 读取 ${proj_dir}/docs/video-script.md 获取配音文本"
-  echo "  2. 使用 text_to_speech 工具生成音频"
-  echo "  3. 执行 ffmpeg 后处理（去静音 + 1.2x + AAC 256k）"
-  echo "  4. 运行 $0 gate audio 验证"
+  echo "请参考 ONEPASS_WORKFLOW.md 的 Step 2 执行 edge-tts 配音"
+  echo "或运行 $0 all 进行一键生成"
 }
 
 # ── 子命令: subtitle ─────────────────────────────────────────────────────────
@@ -188,13 +179,8 @@ cmd_subtitle() {
   ok "音频时长: ${duration}s"
 
   echo ""
-  echo "请在 AI 对话中执行以下步骤:"
-  echo "  1. 从 video-script.md 提取配音文本"
-  echo "  2. 使用 SubtitleGenerator 生成 ASS 字幕（Fontsize=72）"
-  echo "     const generator = new SubtitleGenerator();"
-  echo "     const subtitles = await generator.generateFromText(text, ${duration});"
-  echo "     await generator.generateASS(subtitles, '${proj_dir}/audio/subtitles.ass');"
-  echo "  3. 运行 $0 gate subtitle 验证"
+  echo "请参考 ONEPASS_WORKFLOW.md 的 Step 5 执行字幕生成"
+  echo "或运行 $0 all 进行一键生成"
 }
 
 # ── 子命令: render ────────────────────────────────────────────────────────────
@@ -223,72 +209,216 @@ cmd_render() {
   fi
 
   echo ""
-  echo "渲染命令参考（请在 AI 对话中执行）:"
-  echo "  cd ${proj_dir}/video-project"
-  echo "  npx remotion render VerticalVideo --output out/video_noaudio.mp4 --fps 60 --height 1920 --width 1080"
-  echo ""
-  echo "混流命令:"
-  echo "  ffmpeg -y -i out/video_noaudio.mp4 -i ../audio/neural_1_2x.m4a \\"
-  echo "    -map 0:v -map 1:a -c:v copy -c:a aac -b:a 256k -shortest \\"
-  echo "    out/final.mp4"
-  echo ""
-  echo "字幕烧录:"
-  echo "  ffmpeg -y -i out/final.mp4 \\"
-  echo "    -vf \"subtitles=../audio/subtitles.ass:force_style='Fontsize=72,Outline=2,MarginV=50'\" \\"
-  echo "    out/final_with_subs.mp4"
+  echo "请参考 ONEPASS_WORKFLOW.md 的 Step 7-9 执行渲染+混流"
+  echo "或运行 $0 all 进行一键生成"
 }
 
 # ── 子命令: all ────────────────────────────────────────────────────────────────
 cmd_all() {
   local proj_dir="${PROJECT_DIR:-$(pwd)}"
-  local GATE="${SKILL_DIR}/scripts/video-quality-gate.js"
+  local GATE="${SCRIPT_DIR}/video-quality-gate.js"
+  local FIX_TEXT="${SCRIPT_DIR}/fix-text-component.js"
+  local SUBTITLE_GEN="${SCRIPT_DIR}/subtitle-generator.js"
+  local VP_DIR="${proj_dir}/video-project"
 
-  log "开始完整流程（CI模式：所有节点必须通过）..."
-
-  # CI强制模式：所有 gate 节点退出码≠0 → 立即失败，不交互
+  log "开始一键视频生成流程..."
   echo ""
-  echo "=== 节点 A: audio ==="
+
+  # ── 读取配置 ────────────────────────────────────────────────────────────────
+  local config_file="${VP_DIR}/video-config.json"
+  if [ ! -f "$config_file" ]; then
+    err "找不到配置文件: ${config_file}"
+    err "请先运行: $0 init <项目名>"
+    exit 1
+  fi
+
+  # 读取目标时长（秒）
+  local TARGET_DURATION
+  TARGET_DURATION=$(node -e "console.log(require('${config_file}').duration)")
+  if [ -z "$TARGET_DURATION" ]; then
+    err "video-config.json 缺少 duration 字段"
+    exit 1
+  fi
+  ok "目标时长: ${TARGET_DURATION}s"
+
+  # ── Step 1: edge-tts 配音 ──────────────────────────────────────────────────
+  echo ""
+  echo "=== Step 1: edge-tts 配音 ==="
+  local narration_file="${proj_dir}/docs/narration.txt"
+  if [ ! -f "$narration_file" ]; then
+    err "找不到配音文本: ${narration_file}"
+    exit 1
+  fi
+
+  local EDGE_RATE="+0%"
+  # ATEMPO 默认 1.0（不变速），如需调整可在 video-config.json 中设置 voice.atempo
+  local ATEMPO=$(node -e "console.log(require('${config_file}').voice?.atempo || 1.0)")
+  if [ "$(echo "$ATEMPO > 1.0" | bc)" -eq 1 ]; then
+    local pct
+    pct=$(echo "($ATEMPO - 1) * 100" | bc)
+    EDGE_RATE="+${pct}%"
+  fi
+  ok "语速: ${EDGE_RATE}"
+
+  mkdir -p "${proj_dir}/audio"
+  edge-tts \
+    --voice "$(node -e "console.log(require('${config_file}').voice?.name || 'zh-CN-YunjianNeural')")" \
+    --rate "$EDGE_RATE" \
+    --text "$(cat "$narration_file")" \
+    --output "${proj_dir}/audio/neural_1_2x.m4a" \
+    2>/dev/null || {
+    err "edge-tts 配音失败"
+    exit 1
+  }
+  ok "配音完成: audio/neural_1_2x.m4a"
+
+  # ── Step 2: 重编码 m4a 256k ───────────────────────────────────────────────
+  echo ""
+  echo "=== Step 2: 重编码 m4a 256k ==="
+  ffmpeg -y -i "${proj_dir}/audio/neural_1_2x.m4a" \
+    -c:a aac -b:a 256k \
+    "${proj_dir}/audio/neural_1_2x.m4a" \
+    2>/dev/null || {
+    err "ffmpeg 重编码失败"
+    exit 1
+  }
+  ok "重编码完成"
+
+  # ── Step 3: 门禁 A（音频）─────────────────────────────────────────────────
+  echo ""
+  echo "=== 门禁 A: 音频 ==="
   if ! node "${GATE}" "${proj_dir}" "audio"; then
-    err "❌ audio 节点未通过，终止"
+    err "❌ 门禁 A 未通过，终止"
     exit 1
   fi
+  ok "✅ 门禁 A 通过"
 
+  # ── Step 4: 生成字幕 ──────────────────────────────────────────────────────
   echo ""
-  echo "=== 节点 B: subtitle ==="
+  echo "=== Step 4: 生成 ASS 字幕 ==="
+  node -e "
+    const { SubtitleGenerator } = require('${SUBTITLE_GEN}');
+    const fs = require('fs');
+    const gen = new SubtitleGenerator({ maxCharsPerLine: 25 });
+    const text = fs.readFileSync('${narration_file}', 'utf8');
+    gen.generateFromText(text, ${TARGET_DURATION}).then(subs => {
+      return gen.generateASS(subs, '${proj_dir}/audio/subtitles.ass');
+    }).then(() => console.log('OK')).catch(e => { console.error(e.message); process.exit(1); });
+  " || {
+    err "字幕生成失败"
+    exit 1
+  }
+  ok "ASS 字幕生成完成: audio/subtitles.ass"
+
+  # ── Step 5: 门禁 B（字幕）─────────────────────────────────────────────────
+  echo ""
+  echo "=== 门禁 B: 字幕 ==="
   if ! node "${GATE}" "${proj_dir}" "subtitle"; then
-    err "❌ subtitle 节点未通过，终止"
+    err "❌ 门禁 B 未通过，终止"
     exit 1
   fi
+  ok "✅ 门禁 B 通过"
 
+  # ── Step 6: 渲染前检查（修复 <Text>）──────────────────────────────────────
   echo ""
-  echo "=== 节点 C: render ==="
+  echo "=== Step 6: 渲染前准备 ==="
+  local tsx_file
+  for candidate in Video.tsx VerticalVideo.tsx MainVideo.tsx App.tsx; do
+    if [ -f "${VP_DIR}/src/${candidate}" ]; then
+      tsx_file="${VP_DIR}/src/${candidate}"
+      break
+    fi
+  done
+
+  if [ -n "$tsx_file" ] && grep -q '<Text' "$tsx_file" 2>/dev/null; then
+    warn "检测到 <Text> 组件（Remotion 不存在），正在自动修复..."
+    node "${FIX_TEXT}" "${VP_DIR}/src" || {
+      err "Text 组件修复失败"
+      exit 1
+    }
+    ok "Text 组件已替换为 div"
+  else
+    ok "无 Text 组件问题"
+  fi
+
+  # ── Step 7: Remotion 渲染 ────────────────────────────────────────────────
+  echo ""
+  echo "=== Step 7: Remotion 渲染 ==="
+  local FPS
+  FPS=$(node -e "console.log(require('${config_file}').fps || 60)")
+  local TOTAL_FRAMES
+  TOTAL_FRAMES=$(node -e "console.log(require('${config_file}').totalFrames || Math.ceil(${TARGET_DURATION} * ${FPS}))")
+
+  mkdir -p "${VP_DIR}/out"
+  cd "${VP_DIR}"
+
+  npx remotion render VerticalVideo \
+    --output out/video_noaudio.mp4 \
+    --fps "$FPS" \
+    --concurrency=8 \
+    2>&1 | tail -5 || {
+    err "Remotion 渲染失败"
+    exit 1
+  }
+  ok "Remotion 渲染完成: out/video_noaudio.mp4"
+
+  # ── Step 8: 门禁 C（渲染）─────────────────────────────────────────────────
+  echo ""
+  echo "=== 门禁 C: 渲染 ==="
   if ! node "${GATE}" "${proj_dir}" "render"; then
-    err "❌ render 节点未通过，终止"
+    err "❌ 门禁 C 未通过，终止"
     exit 1
   fi
+  ok "✅ 门禁 C 通过"
 
+  # ── Step 9: 混流 + 字幕烧录 ──────────────────────────────────────────────
   echo ""
-  echo "=== 节点 D: final ==="
+  echo "=== Step 9: 混流 + 字幕烧录 ==="
+  cd "${proj_dir}"
+
+  ffmpeg -y \
+    -i "${VP_DIR}/out/video_noaudio.mp4" \
+    -i "${proj_dir}/audio/neural_1_2x.m4a" \
+    -map 0:v -map 1:a \
+    -c:v libx264 -crf 18 -preset fast \
+    -c:a aac -b:a 256k \
+    "${VP_DIR}/out/final.mp4" \
+    2>/dev/null || {
+    err "混流失败"
+    exit 1
+  }
+  ok "混流完成: out/final.mp4"
+
+  ffmpeg -y \
+    -i "${VP_DIR}/out/final.mp4" \
+    -vf "ass=${proj_dir}/audio/subtitles.ass" \
+    -c:v libx264 -crf 18 -preset fast \
+    -c:a copy \
+    "${VP_DIR}/out/final_with_subs.mp4" \
+    2>/dev/null || {
+    err "字幕烧录失败"
+    exit 1
+  }
+  ok "字幕烧录完成: out/final_with_subs.mp4"
+
+  # ── Step 10: 门禁 D（最终视频）───────────────────────────────────────────
+  echo ""
+  echo "=== 门禁 D: 最终视频 ==="
   if ! node "${GATE}" "${proj_dir}" "final"; then
-    err "❌ final 节点未通过，终止"
+    err "❌ 门禁 D 未通过，终止"
     exit 1
   fi
+  ok "✅ 门禁 D 通过"
 
-  ok "✅ 所有门禁节点通过！"
+  # ── 完成 ───────────────────────────────────────────────────────────────────
   echo ""
-  echo "渲染命令参考（请在 AI 对话中执行）:"
-  echo "  cd ${proj_dir}/video-project"
-  echo "  npx remotion render VerticalVideo --output out/video_noaudio.mp4 --fps 60 --height 1920 --width 1080"
+  echo "═══════════════════════════════════════"
+  ok "✅ 一键生成完成！"
+  echo "═══════════════════════════════════════"
   echo ""
-  echo "混流命令:"
-  echo "  ffmpeg -y -i out/video_noaudio.mp4 -i ../audio/neural_1_2x.m4a \\"
-  echo "    -map 0:v -map 1:a -c:v copy -c:a aac -b:a 256k -shortest \\"
-  echo "    out/final.mp4"
+  echo "最终文件: ${VP_DIR}/out/final_with_subs.mp4"
+  echo "尺寸: 1080×1920 | 时长: ${TARGET_DURATION}s | 60fps"
   echo ""
-  echo "字幕烧录:"
-  echo "  ffmpeg -y -i out/final.mp4 \\"
-  echo "    -vf \"subtitles=../audio/subtitles.ass:force_style='Fontsize=72,Outline=2,MarginV=50'\" \\"
-  echo "    out/final_with_subs.mp4"
 }
 
 # ── 主入口 ────────────────────────────────────────────────────────────────────

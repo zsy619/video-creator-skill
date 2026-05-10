@@ -46,7 +46,7 @@ PlayResY: 1920
 ⚠️ **铁律警告**：
 - 换行符必须用 `\N`（ASS格式），不是 `\n`
 - 每行最多25字符，避免超出1080px画面
-- MarginV/MarginL/MarginR 全部30px（不是50px）
+- **MarginV=50px**（距底边），MarginL/MarginR=30px（不是全部30px）
 - WrapStyle=0 必须设置，否则多行不生效
 
 ### 2. 视频帧数计算（强制）
@@ -60,6 +60,28 @@ PlayResY: 1920
 **示例**：
 - 音频时长 58.944秒 → 总帧数 = ceil(58.944 × 60) = 3540帧
 - 场景分布：cover(180) + apps(720) + frameworks(900) + CTA(900) + continue(840) = 3540 ✅
+
+### 2.5 atempo 反模式门禁（强制，2026-05-10 新增）
+
+**问题根因**：先生成超长配音 → atempo 加速 → 裁剪 → 基于错误时长生成字幕 → 音画不同步
+
+**正确做法**：基于配音文本 + 目标时长，直接生成正确长度的音频，不依赖 atempo 加速。
+
+**强制门禁**：音频时长偏差 > 5% → 退出码=1，禁止继续
+
+```bash
+# audio/neural_1_2x.m4a 时长偏差检查（嵌入 video-quality-gate.js 节点 A）
+TARGET_DURATION=60   # 从 video-config.json 或 duration.txt 读取
+ACTUAL=$(ffprobe -v error -show_entries format=duration \
+  -of default=noprint_wrappers=nokey=1 audio/neural_1_2x.m4a)
+DIFF=$(python3 -c "print(abs($ACTUAL - $TARGET_DURATION) / $TARGET_DURATION * 100)")
+if [ "$(python3 -c "exit(0 if $DIFF <= 5 else 1)")" -eq 0 ]; then
+  echo "✅ 音频时长偏差 ${DIFF}%（≤5%）"
+else
+  echo "❌ 音频时长偏差 ${DIFF}%（>5%），可能存在 atempo+裁剪反模式"
+  exit 1
+fi
+```
 
 ### 3. 居中布局规范（强制）
 
@@ -418,7 +440,7 @@ Step 4: 删除所有中间文件
 | 帧率 | 60fps | 固定 |
 | 字幕大小 | 72px | ≥36px，推荐72px |
 | 字幕颜色 | #00FFFF | 黄色 |
-| 字幕距底边 | 30px | MarginV=30，左右边距也是30px |
+| 字幕距底边 | 50px | MarginV=50px（距底边），MarginL/MarginR=30px |
 | 音频码率 | 128kbps | AAC |
 | 视频码率 | CRF 22 | H.264 |
 

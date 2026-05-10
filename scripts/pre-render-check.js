@@ -83,23 +83,24 @@ function checkGlobalFrameUsage(content, sequences) {
 
 function checkFontSize(content, maxWidth = 1080) {
   // 检查字体大小是否合理
+  // 竖屏 1080×1920 标准字号：字幕72px，标题96-130px，正文36-48px
+  // Remotion CSS fontSize 在 JSX style 中是实际像素值，与 PlayResY=1920 的 ASS Fontsize=72 不同
   const warnings = [];
-  
-  // 封面标题字号检查（Remotion 中字体大小是相对于1080宽度的）
-  const titleFontPattern = /fontSize:\s*(\d+)/g;
+
+  // 只检查过小的字号（< 20px 在竖屏 1080×1920 下基本不可见）
+  const tinyFontPattern = /fontSize:\s*['"]?(\d+)['"]?/g;
   let match;
-  while ((match = titleFontPattern.exec(content)) !== null) {
+  while ((match = tinyFontPattern.exec(content)) !== null) {
     const size = parseInt(match[1]);
-    // 标题字号不应超过 80px（1080宽度下）
-    if (size > 80) {
+    if (size > 0 && size < 20) {
       warnings.push({
         line: getLineNumber(content, match.index),
         size,
-        reason: `字号${size}px可能过大，在1080宽度下可能超出画面`
+        reason: `字号${size}px过小，竖屏视频中基本不可见`
       });
     }
   }
-  
+
   return warnings;
 }
 

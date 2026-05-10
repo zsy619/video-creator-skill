@@ -115,7 +115,7 @@ async function main() {
       try {
         if (cmdOptions.generate) {
           const SubtitleGenerator = require('./scripts/subtitle-generator');
-          const generator = new SubtitleGenerator({ fontSize: 10, color: '&H0000FFFF' });
+          const generator = new SubtitleGenerator({ fontSize: 72, marginV: 50, outline: 2 });
 
           const audioPath = path.join(cmdOptions.project, 'audio', 'full_narration.txt');
           let text = '默认配音文本';

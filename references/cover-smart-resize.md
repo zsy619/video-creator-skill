@@ -90,7 +90,7 @@ def smart_resize_text(text, font_path, start_size, canvas_width, max_ratio=0.90,
 
 运行方式：
 ```bash
-node ~/.hermes/skills/video-creator/scripts/video-quality-gate.js <project-dir> cover
+node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> cover
 ```
 
 ## AI 生成（baoyu-imagine）的标题策略

@@ -781,7 +781,7 @@ class VideoCreator {
   /**
    * Step 8: 生成字幕 + FFmpeg 烧录
    * 使用 SubtitleGenerator 生成 ASS 格式字幕，然后用 ffmpeg 烧录到视频
-   * 规范：Fontsize=10, 黄色, PingFang SC, MarginL/R/V=30, 底部居中
+   * 规范：Fontsize=72, 黄色, PingFang SC, MarginV=50/MarginL/MarginR=30, 底部居中, Outline=2
    */
   async generateSubtitles() {
     if (this.options.skipSubtitles) {
@@ -793,8 +793,9 @@ class VideoCreator {
 
     try {
       const subtitleGenerator = new SubtitleGenerator({
-        fontSize: 10,  // ASS 标准像素值，不是 72
-        color: '&H00FFFF'
+        fontSize: 72,  // 竖屏1080×1920标准值（PlayResY=1920时约40px视觉）
+        marginV: 50,   // 距底边50px
+        outline: 2     // 2px描边
       });
 
       const narrationText = this.metadata.summary || this.content;

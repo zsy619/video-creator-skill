@@ -36,7 +36,7 @@
 - **分辨率**: 1080×1920（竖屏 9:16）
 - **帧率**: 60fps
 - **编码**: H.264 + AAC
-- **字幕**: ASS 格式，Fontsize=10，黄色（&H00FFFF）
+- **字幕**: ASS 格式，Fontsize=72，黄色（&H00FFFF）
 
 ---
 
@@ -113,7 +113,7 @@ Step 11 → 生成报告
 → 检查音频文件是否命名为 `neural_1_2x.m4a`，并确认在 `audio/` 目录
 
 **Q: 字幕没有显示？**  
-→ 确认字幕文件为 `audio/subtitles.ass`，Fontsize=10，Alignment=2
+→ 确认字幕文件为 `audio/subtitles.ass`，Fontsize=72，Alignment=2
 
 **Q: 封面生成失败？**  
 → 按顺序重试：baoyu-imagine → Remotion单帧 → PIL兜底

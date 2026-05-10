@@ -94,6 +94,23 @@ function checkFile(filePath, label) {
   }
 }
 
+/** 查找视频组件文件（支持多种命名） */
+function findTsxFile(vpDir) {
+  const candidates = ['Video.tsx', 'VerticalVideo.tsx', 'MainVideo.tsx', 'App.tsx'];
+  for (const name of candidates) {
+    const p = path.join(vpDir, 'src', name);
+    if (fs.existsSync(p)) return p;
+  }
+  // 搜索 src/ 目录下第一个 .tsx 文件
+  const srcDir = path.join(vpDir, 'src');
+  if (fs.existsSync(srcDir)) {
+    for (const f of fs.readdirSync(srcDir)) {
+      if (/\.tsx$/.test(f)) return path.join(srcDir, f);
+    }
+  }
+  return null;
+}
+
 /** 获取音频时长 */
 function getDuration(filePath) {
   const r = run(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${filePath}" 2>/dev/null`);
@@ -198,6 +215,30 @@ function checkAudio() {
     pass(`音频时长: ${duration.toFixed(2)}s`);
     if (duration < 30) warn('音频时长偏短（<30s）');
     if (duration > 120) warn('音频时长偏长（>120s）');
+
+    // ⚠️ 5% 偏差阈值检查（atempo+裁剪反模式门禁）
+    const configFile = path.join(PROJECT_DIR, 'video-project', 'video-config.json');
+    const durationFile = path.join(PROJECT_DIR, 'video-project', 'duration.txt');
+    let targetDuration = null;
+    if (fs.existsSync(configFile)) {
+      try {
+        const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+        targetDuration = cfg.duration || cfg.totalFrames
+          ? (cfg.duration || cfg.totalFrames / 60)
+          : null;
+      } catch (e) { /* ignore */ }
+    } else if (fs.existsSync(durationFile)) {
+      targetDuration = parseFloat(fs.readFileSync(durationFile, 'utf8').trim()) || null;
+    }
+
+    if (targetDuration && targetDuration > 0) {
+      const pct = Math.abs(duration - targetDuration) / targetDuration * 100;
+      if (pct > 5) {
+        fail(`音频时长偏差 ${pct.toFixed(1)}%（目标 ${targetDuration.toFixed(1)}s，实际 ${duration.toFixed(1)}s，可能存在 atempo+裁剪反模式）`);
+      } else {
+        pass(`音频时长偏差 ${pct.toFixed(1)}%（≤5%，正常）`);
+      }
+    }
   } else {
     fail('音频时长无效');
   }
@@ -296,18 +337,21 @@ function checkRender() {
     warn('package.json 不存在（跳过包名检查）');
   }
 
-  const tsxFile = path.join(PROJECT_DIR, 'video-project', 'src', 'Video.tsx');
-  if (!fs.existsSync(tsxFile)) {
-    warn('Video.tsx 不存在（跳过代码级检查）');
+  // 重用 vpDir，查找视频组件文件
+  const tsxFile = findTsxFile(vpDir);
+  if (!tsxFile) {
+    warn('未找到 .tsx 视频组件文件（跳过代码级检查）');
     return;
   }
+  pass(`找到视频组件: ${path.relative(vpDir, tsxFile)}`);
 
   const content = fs.readFileSync(tsxFile, 'utf8');
 
   // C2: <Text> 组件检查（Remotion 4.x 不存在，会导致 React Error #130）
-  if (/<Text[\s>]/.test(content) || /<\/Text>/.test(content)) {
+  if (/<Text[\s>]/.test(content) || /<\/\s*Text\s*>/.test(content)) {
     fail('<Text> 组件在 Remotion 4.x 中不存在，会导致 React Error #130');
-    warn('替换方案: 将 <Text> 改为 <div>，将 </Text> 改为 </div>');
+    warn('自动修复: sed -i "" "s/<Text\\b/<div/g; s/<\\/Text>/<\\/div>/g" src/Video.tsx');
+    warn('或运行: node scripts/fix-text-component.js <project-dir>');
   } else {
     pass('无 <Text> 组件（Remotion 4.x 兼容性通过）');
   }

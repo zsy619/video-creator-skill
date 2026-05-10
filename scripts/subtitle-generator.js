@@ -11,11 +11,19 @@
  * - Outline: 2（2px黑色描边，1px太细）
  * - 语义换行：\N 分隔多行，每行≤25字符
  * - Dialogue: 10字段格式（Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text）
+ * - 时间戳：2位厘秒（CC），如 0:00:04.50
  *
- * ⚠️ 规范冲突说明（2026-05-10）：
- * - Fontsize: 统一72，禁止使用10/12（旧规范已废弃）
- * - Outline: 统一2，禁止使用1（旧规范已废弃）
- * - 如与其他文档冲突，以本脚本注释的规范为准
+ * ⚠️ 字幕生成两种方案：
+ * 方案A（推荐）：基于配音文本生成
+ *   const gen = new SubtitleGenerator();
+ *   const subs = await gen.generateFromText(narrationText, totalDuration);
+ *   await gen.generateASS(subs, 'audio/subtitles.ass');
+ *
+ * 方案B：edge-tts SRT → ASS 转换（Whisper 不可用时）
+ *   edge-tts --voice zh-CN-YunjianNeural --text "..." --subtitles out.srt
+ *   node scripts/srt-to-ass.js out.srt audio/subtitles.ass
+ *
+ * ⚠️ Whisper 依赖已移除（openai-whisper 不稳定）
  */
 
 const fs = require('fs').promises;

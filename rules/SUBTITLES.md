@@ -120,7 +120,7 @@ for i, (start, end, text) in enumerate(subtitles):
 
 > ⚠️ **Fontsize 值取决于是否设置 PlayResX/PlayResY**：
 > - 设置 PlayResX/PlayResY=1080x1920 时，Fontsize=12（相对于 1920 高度的标准化值）
-> - 不设置 PlayRes 时，Fontsize=10（旧规范，已废弃）
+> - 不设置 PlayRes 时，Fontsize=10（旧规范，已废弃；当前统一用 Fontsize=72）
 
 | 参数 | 值 | 说明 |
 |------|-----|-----|

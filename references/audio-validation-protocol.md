@@ -177,6 +177,49 @@ ffmpeg -y -i video_only.mp4 -i neural_1_2x.m4a \
 
 ---
 
+## 新增：音频时长偏差阈值（v1.2.0）
+
+> **核心问题**：atempo 加速 + 裁剪模式会导致音频时长与目标偏差过大，字幕时间轴与实际内容错位。
+>
+> **根因**：先生成超长配音 → atempo 加速 → 裁剪 → 基于错误时长生成字幕 → 音画不同步。
+>
+> **修复**：强制 5% 偏差阈值，超出则退出码=1，阻止继续生成。
+
+### 阈值检查命令
+```bash
+#!/bin/bash
+TARGET_DURATION=60   # 目标时长（秒）
+AUDIO_FILE="audio/neural_1_2x.m4a"
+THRESHOLD_PCT=5      # 允许偏差 5%
+
+ACTUAL=$(ffprobe -v error -show_entries format=duration \
+  -of default=noprint_wrappers=nokey=1 "$AUDIO_FILE")
+
+DIFF=$(python3 -c "print(abs($ACTUAL - $TARGET_DURATION) / $TARGET_DURATION * 100)")
+PASS=$(python3 -c "exit(0 if $DIFF <= $THRESHOLD_PCT else 1)")
+
+if [ $? -eq 0 ]; then
+  echo "✅ 音频时长偏差 ${DIFF}%（≤ ${THRESHOLD_PCT}%），通过"
+else
+  echo "❌ 音频时长偏差 ${DIFF}%（> ${THRESHOLD_PCT}%），失败"
+  echo "   目标: ${TARGET_DURATION}s, 实际: ${ACTUAL}s"
+  echo "   可能原因：atempo 加速 + 裁剪反模式"
+  exit 1
+fi
+```
+
+### 嵌入 video-quality-gate.js 节点 A
+此检查已内置于 `video-quality-gate.js --node audio`：
+- 音频时长偏差 > 5% → `❌ 音频时长偏差过大，可能存在 atempo+裁剪反模式`
+- 音频时长偏差 ≤ 5% → `✅ 音频时长正常`
+
+### 快速检查（单行）
+```bash
+python3 -c "d=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=nokey=1 audio/neural_1_2x.m4a); exit(0 if abs(d-60)/60*100<=5 else 1)" && echo "通过" || echo "失败"
+```
+
+---
+
 ## 关键命令速查
 
 ```bash

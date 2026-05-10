@@ -209,10 +209,10 @@ function validateProject(projectDir) {
     const styleMatch = content.match(/Style:.*?,(\d+),/);
     if (styleMatch) {
       const fontsize = styleMatch[1];
-      if (fontsize === '10') {
-        console.log(`     Fontsize=10 ✅`);
+      if (fontsize === '72') {
+        console.log(`     Fontsize=72 ✅`);
       } else {
-        console.log(`     ⚠️  Fontsize=${fontsize} (应为 10)`);
+        console.log(`     ⚠️  Fontsize=${fontsize} (应为 72)`);
       }
     }
   } else {

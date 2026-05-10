@@ -815,11 +815,12 @@ echo "✅ audio 节点门禁通过"
 ffmpeg -y -i raw/audio.mp3 \
   -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-50dB:detection=peak,atempo=1.2" \
   -c:a aac -b:a 256k -ar 48000 -ac 2 \
-  processed/audio_1_2x.m4a
+  -c:a aac -b:a 256k -ar 48000 -ac 2 \
+  audio/neural_1_2x.m4a
 
 # 3. ⚠️【强制】音频有效性验证（禁止跳过）
 # RMS=-inf 表示静音/无效音频；非0个样本表示有声音
-RMS_COUNT=$(ffmpeg -i processed/audio_1_2x.m4a \
+RMS_COUNT=$(ffmpeg -i audio/neural_1_2x.m4a \
   -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" \
   -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l)
 if [ "$RMS_COUNT" -eq 0 ]; then
@@ -829,7 +830,7 @@ fi
 echo "✅ 音频有效（$RMS_COUNT 个有效样本）"
 
 # 4. 获取音频时长（供 Step 8 字幕生成使用，禁止跳过）
-DURATION=$(ffprobe -i processed/audio_1_2x.m4a -show_entries format=duration -v quiet -of csv="p=0")
+DURATION=$(ffprobe -i audio/neural_1_2x.m4a -show_entries format=duration -v quiet -of csv="p=0")
 echo "最终音频时长: ${DURATION}s"
 ```
 

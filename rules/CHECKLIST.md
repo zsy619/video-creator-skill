@@ -122,13 +122,13 @@ ffprobe -v error -show_entries format=duration \
 ### 验证命令
 ```bash
 # 使用 check-subtitle.js 验证字幕质量
-node ~/.hermes/skills/video-creator/scripts/check-subtitle.js \
+node {SKILL_DIR}/scripts/check-subtitle.js \
   "$PROJECT_DIR/audio/subtitles.ass"
 ```
 
 ### 检查项
 - [ ] `audio/subtitles.ass` 存在（不是 .srt）
-- [ ] Fontsize=10
+- [ ] Fontsize=72
 - [ ] Fontname=PingFang SC
 - [ ] Alignment=2 (底部居中)
 - [ ] PrimaryColour=&H00FFFF (黄色)
@@ -193,7 +193,7 @@ echo $?  # 应输出 0
 ### 完整项目验证
 ```bash
 # 使用 video-creator-validator.js 验证完整项目
-node ~/.hermes/skills/video-creator/scripts/video-creator-validator.js \
+node {SKILL_DIR}/scripts/video-creator-validator.js \
   "$PROJECT_DIR"
 ```
 

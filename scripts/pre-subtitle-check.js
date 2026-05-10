@@ -192,15 +192,26 @@ function main() {
     }
   }
 
-  // 7. 检查视频帧数配置（如果存在video-config.json）
-  if (fs.existsSync(configFile)) {
+  // 7. 检查视频帧数配置（如果存在 video-config.json 或 duration.txt）
+  const configFile = path.join(PROJECT_DIR, 'video-project', 'video-config.json');
+  const durationFile = path.join(PROJECT_DIR, 'video-project', 'duration.txt');
+  const cfgFile = fs.existsSync(configFile) ? configFile
+                  : fs.existsSync(durationFile) ? durationFile : null;
+  if (cfgFile) {
     try {
-      const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-      if (config.totalFrames && duration) {
+      let totalFrames = null;
+      if (cfgFile.endsWith('.json')) {
+        const config = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+        totalFrames = config.totalFrames || null;
+      } else {
+        const dur = parseFloat(fs.readFileSync(cfgFile, 'utf8').trim());
+        totalFrames = dur ? Math.ceil(dur * 60) : null;
+      }
+      if (totalFrames && duration) {
         const expectedFrames = Math.ceil(duration * 60);
-        const diff = Math.abs(config.totalFrames - expectedFrames);
+        const diff = Math.abs(totalFrames - expectedFrames);
         if (diff > 30) {
-          log(`⚠️ 警告: 视频帧数(${config.totalFrames})与音频时长×60fps(${expectedFrames})差异较大`, YELLOW);
+          log(`⚠️ 警告: 视频帧数(${totalFrames})与音频时长×60fps(${expectedFrames})差异较大`, YELLOW);
           log(`   请确保音频后处理已完成（atempo加速），再生成字幕`, YELLOW);
         } else {
           log(`✅ 视频帧数与音频时长匹配`, GREEN);

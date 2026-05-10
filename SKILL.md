@@ -118,7 +118,7 @@ metadata:
 **检查命令**：
 ```bash
 # 生成音频前执行文本长度检查
-node ~/.hermes/skills/video-creator/scripts/pre-subtitle-check.js <project-dir> --target-duration 60
+node {SKILL_DIR}/scripts/pre-subtitle-check.js <project-dir> --target-duration 60
 ```
 
 ### 音频三禁止
@@ -190,19 +190,6 @@ node {SKILL_DIR}/video-creator/scripts/pre-render-check.js <Video.tsx> <fps> <du
          ↓
 6. ffmpeg 烧录字幕（-vf "ass=subtitles.ass"）
 ```
-
-### ⚠️ TTS 工具长度限制
-
-> **重要**：`text_to_speech` 工具单次调用上限约 24 秒。
-> - 短文本（≤24s）：直接调用一次生成完整音频
-> - 长文本（>24s）：先生成原始音频，再用 ffmpeg atempo 1.2x 处理
->
-> **当前 session 教训**：text_to_speech 生成 23.9s 音频后无法继续，拼接后音频太短。最终改用原始 62s 音频经 atempo 1.2x 处理为 51.7s，再用 apad 补齐到视频长度。
-
-### ⚠️ TTS 工具长度限制
-
-> **重要**：`text_to_speech` 工具单次调用上限约 24 秒，长文本会被截断。
-> 详见 [references/tts-length-limit.md](references/tts-length-limit.md) — 包含 atempo/apad 补齐等应对策略。
 
 ### ⚠️ Step 0 强制检查清单（禁止跳过）
 
@@ -356,6 +343,26 @@ done
 
 > 以下是已确认的技能文档级错误，正在分阶段修复。遇到文档与实际行为冲突时，以本文为准。
 
+### ⚠️ 验证铁律：上下文摘要≠实际落盘
+
+> **本次（2026-05-10）经验**：多轮修订后，上下文摘要声称 12 项全部完成，但实际验证发现 `references/ONEPASS_WORKFLOW.md` 根本不存在，`launch.sh all` 也只跑门禁检查而非执行生成步骤。
+>
+> **根因**：上下文压缩（context compaction）将"声称完成"当作"实际完成"处理。摘要来自 handoff，不是文件系统真相。
+>
+> **修复**：每次大修订后，必须用 `read_file` 或 `search_files` 验证关键文件**实际存在且内容正确**，不能信任摘要声称。
+
+**验证清单（每次修订后必须执行）**：
+```bash
+# 1. ONEPASS_WORKFLOW.md 是否存在
+ls -la {SKILL_DIR}/references/ONEPASS_WORKFLOW.md
+
+# 2. launch.sh all 命令是否真正执行全链路（不只是跑门禁）
+grep -A5 "cmd_all()" {SKILL_DIR}/scripts/launch.sh | grep "edge-tts\|ffmpeg\|remotion render"
+
+# 3. 关键脚本行号验证
+grep -n "fontSize: 72\|outline: 2\|marginV: 50" {SKILL_DIR}/scripts/subtitle-generator.js
+```
+
 ### ❌ 错误1：技能文档引用不存在的 `@remotion/core`
 
 **影响**：所有使用 `@remotion/core` 的视频项目从第一天就无法运行（"could not determine executable" 或 React Error #130）。
@@ -413,8 +420,13 @@ import { AbsoluteFill } from '@remotion/core';
 
 **验证命令**：
 ```bash
-grep -i "fontsize" {project}/audio/subtitles.ass
-# 输出应为 Fontsize: 72
+# 验证 subtitle-generator.js 实际输出规范值（不要信任摘要，只信任文件系统）
+grep -n "fontSize\|outline\|marginV" {SKILL_DIR}/scripts/subtitle-generator.js | head -10
+# 期望：fontSize: 72, outline: 2, marginV: 50
+
+# 验证 ASS 字幕文件
+grep -i "fontsize\|marginv\|outline" {project}/audio/subtitles.ass
+# 期望：Fontsize: 72, MarginV: 50, Outline: 2
 ```
 
 ---
@@ -422,6 +434,8 @@ grep -i "fontsize" {project}/audio/subtitles.ass
 ## 如何使用
 
 阅读各个规则文件以获取详细说明和代码示例：
+- [references/ONEPASS_WORKFLOW.md](references/ONEPASS_WORKFLOW.md) — **一键生成工作流**：配置驱动，10步完整命令（edge-tts→门禁A→字幕→门禁B→Remotion渲染→门禁C→混流→字幕烧录→门禁D），含完整 bash 脚本。**所有步骤的门禁退出码控制**。
+- [references/skill-audit-methodology.md](references/skill-audit-methodology.md) — 技能深度审计方法论。**摘要永远不可信**，必须 grep 验证文件系统实际值；8类文件检查清单；常见遗漏模式（验证器不同步/实例化覆盖/文档不同步）。
 - [references/baoyu-config.json](references/baoyu-config.json) - 宝玉技能配置
 - [references/cdn-mapping.json](references/cdn-mapping.json) - CDN映射配置
 - [references/tailwind-config.json](references/tailwind-config.json) - Tailwind配置
@@ -430,7 +444,7 @@ grep -i "fontsize" {project}/audio/subtitles.ass
 - [rules/REMOTION.md](rules/REMOTION.md) - 详细规定了使用 Remotion 框架创建视频组件的规范，包括组件结构、动画效果（打字机、词高亮、渐入等）、主题配置、字体选择以及视频渲染参数。
 - [rules/VOICE.md](rules/VOICE.md) - 规定了使用微软 Azure Neural TTS（推荐 zh-CN-YunjianNeural）进行自然人声合成的工作流程，强调整段连续生成、音频后处理及通过 ffmpeg 混流避免 Remotion 编码杂音。
 - [rules/HTML.md](rules/HTML.md) - 规定国内CDN资源引用规范，提供落地页、公众号适配页、文章阅读页三种HTML模板。
-- [rules/FONTS.md](rules/FONTS.md) - 视频字幕和正文字体大小规范（主标题130px/副标题52px/内容72-96px）、ASS字幕格式及大字体居中设计原则。⚠️ **注意**：FONTS.md 中 ASS 字幕 Outline=1 与统一规范 Outline=2 冲突，以 [rules/SUBTITLES.md](rules/SUBTITLES.md) 为准。
+- [rules/FONTS.md](rules/FONTS.md) - 视频字幕和正文字体大小规范（主标题130px/副标题52px/内容72-96px）、ASS字幕格式及大字体居中设计原则。ASS字幕规范值：**Fontsize=72 / MarginV=50 / Outline=2**，详见 [rules/SUBTITLES.md](rules/SUBTITLES.md)。
 - [rules/WORKFLOW.md](rules/WORKFLOW.md) - 定义视频创作从内容获取到报告生成的11步完整工作流程。
 - [rules/COPY.md](rules/COPY.md) - 规定公众号文案的输出格式、标题规范（8-32字）、摘要规范（≤44字）及正文结构（开头→引出→解决→功能→效果→号召→结尾）。
 - [rules/SUBTITLES.md](rules/SUBTITLES.md) - 集成智能字幕生成（ASS格式）、质量检查（字体/音频/字幕/视频）及自动修复功能，支持批量处理多个视频项目。
@@ -443,7 +457,7 @@ grep -i "fontsize" {project}/audio/subtitles.ass
 
 ```bash
 # 完整检查（推荐：渲染前必做全部检查）
-node ~/.hermes/skills/video-creator/scripts/video-quality-gate.js <project-dir> all
+node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> all
 
 # 渲染前必须通过 render 节点检查
 # 新增检查项（2026-05-10）：
@@ -453,14 +467,26 @@ node ~/.hermes/skills/video-creator/scripts/video-quality-gate.js <project-dir> 
 #   C4. useCurrentFrame 动画
 #   C5. Sequence 内无全局帧误用
 #   C6. AbsoluteFill 使用
-node ~/.hermes/skills/video-creator/scripts/video-quality-gate.js <project-dir> render
+node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> render
 ```
 
 **launch.sh 快速启动**（推荐）：
 ```bash
-bash ~/.hermes/skills/video-creator/scripts/launch.sh init <项目名>   # 创建项目
-bash ~/.hermes/skills/video-creator/scripts/launch.sh gate all         # 质量门禁
-bash ~/.hermes/skills/video-creator/scripts/launch.sh all             # 完整流程
+bash {SKILL_DIR}/scripts/launch.sh init <项目名>   # 创建项目
+bash {SKILL_DIR}/scripts/launch.sh gate all         # 质量门禁检查
+
+# ⭐ 一键生成（完整执行，不是只跑门禁）：
+# Step 1: edge-tts 配音
+# Step 2: ffmpeg 重编码 256k
+# Step 3: 门禁 A（音频：存在/静音/命名/5%偏差）
+# Step 4: SubtitleGenerator 生成 ASS（Fontsize=72/MarginV=50/Outline=2）
+# Step 5: 门禁 B（字幕：格式/字号/换行符）
+# Step 6: <Text>→<div> 自动修复（Remotion 4.x 不存在 Text 组件）
+# Step 7: Remotion 渲染（无音频，AudioContext 隔离）
+# Step 8: 门禁 C（render：package.json/remotion 包/<Text>检查）
+# Step 9: ffmpeg 混流 + 字幕烧录
+# Step 10: 门禁 D（最终视频：codec/尺寸/时长/音频）
+bash {SKILL_DIR}/scripts/launch.sh all
 ```
 - [rules/QUALITY.md](rules/QUALITY.md) - 定义视频质量检查清单，涵盖内容、视觉、文件、技术、音频五大维度的检查标准。
 - [rules/INPUT.md](rules/INPUT.md) - 定义三种内容输入模式：链接输入（baoyu-url-to-markdown抓取）、主题输入（web_search搜索）、详细内容输入（直接解析），并规定各自的处理流程。

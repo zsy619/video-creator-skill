@@ -3,7 +3,7 @@
  * check-subtitle.js - 字幕质量检查脚本
  * 
  * 检查 ASS 字幕文件是否符合 video-creator 技能规范：
- * 1. Fontsize=10 (标准化像素值)
+ * 1. Fontsize=72 (PlayResY=1920标准化像素值)
  * 2. Fontname=PingFang SC
  * 3. Alignment=2 (底部居中)
  * 4. PrimaryColour=&H00FFFF (黄色)
