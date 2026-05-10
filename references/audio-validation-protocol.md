@@ -145,8 +145,35 @@ ffmpeg -i "$FILE" -vn -af "volumedetect" -f null - 2>&1 | grep -E "mean_volume|m
 |------|------|------|
 | edge-tts 音频码率极低（2-8kbps）| 原始输出特性 | 后处理时用 `-c:a aac -b:a 256k` 重编码 |
 | Remotion raw 视频音频全静音 | chromium headless AudioContext 问题 | 混流时用 `-map 0:v -map 1:a` 隔离，只用 edge-tts 音频 |
-| `-c:a copy` 后音频仍无效 | 复制了 Remotion 空轨道 | 改用 `-c:a aac -b:a 256k` 强制重编码 |
+| `-c:a copy` 后音频仍无效 | 复制了 Remotion 内嵌的静音音频轨道 | 先 `ffmpeg -map 0:v -c:v copy` 提取纯视频，再混流 |
+| ffprobe 显示正常但实际静音 | Remotion 视频含结构正常的静音 AAC 轨（317kbps） | 必须用 astats 验证 RMS；volumedetect 显示 -91dB 恒定值即静音 |
 | ffprobe 显示正常但实际静音 | ffprobe 只读结构不读内容 | 必须用 astats 验证 RMS |
+
+---
+
+## 新增：Remotion 内嵌静音轨干扰混流（v1.1.0）
+
+> **现象**：Remotion 渲染的 raw 视频内部含有一个结构正常但实际静音的 AAC 轨道（不是空轨道）。ffprobe 显示 `codec_name=aac, bit_rate=317k`，但 `astats` 显示所有帧 RMS=-inf（真静音）。当直接用 `ffmpeg -i remotion_raw.mp4 -i audio.m4a -c:v copy -c:a copy` 合并时，ffmpeg 默认选择第一个音频流（Remotion 内嵌的静音轨），导致最终视频音频静默。
+
+**诊断特征**：
+- ffprobe 显示 `codec_name=aac` + 正常 bit_rate（317k）
+- astats 显示所有帧 RMS=-inf（真静音）
+- volumedetect 显示 -91dB 恒定（静音特征）
+- 直接 `-c:a copy` 合并后音频无效
+
+**解决方案**：两步隔离法
+```bash
+# Step 1: 提取纯视频轨道（丢弃 Remotion 内嵌的静音音频）
+ffmpeg -y -i remotion_raw.mp4 -map 0:v -c:v copy video_only.mp4
+
+# Step 2: 用纯视频与外部音频合并
+ffmpeg -y -i video_only.mp4 -i neural_1_2x.m4a \
+  -map 0:v -map 1:a \
+  -c:v copy -c:a copy \
+  final_with_audio.mp4
+```
+
+**关键**：`ffmpeg -c:a copy` 默认选择输入的第一个音频流，必须用 `-map 0:v -map 1:a` 显式指定只从第二个输入（外部音频文件）取音频。
 
 ---
 

@@ -19,6 +19,9 @@ metadata:
       - "wechat-cover"
       - "微信公众号"
       - "企业级文案"
+      - "Remotion音频隔离"
+      - "ffmpeg-map音频"
+      - "静音音频轨道"
     "clawdbot":
         "emoji": "🎬"
         "requires":
@@ -84,7 +87,12 @@ metadata:
 - [Remotion 版本冲突修复](references/remotion-version-conflict.md) — EISDIR 错误的根因与修复
 - [音频验证协议](references/audio-validation-protocol.md) — ⚠️ **【新增·强制阅读】** 音频有效性验证完整协议（4个验证节点 + 快速验证脚本）
 - [ASS字幕 ms()函数Bug修复](references/subtitle-ms-function-bug.md) — ⚠️ **【重要】** ms()时间戳格式Bug：0:04:00.00=4分钟而非4秒，正确函数及参数
+- [ASS字幕规范2026验证](references/ass-subtitle-spec-2026-05-10.md) — ⚠️ **【最新验证】** 72px/Fontsize=72/PlayResX=1080/MarginV=50/Outline=2，2026-05-10验证通过
 - [atempo 加速+裁剪反模式](references/atempo-crop-anti-pattern.md) — ⚠️ **【致命】** 长音频atempo加速+裁剪导致音画不同步，正确流程
+- [Remotion Sequence 黑屏修复](references/remotion-sequence-black-screen-fix.md) — ⚠️ **【重要】** Sequence 内场景动画不推进导致黑屏
+- [Remotion 双字幕问题修复](references/remotion-subtitles-double-fix.md) — ⚠️ **【新增】** `<Subtitles />` 组件 + ASS 烧录导致双层字幕
+- [赛博朋克视觉组件库](references/cyberpunk-visual-components.md) — ⚠️ **【新增】** 粒子/数据流/网格/扫描线/HUD/脉冲环/故障文字等9种组件
+- [ASS字幕规范2026验证](references/ass-subtitle-spec-2026-05-10.md) — ⚠️ **【最新验证】** 72px/Fontsize=72/PlayResX=1080/MarginV=50/Outline=2
 
 ---
 
@@ -102,7 +110,15 @@ metadata:
 
 ### ⚠️ 音频验证（必须执行）
 
-> **根因**：Remotion 渲染的 raw 视频可能含结构正常但实际静音的音频轨道（`codec_name=aac` + 正常bit_rate，但 RMS 全为 `-inf`）。`ffprobe` 显示正常但播放无声音。
+> **根因**：Remotion 渲染的 raw 视频内部含有一个结构正常但实际静音的 AAC 轨道（ffprobe 显示 codec_name=aac + bit_rate=317k，看起来完全正常，但 astats 显示所有帧 RMS=-inf）。当使用 `-c:a copy` 合并时，ffmpeg 默认选择第一个音频流（Remotion 内嵌的静音轨），导致最终视频音频静默。
+>
+> **修复**：合并前先隔离视频轨道，丢弃 Remotion 内嵌的静音音频：
+> ```bash
+> # Step 1: 提取纯视频轨道
+> ffmpeg -y -i remotion_raw.mp4 -map 0:v -c:v copy video_only.mp4
+> # Step 2: 用纯视频与外部音频合并
+> ffmpeg -y -i video_only.mp4 -i neural_1_2x.m4a -map 0:v -map 1:a -c:v copy -c:a copy final.mp4
+> ```
 
 **诊断命令**：
 ```bash

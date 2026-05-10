@@ -71,3 +71,36 @@ ffmpeg -y -i video.mp4 -i subtitles.ass \
 **原因**：TypeScript 的 `noUnusedLocals` 报错。删除代码后 import 未同步清理。
 
 **修复**：删除未使用的 `spring`、`FPS` 等声明后立即运行 `npx tsc --noEmit` 验证。
+
+---
+
+## 5. Remotion 视频内嵌静音音频轨干扰混流
+
+**症状**：ffmpeg 合并 Remotion raw 视频 + 外部音频后，最终视频音频静默。Remotion 视频音频显示结构正常（codec=aac, 317kbps）但播放无声音。
+
+**根因**：Remotion 渲染的 raw 视频内部含有一个结构正常但实际静音的 AAC 轨道。ffmpeg 默认 stream selection 策略会选择第一个音频流（Remotion 内嵌的静音轨），导致外部音频被忽略。
+
+**诊断**：
+```bash
+# 检查 volumedetect（-91dB 恒定 = 静音）
+ffmpeg -i remotion_raw.mp4 -vn -af "volumedetect" -f null - 2>&1 | grep -E "mean|max"
+# 输出: mean_volume: -91.0 dB, max_volume: -91.0 dB → 静音
+
+# astats 确认（全部 -inf = 真静音）
+ffmpeg -i remotion_raw.mp4 -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l
+# 输出: 0 → 全部静音
+```
+
+**修复（两步隔离法）**：
+```bash
+# Step 1: 提取纯视频轨道，丢弃静音音频
+ffmpeg -y -i remotion_raw.mp4 -map 0:v -c:v copy video_only.mp4
+
+# Step 2: 与外部音频合并
+ffmpeg -y -i video_only.mp4 -i neural_1_2x.m4a \
+  -map 0:v -map 1:a \
+  -c:v copy -c:a copy \
+  final_with_audio.mp4
+```
+
+**关键**：`ffmpeg -c:a copy` 默认选择第一个音频流，必须用 `-map 0:v -map 1:a` 显式指定。
