@@ -91,7 +91,8 @@ metadata:
 - [references/ass-subtitle-spec-2026-05-10.md](references/ass-subtitle-spec-2026-05-10.md) — **最终权威值**：Fontsize=72/PlayResX=1080/PlayResY=1920/MarginV=50/Outline=2/Format 10字段
 - [references/cover-smart-resize.md](references/cover-smart-resize.md) — PIL 封面 `smart_resize_text()` 自动缩放函数；实测 STHeiti 130px 字体渲染实际高度 81px（62%效率），长标题自动缩至 36px；以及封面质量门禁节点 E 检查项
 - [atempo 加速+裁剪反模式](references/atempo-crop-anti-pattern.md) — 长音频atempo加速+裁剪导致音画不同步
-- [Remotion Sequence 黑屏修复](references/remotion-sequence-black-screen-fix.md) — Sequence内帧计算错误（局部帧vs全局帧）
+- [references/remotion-sequence-black-screen-fix.md](references/remotion-sequence-black-screen-fix.md) — Sequence内帧计算错误（局部帧vs全局帧）
+- [references/pil-frame-generation-pitfalls.md](references/pil-frame-generation-pitfalls.md) — **PIL帧生成陷阱**：3位hex崩溃、`radius=`参数、连续帧编号、字体兜底、60fps性能基准
 - [Remotion 双字幕问题修复](references/remotion-subtitles-double-fix.md) — `<Subtitles />` 组件 + ASS 烧录导致双层字幕
 
 ---
@@ -572,15 +573,129 @@ import { Text } from 'remotion';
 ```
 不要写任何 `@remotion/*` scoped 包（`@remotion/core`、`@remotion/fonts` 等在 npm 不存在）。
 
-**SubtitleGenerator 导出类型**：
-```javascript
-// subtitle-generator.js 导出的是 class 本身
-module.exports = SubtitleGenerator;
+**Remotion CLI 在 M-series Mac headless 环境始终失败**：
+- 根因：`@remotion/renderer` 的 `selectComposition()` 需要 bundler dev server 响应，但 arm64 环境下 dev server 60s 超时
+- 现象：`TimeoutInMilliseconds should be bigger or equal than 7000, but is 300` / `No video config found`
+- **结论**：所有 Mac M-series headless 视频项目必须使用 **ffmpeg 兜底方案**
+- 即使 Remotion CLI 失败，仍可从错误输出中提取 composition 信息辅助调试
 
-// 使用方式：直接 require 后实例化，不需要 .default
-const SubtitleGenerator = require('./subtitle-generator.js');
-const sg = new SubtitleGenerator(options);
+### ffmpeg 兜底渲染方案（适用于 M-series Mac headless）
+
+> **2026-05-11 更新**：当 Remotion CLI 不可用时，使用 PIL 生成帧 + ffmpeg 组装是唯一可靠方案。
+
+#### 方案A：PIL 序列帧 + ffmpeg（支持多场景动画）
+
+**适用场景**：需要多场景动态画面（转场、动画效果、粒子系统等）
+
+**帧生成要求**：
+- 帧编号必须**严格连续**：`frame_0000.png`, `frame_0001.png`, ... `frame_3650.png`
+- **禁止跳步**（如每3帧生成一张，然后期望 ffmpeg 自动补间）
+- 每个帧必须独立完整绘制（PIL ImageDraw）
+
+**示例 gen_frames.py 结构**：
+```python
+from PIL import Image, ImageDraw, ImageFont
+import os, math
+
+FRAMES_DIR = "/path/to/frames"
+W, H = 1080, 1920  # 竖屏 9:16
+
+# 赛博朋克配色
+C = {
+    'bg': (10,10,20), 'bg2': (13,13,26), 'txt': (255,255,255),
+    'c': (0,255,255),   # neon_cyan — use h2rgb('#00FFFF') for RGBA
+    'm': (255,0,255),   # neon_magenta
+    'p': (157,0,255),   # neon_purple
+    'g': (0,255,136),   # neon_green
+    'y': (255,255,0),   # yellow
+    'mu': (85,102,119), # muted
+}
+
+def gf(size):
+    for path in ["/System/Library/Fonts/STHeiti Light.ttc",
+                 "/System/Library/Fonts/Helvetica.ttc"]:
+        try: return ImageFont.truetype(path, size)
+        except: pass
+    return ImageFont.load_default()
+
+def h2rgb(h):
+    h = h.lstrip('#')
+    if len(h) == 3:  # e.g. '#0FF' → '#00FFFF'
+        h = ''.join(c*2 for c in h)
+    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+def alpha_col(color, alpha):
+    return color[:3] + (alpha,)
+
+def draw_grid(draw, w, h, color, spacing=60, speed=0):
+    offset = int(speed) % spacing
+    for y in range(-spacing + offset, h + spacing, spacing):
+        draw.line([(0, y), (w, y)], fill=color)
+    for x in range(0, w + spacing, spacing):
+        draw.line([(x, 0), (x, h)], fill=color)
+
+def draw_hud_corners(draw, w, h, color):
+    s = 40
+    draw.line([(30,30),(30+s,30)], fill=color, width=3)
+    draw.line([(30,30),(30,30+s)], fill=color, width=3)
+    # ... 其余7个角点同理
+
+# 场景1: 封面 (帧 0-180, 3秒)
+for fn in range(180):
+    img = Image.new('RGBA', (W, H), C['bg'])
+    draw = ImageDraw.Draw(img)
+    draw_grid(draw, W, H, alpha_col(h2rgb('#00FFFF'), 20), speed=fn*0.2)
+    draw_hud_corners(draw, W, H, C['c'])
+    # ... 绘制标题、副标题、标签
+    img.convert('RGB').save(f"{FRAMES_DIR}/frame_{fn:04d}.png")
+
+# 场景2: 核心理念 (帧 180-900, 12秒)
+for fn in range(180, 900):
+    ...
+
+# 场景3-6: 依此类推
+# 总计: 3651 帧 @ 60fps = 60.85秒
 ```
+
+**ffmpeg 组装命令**：
+```bash
+ffmpeg -y \
+  -framerate 60 \
+  -i "{FRAMES_DIR}/frame_%04d.png" \
+  -i "{AUDIO_DIR}/neural_1_2x.m4a" \
+  -vf "subtitles='{ASS_FILE}':force_style='Fontsize=72,MarginV=50,Outline=2'" \
+  -t 60.85 \
+  -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
+  -c:a aac -b:a 192k \
+  "{OUTPUT_DIR}/final_cyberpunk.mp4"
+```
+
+**致命错误**：帧编号必须严格连续。如果帧文件命名有跳步（如 `frame_0000.png`, `frame_0003.png`, ...），ffmpeg 只会读取第一帧并认为输入结束。修复方法：
+```bash
+# 重新编号为连续序列
+cd "$FRAMES_DIR"
+i=1
+for f in frame_*.png; do
+  new=$(printf "frame_%04d.png" $i)
+  [ "$f" != "$new" ] && mv "$f" "$new"
+  i=$((i + 1))
+done
+```
+
+**PIL 已知陷阱**：3位hex颜色崩溃、`rounded_rectangle(r=)` 参数名错误、字体查找失败。详见 [references/pil-frame-generation-pitfalls.md](references/pil-frame-generation-pitfalls.md)。
+
+#### 方案B：ffmpeg 静态封面（无动画，仅转场）
+
+见下方「ffmpeg 兜底渲染命令（标准输出）」
+
+### 帧生成脚本（gen_frames.py）
+
+当使用 PIL + ffmpeg 方案时，参考项目中的 `scripts/gen_frames.py`：
+```
+{project}/video-project/scripts/gen_frames.py
+```
+
+该脚本包含完整的 6 场景帧生成实现（封面→核心理念→三系统架构→核心特性→快速开始→CTA），可直接复制修改使用。
 
 ### launch.sh all 说明（重要修正）
 

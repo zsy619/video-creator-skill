@@ -41,15 +41,17 @@ timeout 30 npx remotion compositions --entry-point src/index.ts 2>&1
 
 ## ffmpeg 兜底渲染命令（已验证）
 
+> ⚠️ **必须包含 `fps=60` 和 `-r 60`**：缺少这两者会导致输出帧率默认为 25fps，即使音频/字幕是 60fps 时长也正确。
+
 ```bash
 PROJ=/Volumes/OpenClawDrive/.hermes/workspace/llama-index-intro
 
 ffmpeg -y -loop 1 \
   -i "${PROJ}/docs/assets/cover.png" \
   -i "${PROJ}/audio/neural_1_2x.m4a" \
-  -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,subtitles='${PROJ}/audio/subtitles.ass':fontsdir='/System/Library/Fonts/Supplemental':force_style='Fontsize=72,MarginV=50,Outline=2'" \
-  -shortest \
-  -c:v libx264 -preset fast -crf 23 \
+  -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,subtitles='${PROJ}/audio/subtitles.ass':fontsdir='/System/Library/Fonts/Supplemental':force_style='Fontsize=72,MarginV=50,Outline=2',fps=60" \
+  -t 60.85 \
+  -c:v libx264 -preset fast -crf 23 -r 60 \
   -c:a aac -b:a 192k \
   "${PROJ}/video-project/out/final_with_subs.mp4"
 ```
@@ -58,11 +60,14 @@ ffmpeg -y -loop 1 \
 - `loop 1` + `shortest`：图片循环直到音频结束
 - `scale + pad`：确保 1080×1920 无拉伸
 - `subtitles=...ass:force_style`：强制覆盖 ASS 内置样式（字号/边距/描边）
+- `fps=60` **（必须）**：放在 `-vf` 滤镜链末尾，确保处理过程中维持 60fps
+- `-r 60` **（必须）**：输出视频帧率强制 60fps
+- `-t 60.85`：精确裁剪到目标时长（音频实际时长）
 - `fontsdir`：必须存在，ASS 字幕渲染依赖系统字体目录
 
-**验证通过**（2026-05-10 实测）：
-- 输出：H.264 + AAC，1080×1920，44.832 秒，279kbps，1.5MB
-- 音频：有效（非静音），ffprobe RMS > -40dB
+**验证通过**（2026-05-11 实测）：
+- 输出：H.264 + AAC，1080×1920，60.85 秒，60fps，394kbps，2.9MB
+- 音频：有效（非静音）
 - 字幕：Fontsize=72，MarginV=50，Outline=2，2 位厘秒时间戳
 
 ---
