@@ -179,7 +179,7 @@ const ${sceneName}: React.FC = () => {
     }
 
     return `import React from 'react';
-import { AbsoluteFill, Img, Audio, interpolate, spring, useCurrentFrame, useVideoConfig, Sequence } from 'remotion';
+import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig, Sequence } from 'remotion';
 import { TypewriterText, FadeInText, StaggeredFadeIn, ParticleBackground, WordHighlight } from '../remotion-components';
 ${sceneImports}
 
@@ -253,8 +253,7 @@ export const Video: React.FC = () => {
         </AbsoluteFill>
       </Sequence>
 
-      {/* 音频 */}
-      <Audio src={require('../audio/processed/narration.m4a')} />
+      {/* 音频通过 ffmpeg 外部注入，禁止 Remotion Audio 组件（headless 环境不工作） */}
     </AbsoluteFill>
   );
 };`;
@@ -264,8 +263,9 @@ export const Video: React.FC = () => {
    * 生成入口文件
    */
   async generateEntryFile(projectDir, duration) {
+    // 修正导入路径：entry 与 Root 同在 src/，导入应为 ./Root
     const entryContent = `import {registerRoot} from 'remotion';
-import {RemotionVideo} from './src/Root';
+import {RemotionVideo} from './Root';
 
 registerRoot(RemotionVideo);`;
     
@@ -277,11 +277,53 @@ registerRoot(RemotionVideo);`;
 
   /**
    * 生成根组件
+   * 使用 calculateMetadata 动态设置 composition 时长（基于音频时长）
    */
   async generateRootComponent(projectDir, duration) {
+    // calculateMetadata 函数：基于音频时长动态设置 durationInFrames
     const rootContent = `import React from 'react';
-import {Composition} from 'remotion';
-import {Video} from './Video';
+import { Composition, CalculateMetadataFunction } from 'remotion';
+import { Video } from './Video';
+
+// 音频路径：video-project/audio/neural_1_2x.m4a（ffmpeg 1.2x 加速处理后）
+const AUDIO_PATH = '../audio/neural_1_2x.m4a';
+
+// calculateMetadata：读取音频时长，动态设置 composition durationInFrames
+// Remotion 规范：calculateMetadata 从 remotion 包导入 CalculateMetadataFunction
+// 音频时长通过 ffprobe 获取，帧数 = ceil(秒数 × 60)
+const calculateMetadata: CalculateMetadataFunction = async () => {
+  try {
+    const { default: fs } = await import('fs');
+    const { execSync } = await import('child_process');
+    const path = await import('path');
+    const audioPath = path.resolve(__dirname, AUDIO_PATH);
+
+    if (!fs.existsSync(audioPath)) {
+      console.warn('[Root] 音频文件不存在，使用默认值:', audioPath);
+      return { durationInFrames: ${duration} * ${this.options.fps} };
+    }
+
+    // 使用 ffprobe 获取音频时长（秒，厘秒精度）
+    const result = execSync(
+      \`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "\${audioPath}"\`,
+      { encoding: 'utf-8' }
+    );
+    const audioDuration = parseFloat(result.trim()); // 秒
+
+    if (isNaN(audioDuration) || audioDuration <= 0) {
+      console.warn('[Root] 无法读取音频时长，使用默认值');
+      return { durationInFrames: ${duration} * ${this.options.fps} };
+    }
+
+    const durationInFrames = Math.ceil(audioDuration * ${this.options.fps});
+    console.log(\`[Root] calculateMetadata: 音频时长 \${audioDuration}s → \${durationInFrames} 帧 (fps=\${${this.options.fps}})\`);
+
+    return { durationInFrames };
+  } catch (err) {
+    console.warn('[Root] calculateMetadata 执行失败，使用默认值:', err);
+    return { durationInFrames: ${duration} * ${this.options.fps} };
+  }
+};
 
 export const RemotionVideo: React.FC = () => {
   return (
@@ -294,11 +336,12 @@ export const RemotionVideo: React.FC = () => {
         width={${this.options.width}}
         height={${this.options.height}}
         defaultProps={{}}
+        calculateMetadata={calculateMetadata}
       />
     </>
   );
 };`;
-    
+
     await fs.writeFile(
       path.join(projectDir, 'src', 'Root.tsx'),
       rootContent
@@ -320,7 +363,7 @@ export const RemotionVideo: React.FC = () => {
       
       // 渲染视频
       console.log('🎬 渲染视频中...');
-      const renderCmd = `npx remotion render src/index.ts Video --codec=h264 --quality=100 --overwrite "${outputPath}"`;
+      const renderCmd = `npx remotion render src/index.ts Video --codec=h264 --quality=100 --overwrite --concurrency=4 "${outputPath}"`;
       await execAsync(renderCmd, { cwd: projectDir });
       
       console.log(`✅ 视频渲染完成: ${outputPath}`);

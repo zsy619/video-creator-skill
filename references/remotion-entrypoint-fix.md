@@ -208,7 +208,16 @@ Error opening output file final_with_subtitles.mp4.
 **工作流程**：
 ```
 1. 生成 ASS 文件时指定完整 Style（含 Fontsize、PrimaryColour、Alignment 等）
-2. 烧录时只用：ffmpeg -i video.mp4 -vf "ass=subs.ass" -c:v libx264 ... out.mp4
+2. 烧录时使用 filter_complex 显式语法（推荐）：
+   ffmpeg -i video.mp4 -i audio/neural_1_2x.m4a \
+     -filter_complex "[0:v]ass=subs.ass[v]" \
+     -map "[v]" -map 1:a \
+     -c:v libx264 -crf 18 -preset fast \
+     -c:a aac -b:a 256k \
+     -r 60 -s 1080x1920 \
+     out/final_with_subs.mp4
+
+   （注意：ASS 滤镜只有视频输入端口，音频通过 -map 1:a 单独处理，不进滤镜链）
 ```
 
 **ASS Style 正确模板**：

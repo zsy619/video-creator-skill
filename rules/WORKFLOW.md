@@ -6,7 +6,7 @@
 
 本文档定义了使用 Remotion 和 baoyu 技能体系创建专业级社交媒体视频的完整工作流程。
 
----
+***
 
 ## 📋 工作流程概览
 
@@ -18,11 +18,12 @@ Step 11       Step 10        Step 9        Step 8        Step 7        Step 6
 生成报告   ←   生成视频   ←   质量检查   ←   生成字幕   ←   生成音频   ←   生成视觉
 ```
 
----
+***
 
 ## ⚠️ 铁律：文档必须全部生成，禁止跳过任何一个文件
 
 > **经验教训（flowboard-video 项目血泪史）**：
+>
 > 1. 不能先做 Remotion 视频再补文档——会漏，必须先创建所有文档再开始渲染
 > 2. `session-log.md` 必须主动写入，不是光调用 `session_status` 就完了
 > 3. 每完成一个 Step 都要验证输出文件是否存在
@@ -30,32 +31,32 @@ Step 11       Step 10        Step 9        Step 8        Step 7        Step 6
 
 **输出文件清单（必须全部生成，缺一不可）**：
 
+| 文件       | 路径                                  | 说明                                            |
+| -------- | ----------------------------------- | --------------------------------------------- |
+| 项目首页     | `docs/README.md`                    | 项目概览、规格、时间轴、文件清单                              |
+| 原始内容     | `docs/article.md`                   | 原始抓取或整理的内容                                    |
+| 视频脚本     | `docs/video-script.md`              | 分镜脚本和场景描述                                     |
+| 营销文案集    | `docs/copy.md`                      | 小红书/视频号/抖音三版本文案                               |
+| 公众号文案    | `docs/wechat-copy.md`               | 公众号正文（hook→功能→号召→结尾）                          |
+| 发布指南     | `docs/posting-guide.md`             | 各平台发布参数 + 检查清单                                |
+| 落地页      | `docs/landing-page.html`            | Tailwind 深色科技风宣传页                             |
+| 文章阅读页    | `docs/article-page.html`            | 深色竖屏阅读页                                       |
+| 公众号适配页   | `docs/wechat-page.html`             | 公众号白底适配页                                      |
+| **会话日志** | `docs/session-log.md`               | **必须主动写入，不是光调用 session\_status**              |
+| 执行报告     | `docs/report.json`                  | JSON 格式完整报告                                   |
+| 🔴 封面图   | `docs/assets/cover.png`             | \*\*竖屏封面（9:16），\*\*平台尺寸见 PLATFORM.md，**禁止跳过** |
+| 封面生成脚本   | `docs/assets/generate_cover.py`     | PIL 封面生成模板                                    |
+| 字幕生成脚本   | `docs/assets/gen_subtitles.py`      | ASS 字幕生成脚本                                    |
+| 音频文件     | `audio/neural_1_2x.m4a`             | 处理后音频（atempo 后，文件名反映实际语速）                     |
+| 字幕文件     | `audio/subtitles_58s.ass`           | ASS 格式（文件名反映实际时长）                             |
+| 最终视频     | `video-project/out/final-video.mp4` | 音频混流后的成品                                      |
 
-| 文件 | 路径 | 说明 |
-|------|------|------|
-| 项目首页 | `docs/README.md` | 项目概览、规格、时间轴、文件清单 |
-| 原始内容 | `docs/article.md` | 原始抓取或整理的内容 |
-| 视频脚本 | `docs/video-script.md` | 分镜脚本和场景描述 |
-| 营销文案集 | `docs/copy.md` | 小红书/视频号/抖音三版本文案 |
-| 公众号文案 | `docs/wechat-copy.md` | 公众号正文（hook→功能→号召→结尾） |
-| 发布指南 | `docs/posting-guide.md` | 各平台发布参数 + 检查清单 |
-| 落地页 | `docs/landing-page.html` | Tailwind 深色科技风宣传页 |
-| 文章阅读页 | `docs/article-page.html` | 深色竖屏阅读页 |
-| 公众号适配页 | `docs/wechat-page.html` | 公众号白底适配页 |
-| **会话日志** | `docs/session-log.md` | **必须主动写入，不是光调用 session_status** |
-| 执行报告 | `docs/report.json` | JSON 格式完整报告 |
-| 🔴 封面图 | `docs/assets/cover.png` | **竖屏封面（9:16），**平台尺寸见 PLATFORM.md，**禁止跳过** |
-| 封面生成脚本 | `docs/assets/generate_cover.py` | PIL 封面生成模板 |
-| 字幕生成脚本 | `docs/assets/gen_subtitles.py` | ASS 字幕生成脚本 |
-| 音频文件 | `audio/neural_1_2x.m4a` | 处理后音频（atempo 后，文件名反映实际语速） |
-| 字幕文件 | `audio/subtitles_58s.ass` | ASS 格式（文件名反映实际时长） |
-| 最终视频 | `video-project/out/final-video.mp4` | 音频混流后的成品 |
-
----
+***
 
 ## Step 0: 创建全部文档（必须先执行，禁止跳过）
 
 > **本步骤必须生成的文件（见 PATHS.md 完整清单）**：
+>
 > - `docs/README.md` — 项目首页（概览、规格、时间轴、文件清单）
 > - `docs/video-script.md` — 分镜脚本
 > - `docs/copy.md` — 营销文案集
@@ -65,7 +66,7 @@ Step 11       Step 10        Step 9        Step 8        Step 7        Step 6
 > - `docs/article-page.html` — 文章阅读页（深色竖屏）
 > - `docs/wechat-page.html` — 公众号白底适配页
 > - `docs/session-log.md` — Session 日志（token 消耗追踪）
-> ⚠️ **以上文件必须全部创建，禁止跳过任何一个。Step 0 是预防遗漏的第一道防线。**
+>   ⚠️ **以上文件必须全部创建，禁止跳过任何一个。Step 0 是预防遗漏的第一道防线。**
 
 > **重要性**：所有文档必须在创建 Remotion 项目之前生成完毕。Remotion 视频渲染是最后一步，在此之前必须确保所有 docs/ 目录下的文件已就位。
 
@@ -196,7 +197,7 @@ fi
 
 #### Step 0.3c：PIL 兜底（仅在 AI 不可用时）
 
-> ⚠️ **PIL 生成脚本已强制使用 `smart_resize_text()` 自动缩放**
+> ⚠️ **PIL 生成脚本已强制使用** **`smart_resize_text()`** **自动缩放**
 > ——所有文字都会在超宽时自动缩小，不再出现标题溢出错
 
 ```bash
@@ -244,7 +245,7 @@ echo "✅ 封面质量门禁全部通过"
 
 #### Step 0.3e：强制检查（禁止跳过）
 
-```bash
+````bash
 # ⚠️ 此检查在 Step 7（音频）之前必须执行
 if [ ! -f "${PROJECT_DIR}/docs/assets/cover.png" ]; then
   echo "❌ 封面缺失！必须先生成封面图（Step 0.3）才能继续音频和渲染步骤"
@@ -288,7 +289,7 @@ if [ -n "$MISSING" ]; then
 else
   echo "✅ Step 0 完成，所有文件就绪"
 fi
-```
+````
 
 ### 0.5 强制检查：封面未生成则禁止渲染
 
@@ -303,11 +304,12 @@ echo "✅ 封面检查通过"
 
 ### 0.6 ⚠️ 强制记录 Session 日志（铁律）
 
-> **⚠️ 【铁律】每个 Step 完成后必须调用 `session_status` 工具并记录到 session-log.md**
+> **⚠️ 【铁律】每个 Step 完成后必须调用** **`session_status`** **工具并记录到 session-log.md**
 >
 > `session_status` 是 OpenClaw 工具调用，不是 shell 命令。调用后在 AI 对话中会看到 emoji 格式输出，**必须立即将此输出追加到 session-log.md**。
 >
 > 格式：
+>
 > ```bash
 > # 1. 调用 session_status 工具（在 AI 对话中）
 > # 2. 看到 emoji 输出后，立即追加到 session-log.md
@@ -343,8 +345,7 @@ TS=$(date '+%Y-%m-%d %H:%M:%S %Z')
 echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >> "${PROJECT_DIR}/docs/session-log.md"
 ```
 
----
-
+***
 
 ## Step 1: 内容获取
 
@@ -361,29 +362,25 @@ echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >>
      --download-media \
      --media-dir docs/assets/imgs/
    ```
-
 2. **记录来源链接（强制）**
    > ⚠️ **必须**：在 `docs/README.md`、`docs/article.md`、`docs/report.json` 中明确记录原始链接地址
    - GitHub 项目：`https://github.com/xxx/yyy`
    - X/Twitter 推文：`https://x.com/xxx/status/yyy`
    - 其他链接：按实际来源如实记录
-
 3. **解析 Markdown 提取关键信息**
    - 标题（title）
    - 正文内容（body）
    - 元数据（metadata）
    - 关键段落和论点
-
 4. **下载的图片存放位置**
    - 路径：`docs/assets/imgs/`
    - 图片可直接用于 Step 6（视觉生成）和 Remotion 视频组件
-
 5. **记录 Session 日志**
    ```bash
    # 记录本次内容获取的 token 消耗
    session_status
    ```
-   > 详见 [SESSION_LOG.md](SESSION_LOG.md) - 追踪输入/输出 token、数量、请求模型、处理时长
+   > 详见 [SESSION\_LOG.md](SESSION_LOG.md) - 追踪输入/输出 token、数量、请求模型、处理时长
 
 ### 🔍 主题模式
 
@@ -397,7 +394,6 @@ echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >>
    # - 主关键词 + 应用场景
    # - 主关键词 + 数据/案例
    ```
-
 2. **搜索结果整合**
    - 提取重复出现的主题和观点
    - 识别权威来源
@@ -411,13 +407,12 @@ echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >>
    - 识别标题结构
    - 提取关键段落
    - 标记重要引用和数据
-
 2. **内容结构化处理**
    - 重组为适合视频的叙事结构
    - 划分可独立呈现的要点
    - 添加过渡和连接语句
 
----
+***
 
 ## Step 2: 分析内容
 
@@ -448,12 +443,13 @@ echo "| 01 | $TS | 内容获取 | minimax/MiniMax-M2.7 | - | - | - | - | - |" >>
 ### 时长规划
 
 根据内容长度自动计算建议时长：
+
 - 500字以下：10-20秒
 - 500-1000字：20-40秒
 - 1000-2000字：40-60秒
 - 2000字以上：60-90秒
 
----
+***
 
 ## Step 3: 构建项目
 
@@ -475,13 +471,13 @@ mkdir -p "{workspace}/{PROJECT_NAME}/fonts
 
 ### 📁 目录结构说明
 
-| 目录 | 用途 | 关键文件 |
-|------|------|---------|
-| `docs/` | 文档和素材 | `article.md`, `video-script.md`, `wechat.md` |
-| `docs/assets/` | 视觉素材 | `cover.webp`, `illustration-*.webp` |
-| `video-project/` | Remotion 项目 | `src/`, `out/`, `package.json` |
-| `audio/` | 音频文件 | `raw/`, `processed/`, `final.mp3` |
-| `fonts/` | 字体文件 | 自定义字体 |
+| 目录               | 用途          | 关键文件                                         |
+| ---------------- | ----------- | -------------------------------------------- |
+| `docs/`          | 文档和素材       | `article.md`, `video-script.md`, `wechat.md` |
+| `docs/assets/`   | 视觉素材        | `cover.webp`, `illustration-*.webp`          |
+| `video-project/` | Remotion 项目 | `src/`, `out/`, `package.json`               |
+| `audio/`         | 音频文件        | `raw/`, `processed/`, `final.mp3`            |
+| `fonts/`         | 字体文件        | 自定义字体                                        |
 
 ### 🎯 命名规范
 
@@ -489,7 +485,7 @@ mkdir -p "{workspace}/{PROJECT_NAME}/fonts
 - **素材文件**: 小写字母和连字符（如 `cover-image.webp`）
 - **组件文件**: PascalCase（如 `VerticalVideo.tsx`）
 
----
+***
 
 ## Step 4: 生成文案
 
@@ -498,7 +494,6 @@ mkdir -p "{workspace}/{PROJECT_NAME}/fonts
 ### 4.1 原始内容处理
 
 1. **生成内容文件**: `docs/article.md`
-
    ```markdown
    ---
    title: "文章标题（吸引眼球、带emoji）"
@@ -512,19 +507,17 @@ mkdir -p "{workspace}/{PROJECT_NAME}/fonts
 
    # 文章正文内容
    ```
-
 2. **内容规范检查**
    - 标题：不超过 23 个字符
    - 摘要：100-200 字
    - 标签：不少于 5 个相关标签
    - 正文：结构清晰，逻辑连贯
-
 3. **记录 Session 日志**
    ```bash
    # 记录本次文案生成的 token 消耗
    session_status
    ```
-   > 详见 [SESSION_LOG.md](SESSION_LOG.md)
+   > 详见 [SESSION\_LOG.md](SESSION_LOG.md)
 
 ### 4.2 视频脚本生成
 
@@ -571,6 +564,7 @@ source: https://example.com/original-link  # 来源链接（从Step 1获取）
 ```
 
 > ⚠️ **来源链接强制要求**：如果内容来自链接（GitHub、X/Twitter等），必须在 frontmatter 中添加 `source:` 字段，记录原始链接地址。
+>
 > - GitHub 项目：`https://github.com/xxx/yyy`
 > - X/Twitter 推文：`https://x.com/xxx/status/yyy`
 > - 其他链接：按实际来源如实记录
@@ -605,7 +599,7 @@ tags:
 
 > ⚠️ **标签强制要求**：posting-guide.md 中的小红书标签**不少于5个**，格式为 `#标签1 #标签2 #标签3 #标签4 #标签5`
 
----
+***
 
 ## Step 5: 构建HTML
 
@@ -631,13 +625,13 @@ tags:
 
 ### 模板选择
 
-| 平台 | 模板 | 说明 |
-|------|------|------|
-| 小红书 | `article-page.html` | 文章阅读页 |
-| 视频号 | `wechat-page.html` | 公众号适配页 |
-| 落地推广 | `landing-page.html` | 宣传落地页 |
+| 平台   | 模板                  | 说明     |
+| ---- | ------------------- | ------ |
+| 小红书  | `article-page.html` | 文章阅读页  |
+| 视频号  | `wechat-page.html`  | 公众号适配页 |
+| 落地推广 | `landing-page.html` | 宣传落地页  |
 
----
+***
 
 ## Step 6: 生成视觉
 
@@ -667,7 +661,8 @@ tags:
 # 记录本次视觉生成的 token 消耗
 session_status
 ```
-> 详见 [SESSION_LOG.md](SESSION_LOG.md)
+
+> 详见 [SESSION\_LOG.md](SESSION_LOG.md)
 
 ### 6.1.1 封面图生成容错方案
 
@@ -678,6 +673,7 @@ session_status
 **适用场景**：需要动画效果、已有 Remotion 项目、需要与视频风格一致。
 
 **核心步骤**：
+
 1. 创建独立 `cover-project/` 项目（参考 TROUBLESHOOTING.md）
 2. 使用 `frame = 60`（固定帧）避免 `useCurrentFrame` 报错
 3. 必须通过 `Composition` 注册组件
@@ -697,12 +693,14 @@ cp out/CoverImage.png docs/assets/cover.png
 **适用场景**：API 全部不可用、快速生成、无需 AI 绘图能力。
 
 **核心步骤**：
+
 1. 参考模板创建 `docs/assets/generate_cover.py`
 2. 使用系统字体（macOS: `/System/Library/Fonts/STHeiti Medium.ttc`）
 3. 垂直居中布局：先计算总高度，再计算起始 Y 坐标
 4. 输出分辨率：1080×1920（竖屏 9:16）
 
 **参考实现**：
+
 ```bash
 # 运行封面生成脚本
 python3 docs/assets/generate_cover.py
@@ -710,12 +708,12 @@ python3 docs/assets/generate_cover.py
 ```
 
 **关键字体路径（macOS）**：
-| 字体         | 路径                                       |
-| ------------ | ------------------------------------------ |
-| 黑体（中等） | `/System/Library/Fonts/STHeiti Medium.ttc` |
-| 苹方         | `/System/Library/Fonts/PingFang.ttc`       |
-| 黑体（细）   | `/System/Library/Fonts/STHeiti Light.ttc`  |
 
+| 字体     | 路径                                         |
+| ------ | ------------------------------------------ |
+| 黑体（中等） | `/System/Library/Fonts/STHeiti Medium.ttc` |
+| 苹方     | `/System/Library/Fonts/PingFang.ttc`       |
+| 黑体（细）  | `/System/Library/Fonts/STHeiti Light.ttc`  |
 
 ### 6.2 内容插图生成（优先使用下载图片）
 
@@ -752,11 +750,11 @@ python3 $SKILL_DIR/scripts/crop-images.py \
 
 #### 6.2.4 图片裁剪规范
 
-| 原始比例 | 目标比例 | 处理方式 |
-|---------|---------|---------|
+| 原始比例    | 目标比例    | 处理方式      |
+| ------- | ------- | --------- |
 | 16:9 横版 | 9:16 竖屏 | 居中裁剪，保留主体 |
-| 4:3 | 9:16 竖屏 | 居中裁剪 |
-| 1:1 方版 | 9:16 竖屏 | 上下填充模糊背景 |
+| 4:3     | 9:16 竖屏 | 居中裁剪      |
+| 1:1 方版  | 9:16 竖屏 | 上下填充模糊背景  |
 | 9:16 竖屏 | 9:16 竖屏 | 智能缩放，保持完整 |
 
 ```python
@@ -782,7 +780,7 @@ else:  # 竖版图片
 # 输出：docs/assets/infographic.webp
 ```
 
----
+***
 
 ## Step 7: 生成音频
 
@@ -836,11 +834,11 @@ echo "最终音频时长: ${DURATION}s"
 
 ### 7.2 推荐语音
 
-| 语音 | 说明 | 场景 |
-|------|------|------|
-| `zh-CN-YunjianNeural` | 温和男声 | **通用推荐** |
-| `zh-CN-YunxiNeural` | 年轻男声 | 科技/工具类 |
-| `zh-CN-XiaoxiaoNeural` | 温柔女声 | 通用推荐 |
+| 语音                     | 说明   | 场景       |
+| ---------------------- | ---- | -------- |
+| `zh-CN-YunjianNeural`  | 温和男声 | **通用推荐** |
+| `zh-CN-YunxiNeural`    | 年轻男声 | 科技/工具类   |
+| `zh-CN-XiaoxiaoNeural` | 温柔女声 | 通用推荐     |
 
 ### 7.3 记录 Session 日志
 
@@ -848,9 +846,10 @@ echo "最终音频时长: ${DURATION}s"
 # 记录本次音频生成的 token 消耗
 session_status
 ```
-> 详见 [SESSION_LOG.md](SESSION_LOG.md) |
 
----
+> 详见 [SESSION\_LOG.md](SESSION_LOG.md) |
+
+***
 
 ## Step 8: 生成字幕
 
@@ -891,17 +890,17 @@ await generator.generateASS(subtitles, 'audio/subtitles.ass');
 
 ### 8.2 字幕格式规范（2026-05-10 统一值）
 
-| 参数 | 值 | 说明 |
-|------|-----|-----|
-| **Fontsize** | **72** | 竖屏1080×1920标准，禁止10/12/36 |
-| **PlayResX/PlayResY** | **1080/1920** | 必须设置 |
-| **PrimaryColour** | `&H00FFFF` | 黄色 |
-| **Alignment** | **2** | 底部居中 |
-| **MarginV** | **50** | 距底边50px |
-| **Outline** | **2** | 2px描边，禁止1 |
-| **Format字段数** | **10** | Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text |
-| **Dialogue字段数** | **10** | 必须与Format一致 |
-| **换行符** | `\N` | 禁止`\\N` |
+| 参数                    | 值             | 说明                                                             |
+| --------------------- | ------------- | -------------------------------------------------------------- |
+| **Fontsize**          | **72**        | 竖屏1080×1920标准，禁止10/12/36                                       |
+| **PlayResX/PlayResY** | **1080/1920** | 必须设置                                                           |
+| **PrimaryColour**     | `&H00FFFF`    | 黄色                                                             |
+| **Alignment**         | **2**         | 底部居中                                                           |
+| **MarginV**           | **50**        | 距底边50px                                                        |
+| **Outline**           | **2**         | 2px描边，禁止1                                                      |
+| **Format字段数**         | **10**        | Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text |
+| **Dialogue字段数**       | **10**        | 必须与Format一致                                                    |
+| **换行符**               | `\N`          | 禁止`\\N`                                                        |
 
 ### 8.3 字幕质量验证
 
@@ -921,9 +920,10 @@ ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 au
 # 记录本次字幕生成的 token 消耗
 session_status
 ```
-> 详见 [SESSION_LOG.md](SESSION_LOG.md)
 
----
+> 详见 [SESSION\_LOG.md](SESSION_LOG.md)
+
+***
 
 ## Step 9: 质量检查
 
@@ -931,14 +931,14 @@ session_status
 
 ### 检查项目
 
-| 检查项 | 标准 | 不合格处理 |
-|--------|------|-----------|
-| 内容长度 | 500-2000字 | 自动调整 |
-| 标题吸引力 | 通过测试 | 重新生成 |
-| 封面图 | 清晰度 > 80% | 重新生成 |
-| 插图匹配度 | 与内容相关 | 替换或删除 |
-| 音频同步 | 误差 < 0.1秒 | 重新计算帧边界 |
-| 字幕同步 | 误差 < 0.2秒 | 调整时间轴 |
+| 检查项   | 标准        | 不合格处理   |
+| ----- | --------- | ------- |
+| 内容长度  | 500-2000字 | 自动调整    |
+| 标题吸引力 | 通过测试      | 重新生成    |
+| 封面图   | 清晰度 > 80% | 重新生成    |
+| 插图匹配度 | 与内容相关     | 替换或删除   |
+| 音频同步  | 误差 < 0.1秒 | 重新计算帧边界 |
+| 字幕同步  | 误差 < 0.2秒 | 调整时间轴   |
 
 ### 自动修复
 
@@ -950,7 +950,7 @@ const checker = new QualityChecker({
 const report = await checker.runFullCheck();
 ```
 
----
+***
 
 ## Step 10: 生成视频
 
@@ -1009,12 +1009,13 @@ npm install
 **参考**: [THEMES.md](THEMES.md) - 主题色板 + **字体大小规范（1080×1920竖屏）**
 
 > ⚠️ **【强制要求】所有视频必须使用大字体！**
+>
 > - 主标题：**120-180px**（封面场景可用更大）
 > - 副标题：**48-72px**
 > - 正文：**40-56px**
 > - 场景标题：**64-96px**
 > - 全部内容块**上下左右居中**，禁止拆分标题区/内容区
-> 
+>
 > 详见 [FONTS.md](FONTS.md) - 大字体居中设计规范。
 
 ```typescript
@@ -1106,7 +1107,8 @@ ffmpeg -i out/final-video.mp4 -vn -af "volumedetect" -f null - 2>&1 | grep -E "m
 # 记录本次视频渲染的 token 消耗
 session_status
 ```
-> 详见 [SESSION_LOG.md](SESSION_LOG.md)
+
+> 详见 [SESSION\_LOG.md](SESSION_LOG.md)
 
 ### 10.7 视频预览（可选）
 
@@ -1132,7 +1134,7 @@ ffmpeg -i video-project/out/final-video.mp4 \
 rm -f video-project/out/preview-*.png video-project/out/preview-thumbs.jpg
 ```
 
----
+***
 
 ## Step 11: 生成报告 + 强制清单检查
 
@@ -1240,6 +1242,7 @@ rm -f audio/raw/temp_*.mp3
 > **⚠️ 制作完成前，必须逐项对照以下清单检查所有文件是否已生成。缺失的文件必须在此步骤补全，禁止跳过任何一个。**
 
 **文件清单检查命令**：
+
 ```bash
 PROJECT_DIR="workspace/${PROJECT_NAME}"
 REQUIRED_FILES=(
@@ -1287,59 +1290,62 @@ fi
 > **如果有任何文件缺失，必须立即生成缺失的文件，然后重新运行检查命令确认全部通过。**
 > 这是最后一道关卡，不完成清单检查不得宣告项目结束。
 
----
+***
 
 **相关模块**:
+
 - [INPUT.md](INPUT.md) - 输入模式详细说明
 - [COPY.md](COPY.md) - 文案生成规范
 - [THEMES.md](THEMES.md) - 主题系统
 - [VOICE.md](VOICE.md) - 音频合成
 - [QUALITY.md](QUALITY.md) - 质量检查
 - [REMOTION.md](REMOTION.md) - Remotion 组件规范
-- [SESSION_LOG.md](SESSION_LOG.md) - Session 日志追踪
+- [SESSION\_LOG.md](SESSION_LOG.md) - Session 日志追踪
+
 ## 📊 输出文件清单
 
-| 文件 | 路径 | 说明 |
-|------|------|------|
-| 项目首页 | `docs/README.md` | 项目概览、规格、时间轴、文件清单 |
-| 原始内容 | `docs/article.md` | 原始抓取或整理的内容 |
-| 视频脚本 | `docs/video-script.md` | 分镜脚本和场景描述 |
-| 营销文案集 | `docs/copy.md` | 小红书/视频号/抖音三版本文案 |
-| 公众号文案 | `docs/wechat-copy.md` | 公众号正文（hook→功能→号召→结尾） |
-| 发布指南 | `docs/posting-guide.md` | 各平台发布参数 + 检查清单 |
-| 落地页 | `docs/landing-page.html` | Tailwind 深色科技风宣传页 |
-| 文章阅读页 | `docs/article-page.html` | 深色竖屏阅读页 |
-| 公众号适配页 | `docs/wechat-page.html` | 公众号白底适配页 |
-| 会话日志 | `docs/session-log.md` | token 消耗、模型、处理时长追踪 |
-| 执行报告 | `docs/report.json` | JSON 格式完整报告 |
-| 封面图 | `docs/assets/cover.png` | 竖屏封面（9:16） |
-| 封面生成脚本 | `docs/assets/generate_cover.py` | PIL 封面生成模板 |
-| 内容插图 | `docs/assets/illustration-*.webp` | 场景配图 |
-| 音频文件 | `audio/neural_1_2x.m4a` | 处理后音频（atempo 后） |
-| 字幕文件 | `audio/subtitles_58s.ass` | ASS 格式字幕（基于最终音频时长） |
-| 最终视频 | `video-project/out/final-video.mp4` | 音频混流后的成品 |
+| 文件     | 路径                                  | 说明                   |
+| ------ | ----------------------------------- | -------------------- |
+| 项目首页   | `docs/README.md`                    | 项目概览、规格、时间轴、文件清单     |
+| 原始内容   | `docs/article.md`                   | 原始抓取或整理的内容           |
+| 视频脚本   | `docs/video-script.md`              | 分镜脚本和场景描述            |
+| 营销文案集  | `docs/copy.md`                      | 小红书/视频号/抖音三版本文案      |
+| 公众号文案  | `docs/wechat-copy.md`               | 公众号正文（hook→功能→号召→结尾） |
+| 发布指南   | `docs/posting-guide.md`             | 各平台发布参数 + 检查清单       |
+| 落地页    | `docs/landing-page.html`            | Tailwind 深色科技风宣传页    |
+| 文章阅读页  | `docs/article-page.html`            | 深色竖屏阅读页              |
+| 公众号适配页 | `docs/wechat-page.html`             | 公众号白底适配页             |
+| 会话日志   | `docs/session-log.md`               | token 消耗、模型、处理时长追踪   |
+| 执行报告   | `docs/report.json`                  | JSON 格式完整报告          |
+| 封面图    | `docs/assets/cover.png`             | 竖屏封面（9:16）           |
+| 封面生成脚本 | `docs/assets/generate_cover.py`     | PIL 封面生成模板           |
+| 内容插图   | `docs/assets/illustration-*.webp`   | 场景配图                 |
+| 音频文件   | `audio/neural_1_2x.m4a`             | 处理后音频（atempo 后）      |
+| 字幕文件   | `audio/subtitles_58s.ass`           | ASS 格式字幕（基于最终音频时长）   |
+| 最终视频   | `video-project/out/final-video.mp4` | 音频混流后的成品             |
 
 > ⚠️ **文档必须全部生成**，禁止跳过任何一个文件。参考 [PATHS.md](PATHS.md) 查看完整目录结构。
 
 > ⚠️ **音频和字幕文件名**必须反映实际内容，如 `neural_1_2x.m4a`（1.2x 语速）、`subtitles_58s.ass`（58s 时长），禁止使用 `final.mp3` / `subtitles.ass` 等泛泛名称。
 
----
+***
 
 **相关模块**:
+
 - [INPUT.md](INPUT.md) - 输入模式详细说明
 - [COPY.md](COPY.md) - 文案生成规范
 - [THEMES.md](THEMES.md) - 主题系统
 - [VOICE.md](VOICE.md) - 音频合成
 - [QUALITY.md](QUALITY.md) - 质量检查
 - [REMOTION.md](REMOTION.md) - Remotion 组件规范
-- [SESSION_LOG.md](SESSION_LOG.md) - Session 日志追踪
+- [SESSION\_LOG.md](SESSION_LOG.md) - Session 日志追踪
 
----
+***
 
 ## 📸 Session Tracking 快速参考
 
 > ⚠️ `session_status` 是**工具调用**（tool），不是 shell 命令，无法 `$()` 捕获。
-> 正确流程：① 调用 session_status 工具 → ② 复制 emoji 输出 → ③ 追加到日志。
+> 正确流程：① 调用 session\_status 工具 → ② 复制 emoji 输出 → ③ 追加到日志。
 
 ### 每个 Step 完成后手动执行：
 
@@ -1362,4 +1368,5 @@ python3 "$SKILL_SCRIPT" "$PROJECT_DIR" "Step X: 任务名" \
 python3 "$SKILL_SCRIPT" "$PROJECT_DIR" --init
 ```
 
-> 详见 [SESSION_LOG.md](SESSION_LOG.md)
+> 详见 [SESSION\_LOG.md](SESSION_LOG.md)
+

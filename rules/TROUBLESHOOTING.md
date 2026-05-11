@@ -239,7 +239,8 @@ export const VerticalVideo: React.FC = () => {
   const frame = useCurrentFrame(); // 在 Composition 内，可直接调用
   return (
     <AbsoluteFill>
-      <Audio src={staticFile('audio/neural_1_2x.m4a')} />
+      {/* ⚠️ headless 环境：音频通过 ffmpeg 外部注入，禁止 Remotion Audio 组件 */}
+      {/* <Audio src={staticFile('audio/neural_1_2x.m4a')} /> ← 禁止！ */}
       <Sequence from={0} durationInFrames={300}>
         <Scene1 frame={frame} /> {/* 通过 props 传递 frame */}
       </Sequence>

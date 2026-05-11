@@ -84,16 +84,16 @@ metadata:
 
 ## 参考文档
 - [references/remotion-package-discovery.md](references/remotion-package-discovery.md) — `@remotion/core` 不存在；正确包名 `remotion`；47个 exports（Text 不存在）；React Error #130 根因；package.json 正确写法；渲染+混流命令
-- [低码率音频修复](references/low-bitrate-audio-fix.md) — edge-tts 音频 2kbps 导致无声的根因与修复
-- [Remotion 版本冲突修复](references/remotion-version-conflict.md) — EISDIR 错误的根因与修复
 - [音频验证协议](references/audio-validation-protocol.md) — 音频有效性验证完整协议（4个验证节点）
-- [ASS字幕 ms()函数Bug修复](references/subtitle-ms-function-bug.md) — ms()时间戳格式Bug：3位毫秒→2位厘秒
+- [references/video-creator-remotion-conflicts-2026-05-11.md](references/video-creator-remotion-conflicts-2026-05-11.md) — **C1-C9 冲突审计报告**：video-composer.js Audio组件移除、calculateMetadata添加、entry路径修正、concurrency=4；含 remotion-best-practices 30+ 规则文件审查结果
 - [references/ass-subtitle-spec-2026-05-10.md](references/ass-subtitle-spec-2026-05-10.md) — **最终权威值**：Fontsize=72/PlayResX=1080/PlayResY=1920/MarginV=50/Outline=2/Format 10字段
 - [references/cover-smart-resize.md](references/cover-smart-resize.md) — PIL 封面 `smart_resize_text()` 自动缩放函数；实测 STHeiti 130px 字体渲染实际高度 81px（62%效率），长标题自动缩至 36px；以及封面质量门禁节点 E 检查项
-- [atempo 加速+裁剪反模式](references/atempo-crop-anti-pattern.md) — 长音频atempo加速+裁剪导致音画不同步
 - [references/remotion-sequence-black-screen-fix.md](references/remotion-sequence-black-screen-fix.md) — Sequence内帧计算错误（局部帧vs全局帧）
 - [references/pil-frame-generation-pitfalls.md](references/pil-frame-generation-pitfalls.md) — **PIL帧生成陷阱**：3位hex崩溃、`radius=`参数、连续帧编号、字体兜底、60fps性能基准
 - [Remotion 双字幕问题修复](references/remotion-subtitles-double-fix.md) — `<Subtitles />` 组件 + ASS 烧录导致双层字幕
+- [references/ffmpeg-single-pass-mux.md](references/ffmpeg-single-pass-mux.md) — **ffmpeg单次混流正确语法**：ASS过滤器只有视频输入，`-map 1:a` 单独处理音频；竖屏60fps参数模板
+- [references/edge-tts-cli-usage.md](references/edge-tts-cli-usage.md) — **edge-tts正确CLI用法**：`--write-media`（不是`--output`）；`--rate`用百分比格式；SubtitleGenerator是默认导出（`require()`直接，不可用named import）
+- [references/dynamic-scene-boundaries.md](references/dynamic-scene-boundaries.md) — 动态场景帧边界计算：取代硬编码 `SCENE_BOUNDARIES`，基于 `sceneFractions` 比例自动分配，支持任意场景数量
 
 ---
 
@@ -476,17 +476,16 @@ node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> render
 bash {SKILL_DIR}/scripts/launch.sh init <项目名>   # 创建项目
 bash {SKILL_DIR}/scripts/launch.sh gate all         # 质量门禁检查
 
-# ⭐ 一键生成（完整执行，不是只跑门禁）：
+# ⭐ 一键生成（完整执行 Remotion CLI 或 ffmpeg PIL兜底）：
 # Step 1: edge-tts 配音
 # Step 2: ffmpeg 重编码 256k
 # Step 3: 门禁 A（音频：存在/静音/命名/5%偏差）
 # Step 4: SubtitleGenerator 生成 ASS（Fontsize=72/MarginV=50/Outline=2）
 # Step 5: 门禁 B（字幕：格式/字号/换行符）
 # Step 6: <Text>→<div> 自动修复（Remotion 4.x 不存在 Text 组件）
-# Step 7: Remotion 渲染（无音频，AudioContext 隔离）
-# Step 8: 门禁 C（render：package.json/remotion 包/<Text>检查）
-# Step 9: ffmpeg 混流 + 字幕烧录
-# Step 10: 门禁 D（最终视频：codec/尺寸/时长/音频）
+# Step 7: Remotion 渲染 或 PIL帧序列+ffmpeg单次混流（自动选择）
+# Step 8: 门禁 C（render 或 frames 路径验证）
+# Step 9: 门禁 D（最终视频：codec/尺寸/时长/音频）
 bash {SKILL_DIR}/scripts/launch.sh all
 ```
 - [rules/QUALITY.md](rules/QUALITY.md) - 定义视频质量检查清单，涵盖内容、视觉、文件、技术、音频五大维度的检查标准。
@@ -496,9 +495,9 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - [rules/PLATFORM.md](rules/PLATFORM.md) - 定义视频号、小红书、抖音/快手的平台规格（分辨率、帧率、时长、文件大小、编码）及 Remotion 竖屏配置参数。
 - [rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md) - 提供视频渲染失败、baoyu获取内容、字体异常、音频回音/拼接、Remotion编码杂音、Chrome下载失败、create-video CLI交互bug等常见问题的解决方案。
 
-## ⚠️ 渲染决策：Remotion CLI vs ffmpeg 兜底（2026-05-10 新增）
+## ⚠️ 渲染决策：Remotion CLI vs ffmpeg 兜底
 
-> **经验教训**：Remotion CLI 在 headless Mac M-series 环境无法完成渲染，核心原因是 `@remotion/renderer` 的 `selectComposition()` 需要 HTTP serveUrl 参数，而 bundler dev server 在 arm64 环境不响应（60s 超时）。这不是包版本问题，而是架构限制。
+> **2026-05-11 更新**：ffmpeg 兜底方案从 `loop 1` 单帧循环升级为 **PIL帧序列 + ffmpeg单次混流**，彻底解决单帧封面黑屏问题。
 
 ### 渲染路径选择
 
@@ -515,34 +514,105 @@ bash {SKILL_DIR}/scripts/launch.sh all
     │               │           │             │
     ▼               ▼           ▼             ▼
 Remotion render  ffmpeg兜底   Remotion     ffmpeg兜底
-                  (静态封面+   多场景      (静态封面+
-                   音频+字幕)   动画         音频+字幕)
+                  (PIL帧序列+   多场景      (PIL帧序列+
+                   ffmpeg单次)   动画         ffmpeg单次)
 ```
 
 **判断条件**：
 - Remotion CLI 可用 = `remotion compositions --entry-point src/index.ts` 能列出 composition（非超时）
 - 多场景动态画面 = 视频脚本包含 ≥2 个不同场景，且需要转场/动画效果
 
-**实际经验**：截至 2026-05-10，在 Mac M-series headless 环境下，Remotion CLI **始终超时**，所有视频项目均通过 ffmpeg 兜底完成。
+**实际经验**：截至 2026-05-11，在 Mac M-series headless 环境下，Remotion CLI **始终超时**，所有视频项目均通过 ffmpeg 兜底完成。
 
 ### ffmpeg 兜底渲染命令（标准输出）
 
+**PIL 帧序列 + ffmpeg 单次混流**（2026-05-11 新方案）：
+
+**Step 7a — 生成帧序列**：
 ```bash
+mkdir -p out/frames
+
+# 读取主题配置
+THEME=$(node -e "console.log(require('./video-project/video-config.json').theme || 'cyberpunk')")
+
+python3 {SKILL_DIR}/scripts/gen_frames_template.py . --theme "$THEME"
+
+# 验证帧数：TOTAL_FRAMES = ceil(音频时长 × 60)
+FRAME_COUNT=$(ls out/frames/frame_*.png 2>/dev/null | wc -l | tr -d ' ')
+EXPECTED_FRAMES=$(python3 -c "import math; print(math.ceil($(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a) * 60))")
+[ "$FRAME_COUNT" != "$EXPECTED_FRAMES" ] && echo "帧数不匹配: $FRAME_COUNT vs $EXPECTED_FRAMES" && exit 1
+```
+
+**Step 7b — ffmpeg 单次混流**：
+```bash
+AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a)
+
+ffmpeg -y \
+  -framerate 60 \
+  -i "out/frames/frame_%04d.png" \
+  -i "audio/neural_1_2x.m4a" \
+  -filter_complex "[0:v]ass=audio/subtitles.ass[v]" \
+  -map "[v]" -map 1:a \
+  -t "${AUDIO_DURATION}" \
+  -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
+  -c:a aac -b:a 192k \
+  -r 60 -s 1080x1920 \
+  "out/final_with_subs.mp4"
+
+# 清理帧序列（节省空间）
+rm -rf out/frames
+```
+
+**关键规范**：
+- `TOTAL_FRAMES = ceil(音频时长 × 60)` — 强制60fps，不允许缺帧导致黑屏
+- 帧编号严格连续：`frame_0000.png` → `frame_NNNN.png`
+- 帧序列存储路径：`{project}/video-project/frames/`
+- 音频存储路径：`{project}/video-project/audio/neural_1_2x.m4a`
+- 每个场景内部帧从0开始计算（局部帧），场景边界由 `SCENE_BOUNDARIES` 定义
+- ffmpeg 单次混流：帧序列 + 音频 + 字幕同时处理，**移除了旧两步流程**（video_noaudio.mp4 → final.mp4 → final_with_subs.mp4）
+
+**场景帧分布示例（60秒@60fps = 3600帧）**：
+```
+场景1 cover:    帧 0-180   (3秒)   — 封面标题入场
+场景2 concept:  帧 180-900  (12秒)  — 核心理念标语渐入
+场景3 systems:  帧 900-1800 (15秒)  — 三系统架构卡片错开入场
+场景4 features: 帧 1800-2880 (18秒)  — 2×2数据网格
+场景5 code:     帧 2880-3360 (8秒)  — 终端窗口打字机
+场景6 cta:      帧 3360-3600 (4秒)  — CTA行动号召
+```
+
+**gen_frames_template.py**：`scripts/gen_frames_template.py` — 完整的 6 场景 PIL 帧生成脚本，支持 cyberpunk / tech-modern / neon-future / minimal-tech 四套主题配色，从 `video-project/video-config.json` 读取场景内容。
+
+**致命错误**：帧编号必须严格连续。如果帧文件命名有跳步（如 `frame_0000.png`, `frame_0003.png`, ...），ffmpeg 只会读取第一帧并认为输入结束。修复方法：
+```bash
+# 重新编号为连续序列
+cd "$FRAMES_DIR"
+i=0
+for f in frame_*.png; do
+  new=$(printf "frame_%04d.png" $i)
+  [ "$f" != "$new" ] && mv "$f" "$new"
+  i=$((i + 1))
+done
+```
+
+**PIL 已知陷阱**：3位hex颜色崩溃、`rounded_rectangle(r=)` 参数名错误、字体查找失败。详见 [references/pil-frame-generation-pitfalls.md](references/pil-frame-generation-pitfalls.md)。
+
+**ffmpeg PIL 兜底路径 bug（2026-05-11 发现并修复）**：gen_frames_template.py 的 audio 文件路径应为 `{project}/video-project/audio/neural_1_2x.m4a`，不是 `{project}/audio/neural_1_2x.m4a`。如果 ffprobe 读取失败（返回空字符串），脚本会 fallback 到默认 60s，导致帧数与实际音频不匹配。验证命令：
+```bash
+# 验证 audio 路径正确性
+python3 -c "import subprocess; print(subprocess.run(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0','{project}/video-project/audio/neural_1_2x.m4a'],capture_output=True).stdout.strip())"
+```
+
+#### 旧方案：ffmpeg 静态封面（已废弃，2026-05-11前使用）
+
+```bash
+# ⚠️ 已废弃，请使用上面的 PIL帧序列+ffmpeg单次混流
 ffmpeg -y -loop 1 \
   -i "{WORKSPACE_DIR}/docs/assets/cover.png" \
   -i "{WORKSPACE_DIR}/audio/neural_1_2x.m4a" \
-  -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,subtitles='{WORKSPACE_DIR}/audio/subtitles.ass':fontsdir='/System/Library/Fonts/Supplemental':force_style='Fontsize=72,MarginV=50,Outline=2'" \
-  -shortest \
-  -c:v libx264 -preset fast -crf 23 \
-  -c:a aac -b:a 192k \
-  "{WORKSPACE_DIR}/video-project/out/final_with_subs.mp4"
+  -vf "...subtitles=..." \
+  -shortest ...
 ```
-
-关键说明：
-- `subtitles='...ass':force_style='Fontsize=72,MarginV=50,Outline=2'` — 强制覆盖 ASS 内部样式
-- `fontsdir` 必须存在，否则 ASS 字幕无法渲染（ASS 内置字体查找失败）
-- `-map 0:v -map 1:a` 通过 `-shortest` 隐式实现（视频循环 + 音频终止 → 自动停止）
-- 输出：H.264 + AAC，1080×1920，时长=音频时长
 
 ### Remotion 4.x 已知限制
 
@@ -576,138 +646,24 @@ import { Text } from 'remotion';
 **Remotion CLI 在 M-series Mac headless 环境始终失败**：
 - 根因：`@remotion/renderer` 的 `selectComposition()` 需要 bundler dev server 响应，但 arm64 环境下 dev server 60s 超时
 - 现象：`TimeoutInMilliseconds should be bigger or equal than 7000, but is 300` / `No video config found`
-- **结论**：所有 Mac M-series headless 视频项目必须使用 **ffmpeg 兜底方案**
+- **结论**：所有 Mac M-series headless 视频项目必须使用 **ffmpeg 兜底方案（PIL帧序列+ffmpeg单次混流）**
 - 即使 Remotion CLI 失败，仍可从错误输出中提取 composition 信息辅助调试
-
-### ffmpeg 兜底渲染方案（适用于 M-series Mac headless）
-
-> **2026-05-11 更新**：当 Remotion CLI 不可用时，使用 PIL 生成帧 + ffmpeg 组装是唯一可靠方案。
-
-#### 方案A：PIL 序列帧 + ffmpeg（支持多场景动画）
-
-**适用场景**：需要多场景动态画面（转场、动画效果、粒子系统等）
-
-**帧生成要求**：
-- 帧编号必须**严格连续**：`frame_0000.png`, `frame_0001.png`, ... `frame_3650.png`
-- **禁止跳步**（如每3帧生成一张，然后期望 ffmpeg 自动补间）
-- 每个帧必须独立完整绘制（PIL ImageDraw）
-
-**示例 gen_frames.py 结构**：
-```python
-from PIL import Image, ImageDraw, ImageFont
-import os, math
-
-FRAMES_DIR = "/path/to/frames"
-W, H = 1080, 1920  # 竖屏 9:16
-
-# 赛博朋克配色
-C = {
-    'bg': (10,10,20), 'bg2': (13,13,26), 'txt': (255,255,255),
-    'c': (0,255,255),   # neon_cyan — use h2rgb('#00FFFF') for RGBA
-    'm': (255,0,255),   # neon_magenta
-    'p': (157,0,255),   # neon_purple
-    'g': (0,255,136),   # neon_green
-    'y': (255,255,0),   # yellow
-    'mu': (85,102,119), # muted
-}
-
-def gf(size):
-    for path in ["/System/Library/Fonts/STHeiti Light.ttc",
-                 "/System/Library/Fonts/Helvetica.ttc"]:
-        try: return ImageFont.truetype(path, size)
-        except: pass
-    return ImageFont.load_default()
-
-def h2rgb(h):
-    h = h.lstrip('#')
-    if len(h) == 3:  # e.g. '#0FF' → '#00FFFF'
-        h = ''.join(c*2 for c in h)
-    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
-
-def alpha_col(color, alpha):
-    return color[:3] + (alpha,)
-
-def draw_grid(draw, w, h, color, spacing=60, speed=0):
-    offset = int(speed) % spacing
-    for y in range(-spacing + offset, h + spacing, spacing):
-        draw.line([(0, y), (w, y)], fill=color)
-    for x in range(0, w + spacing, spacing):
-        draw.line([(x, 0), (x, h)], fill=color)
-
-def draw_hud_corners(draw, w, h, color):
-    s = 40
-    draw.line([(30,30),(30+s,30)], fill=color, width=3)
-    draw.line([(30,30),(30,30+s)], fill=color, width=3)
-    # ... 其余7个角点同理
-
-# 场景1: 封面 (帧 0-180, 3秒)
-for fn in range(180):
-    img = Image.new('RGBA', (W, H), C['bg'])
-    draw = ImageDraw.Draw(img)
-    draw_grid(draw, W, H, alpha_col(h2rgb('#00FFFF'), 20), speed=fn*0.2)
-    draw_hud_corners(draw, W, H, C['c'])
-    # ... 绘制标题、副标题、标签
-    img.convert('RGB').save(f"{FRAMES_DIR}/frame_{fn:04d}.png")
-
-# 场景2: 核心理念 (帧 180-900, 12秒)
-for fn in range(180, 900):
-    ...
-
-# 场景3-6: 依此类推
-# 总计: 3651 帧 @ 60fps = 60.85秒
-```
-
-**ffmpeg 组装命令**：
-```bash
-ffmpeg -y \
-  -framerate 60 \
-  -i "{FRAMES_DIR}/frame_%04d.png" \
-  -i "{AUDIO_DIR}/neural_1_2x.m4a" \
-  -vf "subtitles='{ASS_FILE}':force_style='Fontsize=72,MarginV=50,Outline=2'" \
-  -t 60.85 \
-  -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
-  -c:a aac -b:a 192k \
-  "{OUTPUT_DIR}/final_cyberpunk.mp4"
-```
-
-**致命错误**：帧编号必须严格连续。如果帧文件命名有跳步（如 `frame_0000.png`, `frame_0003.png`, ...），ffmpeg 只会读取第一帧并认为输入结束。修复方法：
-```bash
-# 重新编号为连续序列
-cd "$FRAMES_DIR"
-i=1
-for f in frame_*.png; do
-  new=$(printf "frame_%04d.png" $i)
-  [ "$f" != "$new" ] && mv "$f" "$new"
-  i=$((i + 1))
-done
-```
-
-**PIL 已知陷阱**：3位hex颜色崩溃、`rounded_rectangle(r=)` 参数名错误、字体查找失败。详见 [references/pil-frame-generation-pitfalls.md](references/pil-frame-generation-pitfalls.md)。
-
-#### 方案B：ffmpeg 静态封面（无动画，仅转场）
-
-见下方「ffmpeg 兜底渲染命令（标准输出）」
 
 ### 帧生成脚本（gen_frames.py）
 
-当使用 PIL + ffmpeg 方案时，参考项目中的 `scripts/gen_frames.py`：
+当使用 PIL + ffmpeg 方案时，参考 `scripts/gen_frames_template.py`：
 ```
-{project}/video-project/scripts/gen_frames.py
+{skill_dir}/scripts/gen_frames_template.py
 ```
 
-该脚本包含完整的 6 场景帧生成实现（封面→核心理念→三系统架构→核心特性→快速开始→CTA），可直接复制修改使用。
+包含完整的 6 场景帧生成实现（封面→核心理念→三系统架构→核心特性→快速开始→CTA），支持 4 套主题配色，直接复制修改使用。
 
-### launch.sh all 说明（重要修正）
+### launch.sh all 说明
 
-> ⚠️ `launch.sh all` 当前版本**只执行质量门禁检查**，不执行实际音视频生成步骤。
-> 实际生成需要按顺序手动执行：
-> ```bash
-> bash {SKILL_DIR}/scripts/launch.sh audio    # edge-tts + ffmpeg 重编码
-> bash {SKILL_DIR}/scripts/launch.sh subtitle # ASS 字幕生成
-> bash {SKILL_DIR}/scripts/launch.sh render   # ffmpeg 兜底渲染（或 Remotion）
-> ```
-
-**修复方向**（待实现）：将 ONEPASS_WORKFLOW.md 中的 10 步命令真正嵌入 `launch.sh all`，实现一键生成。
+`launch.sh all` 执行完整生成流程（不是只跑门禁）：
+- 依次调用 `cmd_audio` → `cmd_subtitle` → `cmd_render`
+- `cmd_render` 先尝试 Remotion CLI，失败时自动切换到 **PIL帧序列 + ffmpeg单次混流**（2026-05-11 新增）
+- `cmd_render` 内部自动执行门禁 C 和门禁 D
 - [rules/INTEGRATION.md](rules/INTEGRATION.md) - 定义 baoyu 技能调用方式（url-to-markdown/cover-image/illustrator等）及自动化脚本模板和依赖安装说明。
 - [rules/SCRIPTS.md](rules/SCRIPTS.md) - 定义视频脚本的 Markdown 输出结构，包含小红书/视频号版本、场景分镜（视觉/文字/动画）、配音及时长、帧边界计算方法。
 - [rules/SESSION_LOG.md](rules/SESSION_LOG.md) - 追踪每次大模型请求的输入/输出 token 数量、请求模型、处理时长及 session 数据，输出到 `docs/session-log.md` 供审计和成本分析。

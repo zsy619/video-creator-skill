@@ -265,7 +265,7 @@ cmd_all() {
     --voice "$(node -e "console.log(require('${config_file}').voice?.name || 'zh-CN-YunjianNeural')")" \
     --rate "$EDGE_RATE" \
     --text "$(cat "$narration_file")" \
-    --output "${proj_dir}/audio/neural_1_2x.m4a" \
+    --write-media "${proj_dir}/audio/neural_1_2x.m4a" \
     2>/dev/null || {
     err "edge-tts 配音失败"
     exit 1
@@ -297,7 +297,7 @@ cmd_all() {
   echo ""
   echo "=== Step 4: 生成 ASS 字幕 ==="
   node -e "
-    const { SubtitleGenerator } = require('${SUBTITLE_GEN}');
+    const SubtitleGenerator = require('${SUBTITLE_GEN}');
     const fs = require('fs');
     const gen = new SubtitleGenerator({ maxCharsPerLine: 25 });
     const text = fs.readFileSync('${narration_file}', 'utf8');
@@ -356,7 +356,7 @@ cmd_all() {
     npx remotion render VerticalVideo \
       --output out/video_noaudio.mp4 \
       --fps "$FPS" \
-      --concurrency=8 2>&1 | tail -5 || {
+      --concurrency=4 2>&1 | tail -5 || {
       warn "Remotion 渲染失败，切换 ffmpeg 兜底..."
       REMOTION_AVAILABLE=1
     }
@@ -364,23 +364,61 @@ cmd_all() {
   fi
 
   if [ $REMOTION_AVAILABLE -ne 0 ]; then
-    # ❌ headless 环境：ffmpeg 兜底（一步到位：封面+音频+字幕烧录）
-    warn "Remotion CLI 不可用，执行 ffmpeg 兜底渲染..."
-    mkdir -p out
-    ffmpeg -y -loop 1 \
-      -i "${proj_dir}/docs/assets/cover.png" \
-      -i "${proj_dir}/audio/neural_1_2x.m4a" \
-      -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,subtitles='${proj_dir}/audio/subtitles.ass':fontsdir='/System/Library/Fonts/Supplemental':force_style='Fontsize=72,MarginV=50,Outline=2'" \
-      -shortest \
-      -c:v libx264 -preset fast -crf 23 \
-      -c:a aac -b:a 192k \
-      "${VP_DIR}/out/final_with_subs.mp4" 2>/dev/null || {
-      err "ffmpeg 兜底渲染失败"
+    # ❌ headless 环境：PIL帧序列 + ffmpeg单次混流
+    warn "Remotion CLI 不可用，执行 PIL帧序列 + ffmpeg单次混流..."
+
+    # ── Step 7a: 生成帧序列 ───────────────────────────────────────────────
+    echo ""
+    echo "=== Step 7a: 生成帧序列 (PIL) ==="
+    mkdir -p "${VP_DIR}/frames"
+
+    # 读取主题配置
+    local THEME=$(node -e "console.log(require('${VP_DIR}/video-config.json').theme || 'cyberpunk')")
+
+    python3 "${SCRIPT_DIR}/gen_frames_template.py" "${proj_dir}" --theme "$THEME" || {
+      err "gen_frames.py 失败"
       exit 1
     }
-    ok "ffmpeg 兜底渲染完成: out/final_with_subs.mp4"
+    ok "帧序列生成完成: ${VP_DIR}/frames/frame_%04d.png"
 
-    # ffmpeg 兜底直接输出最终视频，跳到门禁 D
+    # 验证帧数
+    local FRAME_COUNT=$(ls "${VP_DIR}/frames"/frame_*.png 2>/dev/null | wc -l | tr -d ' ')
+    local EXPECTED_FRAMES=$(python3 -c "import math; print(math.ceil(${TARGET_DURATION} * 60))")
+    if [ "$FRAME_COUNT" != "$EXPECTED_FRAMES" ]; then
+      err "帧数不匹配: actual=${FRAME_COUNT}, expected=${EXPECTED_FRAMES}"
+      exit 1
+    fi
+    ok "帧数验证通过: ${FRAME_COUNT} 帧 (@60fps)"
+
+    # ── Step 7b: ffmpeg单次混流（帧序列+音频+字幕 → 最终视频）────────────
+    echo ""
+    echo "=== Step 7b: ffmpeg单次混流 ==="
+
+    # 获取精确音频时长（秒）
+    local AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
+      -of csv=p=0 "${proj_dir}/audio/neural_1_2x.m4a" 2>/dev/null)
+
+    mkdir -p out
+    ffmpeg -y \
+      -framerate 60 \
+      -i "${VP_DIR}/frames/frame_%04d.png" \
+      -i "${proj_dir}/audio/neural_1_2x.m4a" \
+      -filter_complex "[0:v]ass=${proj_dir}/audio/subtitles.ass[v]" \
+      -map "[v]" -map 1:a \
+      -t "${AUDIO_DURATION}" \
+      -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
+      -c:a aac -b:a 192k \
+      -r 60 -s 1080x1920 \
+      "${VP_DIR}/out/final_with_subs.mp4" 2>/dev/null || {
+      err "ffmpeg 单次混流失败"
+      exit 1
+    }
+    ok "ffmpeg单次混流完成: out/final_with_subs.mp4"
+
+    # 清理帧序列（节省空间）
+    rm -rf "${VP_DIR}/frames"
+
+    # ffmpeg兜底直接输出最终视频，跳到门禁 D
     echo ""
     echo "=== 门禁 D: 最终视频 ==="
     node "${GATE}" "${proj_dir}" "final" || exit 1
@@ -391,8 +429,8 @@ cmd_all() {
     echo "═══════════════════════════════════════"
     echo ""
     echo "最终文件: ${VP_DIR}/out/final_with_subs.mp4"
-    echo "渲染方式: ffmpeg 兜底（Remotion CLI 不可用）"
-    echo "尺寸: 1080×1920 | 时长: ${TARGET_DURATION}s | 60fps"
+    echo "渲染方式: PIL帧序列 + ffmpeg单次混流"
+    echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 60fps"
     echo ""
     exit 0
   fi
@@ -406,9 +444,9 @@ cmd_all() {
   fi
   ok "✅ 门禁 C 通过"
 
-  # ── Step 9: 混流 + 字幕烧录 ──────────────────────────────────────────────
+  # ── Step 9: 音频注入 + 字幕烧录（仅Remotion路径）──────────────────────────
   echo ""
-  echo "=== Step 9: 混流 + 字幕烧录 ==="
+  echo "=== Step 9: 音频注入 + 字幕烧录 ==="
   cd "${proj_dir}"
 
   ffmpeg -y \
@@ -452,6 +490,7 @@ cmd_all() {
   echo "═══════════════════════════════════════"
   echo ""
   echo "最终文件: ${VP_DIR}/out/final_with_subs.mp4"
+  echo "渲染方式: Remotion 标准渲染路径"
   echo "尺寸: 1080×1920 | 时长: ${TARGET_DURATION}s | 60fps"
   echo ""
 }

@@ -114,8 +114,8 @@ const VerticalVideo: React.FC<VerticalVideoProps> = ({
       {/* 底部进度条 */}
       <ProgressBar theme={theme} />
 
-      {/* 音频轨道 */}
-      {audioUrl && <Audio src={audioUrl} />}
+      {/* ⚠️ headless 环境：音频通过 ffmpeg 外部注入，禁止 Remotion Audio 组件 */}
+      {/* {audioUrl && <Audio src={audioUrl} />} ← 禁止！ */}
     </AbsoluteFill>
   );
 };

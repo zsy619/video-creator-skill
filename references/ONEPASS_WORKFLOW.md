@@ -28,12 +28,11 @@ bash {SKILL_DIR}/scripts/launch.sh all
 bash {SKILL_DIR}/scripts/launch.sh init    # Step 1
 bash {SKILL_DIR}/scripts/launch.sh audio    # Step 2-3
 bash {SKILL_DIR}/scripts/launch.sh gate-a   # Step 4  门禁A
-bash {SKILL_DIR}/scripts/launch.sh subtitle # Step 5-6
+bash {SKILL_DIR}/scripts/launch.sh subtitle # Step 5
 bash {SKILL_DIR}/scripts/launch.sh gate-b   # Step 6  门禁B
-bash {SKILL_DIR}/scripts/launch.sh render    # Step 7-8
+bash {SKILL_DIR}/scripts/launch.sh render    # Step 7
 bash {SKILL_DIR}/scripts/launch.sh gate-c    # Step 8  门禁C
-bash {SKILL_DIR}/scripts/launch.sh final    # Step 9-10
-bash {SKILL_DIR}/scripts/launch.sh gate-d    # Step 10 门禁D
+bash {SKILL_DIR}/scripts/launch.sh final    # Step 9  门禁D
 ```
 
 ---
@@ -134,7 +133,7 @@ node {SKILL_DIR}/scripts/video-quality-gate.js subtitle
 
 ---
 
-### Step 7：渲染（Remotion CLI vs ffmpeg 兜底）
+### Step 7：渲染（Remotion CLI vs PIL帧序列+ffmpeg兜底）
 
 ```bash
 cd video-project
@@ -145,28 +144,55 @@ timeout 30 npx remotion compositions --entry-point src/index.ts 2>&1 | grep -q "
 if [ $? -eq 0 ]; then
   # ✅ Remotion CLI 可用：标准渲染路径
   npx remotion render VerticalVideo out/video_noaudio.mp4 \
-    --concurrency=8 --fps=60 --duration-in-frames=3540
+    --concurrency=4 --fps=60 --duration-in-frames=3540
 else
-  # ❌ headless 环境：ffmpeg 兜底（一步到位：封面+音频+字幕烧录）
-  ffmpeg -y -loop 1 \
-    -i "{WORKSPACE_DIR}/docs/assets/cover.png" \
-    -i "{WORKSPACE_DIR}/audio/neural_1_2x.m4a" \
-    -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,subtitles='{WORKSPACE_DIR}/audio/subtitles.ass':fontsdir='/System/Library/Fonts/Supplemental':force_style='Fontsize=72,MarginV=50,Outline=2'" \
-    -shortest -c:v libx264 -preset fast -crf 23 \
-    -c:a aac -b:a 192k \
-    "{WORKSPACE_DIR}/video-project/out/final_with_subs.mp4"
+  # ❌ headless 环境：PIL帧序列 + ffmpeg单次混流
+  # ── Step 7a: 生成帧序列 ─────────────────────────────────────────
+  mkdir -p out/frames
 
-  # ffmpeg 兜底直接输出最终视频，跳到门禁 D
-  node {SKILL_DIR}/scripts/video-quality-gate.js "{WORKSPACE_DIR}" final
+  # 读取主题配置
+  THEME=$(node -e "console.log(require('./video-config.json').theme || 'cyberpunk')")
+
+  python3 {SKILL_DIR}/scripts/gen_frames_template.py . --theme "$THEME"
+
+  # 验证帧数：TOTAL_FRAMES = ceil(音频时长 × 60)
+  FRAME_COUNT=$(ls out/frames/frame_*.png 2>/dev/null | wc -l | tr -d ' ')
+  EXPECTED_FRAMES=$(python3 -c "import math; print(math.ceil($(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a) * 60))")
+  [ "$FRAME_COUNT" != "$EXPECTED_FRAMES" ] && echo "帧数不匹配: $FRAME_COUNT vs $EXPECTED_FRAMES" && exit 1
+
+  # ── Step 7b: ffmpeg单次混流（帧序列+音频+字幕 → 最终视频）──────────
+  AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a)
+
+  ffmpeg -y \
+    -framerate 60 \
+    -i "out/frames/frame_%04d.png" \
+    -i "audio/neural_1_2x.m4a" \
+    -filter_complex "[0:v]ass=audio/subtitles.ass[v]" \
+    -map "[v]" -map 1:a \
+    -t "${AUDIO_DURATION}" \
+    -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
+    -c:a aac -b:a 192k \
+    -r 60 -s 1080x1920 \
+    "out/final_with_subs.mp4"
+
+  # 清理帧序列（节省空间）
+  rm -rf out/frames
+
+  # ffmpeg兜底直接输出最终视频，跳到门禁 D
+  node {SKILL_DIR}/scripts/video-quality-gate.js final
   exit $?
 fi
 ```
 
-**关键**：
-- `video-config.json` 中的 `duration` 和 `fps` 是唯一配置源
-- Remotion 渲染**无音频**（AudioContext 问题）
-- ffmpeg 兜底方案**一步到位**（音频 + 字幕直接烧录进 MP4）
-- 使用 `remotion` 包（不是 `@remotion/core`），版本 4.0.459
+**关键规范**：
+- `TOTAL_FRAMES = ceil(音频时长 × 60)` — 强制60fps，不允许缺帧导致黑屏
+- 帧编号严格连续：`frame_0000.png` → `frame_NNNN.png`
+- 每个场景内部帧从0开始计算（局部帧），场景边界由 `SCENE_BOUNDARIES` 定义
+- ffmpeg 单次混流：帧序列 + 音频 + 字幕同时处理，输出 `final_with_subs.mp4`
+- 移除旧两步流程：不再有 `video_noaudio.mp4` → `final.mp4` → `final_with_subs.mp4` 的中间文件
+- Remotion 并发数：`concurrency=4`（M1 MAX 实测最优）
+
+> **多主题模式**：THEMES.md 中的每个主题（cyberpunk / tech-modern / neon-future / minimal-tech）都有对应的配色方案，gen_frames_template.py 自动读取 `video-config.json.theme` 选择配色。
 
 **⚠️ 如果 Video.tsx 使用了 `<Text>` 组件（不存在），先修复**：
 
@@ -174,7 +200,7 @@ fi
 node {SKILL_DIR}/scripts/fix-text-component.js video-project/src
 ```
 
-> **完整 headless 渲染问题分析**：见 [references/remotion-headless-rendering.md](references/remotion-headless-rendering.md)
+> **完整 headless 渲染问题分析**：见 [rules/REMOTION.md](rules/REMOTION.md)（搜索"headless"）
 
 ---
 
@@ -193,30 +219,7 @@ node {SKILL_DIR}/scripts/video-quality-gate.js render
 
 ---
 
-### Step 9：混流（音频注入）+ 字幕烧录
-
-```bash
-# 混流：视频 + 音频
-ffmpeg -y \
-  -i video-project/video-project/out/video_noaudio.mp4 \
-  -i video-project/audio/neural_1_2x.m4a \
-  -map 0:v -map 1:a \
-  -c:v libx264 -crf 18 -preset fast \
-  -c:a aac -b:a 128k \
-  video-project/final.mp4
-
-# 烧录字幕
-ffmpeg -y \
-  -i video-project/final.mp4 \
-  -vf "ass=video-project/audio/subtitles.ass" \
-  -c:v libx264 -crf 18 -preset fast \
-  -c:a copy \
-  video-project/final_with_subs.mp4
-```
-
----
-
-### Step 10：门禁 D（最终视频）
+### Step 9：门禁 D（最终视频）
 
 ```bash
 node {SKILL_DIR}/scripts/video-quality-gate.js final
@@ -239,7 +242,7 @@ node {SKILL_DIR}/scripts/video-quality-gate.js final
 |------|------|----------|----------|
 | A | `video-quality-gate.js audio` | 音频存在/静音/命名/5%偏差 | 停止，不生成字幕 |
 | B | `video-quality-gate.js subtitle` | ASS格式/Fontsize/MarginV/Outline/\N | 停止，不渲染 |
-| C | `video-quality-gate.js render` | package.json/remotion包/无\<Text\> | 停止，不混流 |
+| C | `video-quality-gate.js render` | Remotion包/无\<Text\>/node_modules; 或frames/帧序列验证(60fps/连续编号/无跳号) | 停止，不输出最终视频 |
 | D | `video-quality-gate.js final` | codec/尺寸/时长/音频流 | 终止，报告错误 |
 
 ---
@@ -265,5 +268,4 @@ node {SKILL_DIR}/scripts/video-quality-gate.js final
 | Remotion 规范 | `rules/REMOTION.md` |
 | 字体规范 | `rules/FONTS.md` |
 | 综合规则 | `rules/UNIFIED_RULES.md` |
-| atempo 反模式 | `references/atempo-crop-anti-pattern.md` |
 | 音频验证协议 | `references/audio-validation-protocol.md` |

@@ -279,3 +279,56 @@ remaining = th - 60 - code_total_h
 first_line_y = code_top_y + remaining // 2  # vertical center in content
 ```
 - Prompt below terminal: `ty + th + 60` (immediately below window, not floating)
+
+## 13. Safe theme color access with `get_theme_color()`
+
+When a theme doesn't define a specific color key (e.g., `neon_cyan` in non-cyberpunk themes), direct access `C['neon_cyan']` raises `KeyError`. Use safe-access fallback chain:
+
+```python
+def get_theme_color(colors, *keys):
+    """Safely get theme color, trying keys in order with white fallback."""
+    for key in keys:
+        if key in colors:
+            return colors[key]
+    return (255, 255, 255)  # final fallback
+
+# Usage — declare at top of scene function, then use throughout
+def scene_systems(fn, total_frames, config, colors):
+    C = colors
+    c_accent = get_theme_color(C, 'neon_cyan', 'primary', 'accent')
+    c_muted  = get_theme_color(C, 'muted', 'secondary', 'bg2')
+
+    # Later in the function, use c_accent / c_muted
+    draw.rounded_rectangle(..., fill=alpha_col(c_accent, int(20*fade)))
+```
+
+**Common fallback chains**:
+- `get_theme_color(C, 'neon_cyan', 'primary', 'accent', 'bg2')` — for cyan/blue accent
+- `get_theme_color(C, 'neon_magenta', 'secondary', 'accent')` — for magenta/purple accent
+- `get_theme_color(C, 'muted', 'secondary', 'bg2')` — for muted text
+- `get_theme_color(C, 'primary', 'neon_cyan', 'accent')` — for primary brand color
+- `get_theme_color(C, 'neon_green', 'accent', 'primary')` — for green terminal text
+
+**Why this matters**: themes.js defines 21 themes with different key names. Some have `neon_cyan`, others have `primary`. A scene function written for cyberpunk's `neon_cyan` crashes on `pure-medical`'s theme colors. Safe access fixes this.
+
+## 14. Dynamic scene boundary computation
+
+Old code used hardcoded boundaries (`0-180`, `180-900`, ...). This breaks when:
+- Audio is not exactly 60 seconds
+- Scene proportions change per theme
+- New themes have different pacing
+
+**Solution**: `compute_scene_boundaries(total_frames, config)` — see `references/dynamic-scene-boundaries.md` for full code.
+
+**Key pattern**:
+```python
+n_funcs = len(scene_funcs)  # always 6 scene functions
+for fn in range(TOTAL_FRAMES):
+    for i, (start, end) in enumerate(SCENE_BOUNDARIES):
+        if start <= fn < end:
+            func_idx = i % n_funcs  # cycles through 0-5 safely
+            frame_img = scene_funcs[func_idx](fn - start, end - start, ...)
+            break
+```
+
+The `i % n_funcs` modulo ensures any number of scenes (from config) maps to available scene functions without index errors.

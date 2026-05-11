@@ -176,43 +176,15 @@ s2_end=$(echo "$fps * $dur * ($s1_pct + $s2_pct)" | bc | awk '{print int($1+0.5)
 
 ### Step 4: Remotion 代码
 
-⚠️ **关键：整个视频只有 1 个 `<Audio>` 组件。**
+⚠️ **headless 环境禁止使用 Remotion Audio 组件**。音频通过 ffmpeg 外部注入（见 Step 5）。
 
 ```tsx
-import { registerRoot, Composition, AbsoluteFill, Img, Audio } from "remotion";
-
-const ASSETS = { cover: ..., scene2: ..., scene3: ..., ... };
-const SCENES = [
-  { start: 0,    end: 457,  img: "cover"   },
-  { start: 457,  end: 1078, img: "scene2"  },
-  // ...
-];
-
-const makeScene = (config: typeof SCENES[number]) => {
-  const { start, end, img } = config;
-  const Scene: React.FC = () => {
-    const frame = useCurrentFrame();
-    if (frame < start || frame >= end) return null;
-    return (
-      <AbsoluteFill>
-        <Img src={ASSETS[img]} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-      </AbsoluteFill>
-    );
-  };
-  return Scene;
-};
-
-const App = () => (
-  <Composition id="VerticalVideo" durationInFrames={4500} fps={60} width={1080} height={1920}
-    component={() => (
-      <>
-        {/* ✅ 整段音频，无拼接 */}
-        <Audio src={require("../../audio/neural_1_2x.m4a")} />
-        <Scene1 /> <Scene2 /> <Scene3 /> ...
-      </>
-    )}
-  />
-);
+// ✅ 正确：headless 环境不使用 Audio 组件
+// 音频通过 ffmpeg 混流注入最终视频
+import { registerRoot, Composition, AbsoluteFill, Img } from "remotion";
+// ❌ 错误：headless 环境禁止 Remotion Audio 组件
+// import { Audio } from "remotion";
+// <Audio src={require("../../audio/neural_1_2x.m4a")} />  ← 禁止！
 ```
 
 ### Step 5: ffmpeg 混流（绕过 Remotion 编码杂音）

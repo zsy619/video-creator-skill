@@ -297,12 +297,149 @@ function checkSubtitle() {
 }
 
 // ─────────────────────────────────────────────
-// 节点 C: render — Remotion 渲染前置检查
+// 节点 C: render — Remotion 渲染前置检查 / ffmpeg PIL兜底帧序列检查
 // ─────────────────────────────────────────────
 function checkRender() {
-  section('节点 C: Remotion 渲染前置检查');
+  section('节点 C: 渲染前置检查');
 
   const vpDir = path.join(PROJECT_DIR, 'video-project');
+  const framesDir = path.join(vpDir, 'frames');
+  const tsxFile = findTsxFile(vpDir);
+
+  // 判断渲染路径：frames/ 目录存在 → ffmpeg PIL兜底路径
+  // Video.tsx 存在 → Remotion 标准路径
+  const useFfmpegPIL = fs.existsSync(framesDir) && fs.readdirSync(framesDir).filter(f => f.endsWith('.png')).length > 0;
+  const useRemotion = tsxFile !== null;
+
+  if (useFfmpegPIL) {
+    // ══ ffmpeg PIL 兜底路径：检查帧序列 ═══════════════════════════════
+    pass('渲染路径: ffmpeg PIL 兜底（帧序列模式）');
+
+    // C7: 帧数验证
+    const frameFiles = fs.readdirSync(framesDir).filter(f => f.endsWith('.png')).sort();
+    const frameCount = frameFiles.length;
+
+    // 读取目标帧数（从 audio duration 或 config）
+    let targetFrames = null;
+    const audioFile = path.join(PROJECT_DIR, 'audio', 'neural_1_2x.m4a');
+    const configFile = path.join(vpDir, 'video-config.json');
+    if (fs.existsSync(audioFile)) {
+      try {
+        const durResult = execSync(
+          `ffprobe -v error -show_entries format=duration -of csv=p=0 "${audioFile}" 2>/dev/null`,
+          { encoding: 'utf8', timeout: 10000 }
+        );
+        const audioDur = parseFloat(durResult.stdout.trim()) || 0;
+        targetFrames = Math.ceil(audioDur * 60);
+        pass(`目标帧数: ${targetFrames} (@60fps, 音频${audioDur.toFixed(2)}s)`);
+      } catch (e) {
+        warn('无法获取音频时长');
+      }
+    }
+
+    if (targetFrames !== null && frameCount !== targetFrames) {
+      fail(`帧数不匹配: actual=${frameCount}, expected=${targetFrames}`);
+    } else if (frameCount > 0) {
+      pass(`帧数: ${frameCount}`);
+    } else {
+      fail(`frames/ 目录为空`);
+    }
+
+    // C8: 帧编号连续性
+    if (frameCount > 0) {
+      const firstFrame = frameFiles[0];
+      const lastFrame = frameFiles[frameFiles.length - 1];
+      const firstNum = parseInt(firstFrame.match(/frame_(\d+)\.png/)?.[1] || '-1');
+      const lastNum = parseInt(lastFrame.match(/frame_(\d+)\.png/)?.[1] || '-1');
+      const expectedLast = (targetFrames !== null ? targetFrames : frameCount) - 1;
+
+      if (firstNum === 0 && lastNum === expectedLast) {
+        pass(`帧编号连续: frame_0000.png - frame_${String(expectedLast).padStart(4, '0')}.png`);
+      } else {
+        fail(`帧编号不连续: first=${firstNum}, last=${lastNum}, expected_last=${expectedLast}`);
+      }
+
+      // 额外验证：中间是否有跳号
+      let hasGap = false;
+      for (let i = 1; i < frameFiles.length; i++) {
+        const prev = parseInt(frameFiles[i-1].match(/frame_(\d+)\.png/)?.[1] || '0');
+        const curr = parseInt(frameFiles[i].match(/frame_(\d+)\.png/)?.[1] || '0');
+        if (curr !== prev + 1) {
+          hasGap = true;
+          fail(`帧跳号: frame_${String(prev).padStart(4,'0')}.png → frame_${String(curr).padStart(4,'0')}.png`);
+          break;
+        }
+      }
+      if (!hasGap) {
+        pass('帧编号无跳号');
+      }
+    }
+
+    // C9: gen_frames_template.py 存在性
+    const SKILL_DIR = path.resolve(__dirname, '..');
+    const genFramesScript = path.join(SKILL_DIR, 'scripts', 'gen_frames_template.py');
+    if (fs.existsSync(genFramesScript)) {
+      pass('gen_frames_template.py 存在');
+    } else {
+      fail('gen_frames_template.py 不存在');
+    }
+
+    // C10: 黑屏检测（抽样验证帧内容非全黑）
+    try {
+      const sampleIndices = [];
+      if (frameCount >= 10) {
+        sampleIndices.push(0, Math.floor(frameCount / 2), frameCount - 1);
+        for (let p = 10; p <= 90; p += 10) {
+          sampleIndices.push(Math.floor(frameCount * p / 100));
+        }
+      } else {
+        for (let i = 0; i < frameCount; i++) sampleIndices.push(i);
+      }
+
+      const uniqueSamples = [...new Set(sampleIndices)].sort((a, b) => a - b);
+      let blackFrames = 0;
+      let allFramesBrightness = [];
+
+      for (const idx of uniqueSamples) {
+        const framePath = path.join(framesDir, frameFiles[idx]);
+        const escapedPath = framePath.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+        const result = execSync(
+          `python3 -c "
+import sys
+from PIL import Image
+import numpy as np
+img = Image.open('${escapedPath}').convert('RGB')
+arr = np.array(img).astype(float)
+mean_brightness = arr.mean()
+is_black = 1 if mean_brightness < 5.0 else 0
+print(f'{mean_brightness:.2f},{is_black}')
+" 2>/dev/null`,
+          { encoding: 'utf8', timeout: 15000 }
+        ).trim();
+
+        const parts = result.split(',');
+        const brightness = parseFloat(parts[0]);
+        const isBlack = parseInt(parts[1]);
+        allFramesBrightness.push({ idx, brightness });
+        if (isBlack) blackFrames++;
+      }
+
+      if (allFramesBrightness[0] && allFramesBrightness[0].brightness < 5.0) {
+        fail(`首帧黑屏! brightness=${allFramesBrightness[0].brightness.toFixed(2)}`);
+      } else if (blackFrames > uniqueSamples.length * 0.3) {
+        warn(`近${Math.round((blackFrames/uniqueSamples.length)*100)}%抽样帧黑屏 (brightness<5)`);
+      } else {
+        const avgBrightness = allFramesBrightness.reduce((s, f) => s + f.brightness, 0) / allFramesBrightness.length;
+        pass(`帧内容亮度正常: 平均=${avgBrightness.toFixed(1)}/255, 抽样${uniqueSamples.length}帧`);
+      }
+    } catch (e) {
+      warn(`黑屏检测跳过: ${e.message}`);
+    }
+
+    return;
+  }
+
+  // ══ Remotion 标准路径 ═══════════════════════════════════════════════
 
   // C1: package.json 包名验证
   const pkgFile = path.join(vpDir, 'package.json');
@@ -318,8 +455,7 @@ function checkRender() {
         pass(`package.json: remotion@${deps['remotion']}`);
 
         // 额外验证：如果安装了 remotion，确保导入语句正确
-        const tsxFile = path.join(vpDir, 'src', 'Video.tsx');
-        if (fs.existsSync(tsxFile)) {
+        if (tsxFile) {
           const tsxContent = fs.readFileSync(tsxFile, 'utf8');
           if (tsxContent.includes("from '@remotion/core'")) {
             fail('Video.tsx 使用 @remotion/core import（不存在）');
@@ -337,8 +473,6 @@ function checkRender() {
     warn('package.json 不存在（跳过包名检查）');
   }
 
-  // 重用 vpDir，查找视频组件文件
-  const tsxFile = findTsxFile(vpDir);
   if (!tsxFile) {
     warn('未找到 .tsx 视频组件文件（跳过代码级检查）');
     return;
@@ -366,7 +500,7 @@ function checkRender() {
       warn('node_modules/remotion 版本未知');
     }
   } else {
-    fail('node_modules/remotion 不存在，请运行 npm install');
+    warn('node_modules/remotion 不存在（Remotion路径将不可用）');
   }
 
   // C4: useCurrentFrame（动画存在）

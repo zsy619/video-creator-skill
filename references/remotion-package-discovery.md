@@ -71,8 +71,14 @@ ffmpeg -y -i remotion_raw.mp4 -map 0:v -c:v copy video_only.mp4
 # Step 2: 混流外部音频
 ffmpeg -y -i video_only.mp4 -i neural_1_2x.m4a -map 0:v -map 1:a -c:v copy -c:a copy final.mp4
 
-# Step 3: 烧录字幕
-ffmpeg -y -i final.mp4 -vf "subtitles=audio/subtitles.ass:force_style='Fontsize=72,Outline=2,MarginV=50'" final_with_subs.mp4
+# Step 3: 烧录字幕（filter_complex 显式语法）
+ffmpeg -y -i final.mp4 -i neural_1_2x.m4a \
+  -filter_complex "[0:v]ass=audio/subtitles.ass[v]" \
+  -map "[v]" -map 1:a \
+  -c:v libx264 -crf 18 -preset fast \
+  -c:a aac -b:a 256k \
+  -r 60 -s 1080x1920 \
+  final_with_subs.mp4
 ```
 
 ## 验证清单（新项目必查）

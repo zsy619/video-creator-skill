@@ -47,15 +47,15 @@ last_updated: 2026-04-27
 > - 副标题/特征标题：**44-72px**（推荐48-56px）
 > - 正文/描述内容：**40-56px**（推荐44-48px）
 > - 命令行/代码：**22-28px**
-> - **字幕必须18px**，底部居中，黄色，PingFang SC字体
+> - **字幕必须72px**（ASS Fontsize=72，约40px视觉），底部居中，黄色，PingFang SC字体
 > 
 > 详见 [FONTS.md](FONTS.md) - 大字体居中设计规范。
 
 - 要求使用大字体，严格居中显示，避免文字超出屏幕边界。
 - 合并音频后，要求视频与音频同步，避免有延迟或提前播放。
-- 严格遵循官方项目结构：Remotion 项目必须包含入口文件 src/index.ts（调用 registerRoot 注册根组件）和根文件 src/Root.tsx（定义 <Composition> 视频配置）。默认帧率应为 60fps，默认分辨率为 1920×1080，默认合成 ID 为 "MyComp"。组件需模块化拆分，将视频元素抽象为独立、可复用的 React 组件。
+- 严格遵循官方项目结构：Remotion 项目必须包含入口文件 src/index.ts（调用 registerRoot 注册根组件）和根文件 src/Root.tsx（定义 <Composition> 视频配置）。默认帧率应为 60fps，默认分辨率为 **1080×1920**（竖屏），默认合成 ID 为 "VerticalVideo"。组件需模块化拆分，将视频元素抽象为独立、可复用的 React 组件。
 - 帧驱动动画系统：所有动画必须通过 useCurrentFrame() 钩子获取当前帧号，结合 interpolate() 实现线性插值或 spring() 实现自然弹簧动画。禁止使用 CSS transitions 或独立于帧号的 CSS 动画，否则在多线程渲染时会导致画面闪烁。
-- 媒体同步与资源管理：音频同步问题通常分为三类——偏移（固定延迟）、漂移（逐渐失步）和修剪不匹配（音视频起点不一致）。使用 <Sequence> 组件的 from 属性延迟音视频、用 trimBefore/trimAfter 修剪内容。加载字体、音频数据等异步资源时必须使用 delayRender()/continueRender() 模式阻塞渲染直至资源就绪。大型媒体数据（如完整音频波形）不得作为 props 传递，应改用 calculateMetadata 提前获取。
+- 媒体同步与资源管理：音频同步问题通常分为三类——偏移（固定延迟）、漂移（逐渐失步）和修剪不匹配（音视频起点不一致）。使用 <Sequence> 组件的 from 属性延迟音视频、用 trimBefore/trimAfter 修剪内容。加载字体、音频数据等异步资源时**推荐使用** delayRender()/continueRender() 模式阻塞渲染直至资源就绪。大型媒体数据（如完整音频波形）不得作为 props 传递，应改用 calculateMetadata 提前获取。
 - TypeScript + Zod 类型安全：所有组件 props 必须定义 TypeScript 类型，并使用 Zod schema 进行运行时校验。在 <Composition> 中通过 schema 属性附加 schema，Remotion 会自动进行 props 验证并支持 Studio 可视化编辑。
 - 渲染性能优化：通过 npx remotion benchmark 命令测试不同 --concurrency 值找到最佳并发数——并发过高或过低都会降低渲染效率。使用新 <Video> 标签替代旧的 <Html5Video> 或 <OffthreadVideo> 以获得最优性能。使用 useMemo() 和 useCallback() 缓存昂贵计算，用 --log=verbose 定位最慢帧，避免在云无 GPU 实例上大量使用 GPU 加速 CSS 属性（如 filter: blur()）。
 - **主题动画适配**：每个主题有独特的「动画性格」——科技类快速锐利、自然类柔和平滑、创意类弹性有趣。使用 `useThemeAnimation()` Hook 自动应用主题适配的动画参数（spring damping/stiffness、fade duration、glow intensity 等）。详见 [THEME_ANIMATIONS.md](THEME_ANIMATIONS.md)。
@@ -661,6 +661,11 @@ const { fps } = useVideoConfig();
   </Series.Sequence>
 </Series>
 
+// ⚠️ premountFor: Remotion 4.x 兼容性需验证（建议通过 benchmark 测试确认）
+<Sequence premountFor={1 * fps}>
+  <Title />
+</Sequence>
+
 // 重叠效果：使用负 offset
 <Series>
   <Series.Sequence durationInFrames={60}>
@@ -910,20 +915,19 @@ video-project/
 ### 静态文件引用
 
 > **⚠️ 重要**: 必须使用 `staticFile()` 引用 public 目录中的文件
+> **⚠️ 音频禁用**: M-series headless 环境 Remotion 渲染无音频，所有音频通过 ffmpeg 外部注入。**禁止在 Remotion 组件内使用 `<Audio>` 组件**。
 
 ```tsx
-import { Img, Audio, staticFile } from 'remotion';
-import { Video } from '@remotion/media';
+import { Img, staticFile } from 'remotion';
 
 // 图片
 <Img src={staticFile('images/cover.webp')} />
 
 // 视频
 <Video src={staticFile('videos/clip.mp4')} />
-
-// 音频
-<Audio src={staticFile('audio/voiceover.m4a')} />
 ```
+
+> **Studio 预览例外**: Remotion Studio 环境中可使用 `<Audio>` 预览，但渲染时必须移除。**headless 环境（含 M-series Mac）所有视频必须使用 ffmpeg 混流方案**。
 
 ### 远程资源
 
@@ -964,40 +968,31 @@ useEffect(() => {
 
 ### 音频组件规范
 
-> **⚠️ 关键规则**: 整个视频**只使用 1 个 `<Audio>` 组件**，从头播到尾，避免音频重叠。
+> **⚠️ 【重要】headless 环境禁止使用 `<Audio>` 组件**
+>
+> M-series Mac 等 headless 环境下，Remotion 渲染无音频（Audio 组件不工作）。音频通过 **ffmpeg 外部注入**（见 ONEPASS_WORKFLOW.md）。
+>
+> Remotion Studio 预览环境可临时使用 `<Audio>`，但渲染前必须移除。
 
 ```tsx
-// ✅ 正确：1个Audio从头到尾
-<Audio src={staticFile('audio/neural_processed.m4a')} />
+// ✅ 正确：headless 环境不使用 Audio 组件
+// 音频通过 ffmpeg 混流注入最终视频
 
-// ❌ 错误：多个Audio同时播放导致重叠
-<Audio src={A} startFrom={0} />
-<Audio src={B} startFrom={621} />
-<Audio src={C} startFrom={1268} />
+// ❌ 错误：headless 环境禁止在 Remotion 内嵌音频
+// <Audio src={staticFile('audio/neural_1_2x.m4a')} />
 ```
 
 ### 音量控制
 
+> **⚠️ headless 环境禁止使用 Audio 组件**。以下示例仅适用于 Remotion Studio 预览环境，渲染时必须移除。
+
 ```tsx
-import { interpolate, useCurrentFrame, Audio } from 'remotion';
+// ✅ 正确：headless 环境不使用 Audio 组件
+// 音频通过 ffmpeg 混流注入最终视频
 
-// 静态音量
-<Audio src={staticFile('audio.mp3')} volume={0.8} />
-
-// 动态音量（淡入效果）
-<Audio
-  src={staticFile('audio.mp3')}
-  volume={(f) => interpolate(f, [0, 60], [0, 1], { extrapolateRight: 'clamp' })}
-/>
-
-// 动态音量（渐变效果）
-<Audio
-  src={staticFile('audio.mp3')}
-  volume={(f) => interpolate(f, [0, 100, 3500, 3600], [0, 1, 1, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  })}
-/>
+// ❌ 错误：headless 环境禁止 Remotion Audio 组件
+// import { Audio } from 'remotion';
+// <Audio src={staticFile('audio.mp3')} volume={0.8} /> ← 禁止！
 ```
 
 ### 播放速度控制
@@ -1043,7 +1038,7 @@ import { interpolate, useCurrentFrame, Audio } from 'remotion';
    - 使用 WebP 格式（比 PNG/JPG 小 30-50%）
    - 单张图片不超过 500KB
    - 尺寸控制在 1080x1920 以内
-   - 使用 `@remotion/media` 的 `OffthreadVideo` 替代旧标签
+   - 使用 `Video` 组件替代旧 `<Html5Video>` / `<OffthreadVideo>` 标签
 
 4. **渲染配置优化**
 
@@ -1154,16 +1149,23 @@ for (const entry of data) {
 
 ### Q: 如何获取音频时长？
 
-**A**: 使用 `@remotion/media-utils` 的 `calculateMetadata`：
+**A**: 使用 `calculateMetadata` 从 `remotion` 包导入，`@remotion/media-utils` 仅用于 `getVideoDuration` / `getVideoDimensions`：
 
 ```tsx
-import { calculateMetadata } from '@remotion/media-utils';
+// ✅ 正确：calculateMetadata 是 Composition 的 prop，类型从 remotion 导入
+import { CalculateMetadataFunction } from 'remotion';
 
-const { durationInFrames } = await calculateMetadata({
-  src: staticFile('audio/neural_1_2x.m4a'),
-});
-const durationInSeconds = durationInFrames / fps;
-```
+// calculateMetadata 作为 <Composition> 的 prop 使用
+// 注意：@remotion/media-utils 用于 getVideoDuration / getAudioDuration / getVideoDimensions
+const calculateMetadata: CalculateMetadataFunction<Props> = async ({ props }) => {
+  // ✅ 正确：@remotion/media-utils 提供 getVideoDuration / getVideoDimensions
+  // ❌ 错误：calculateMetadata 不从 @remotion/media-utils 导入（不存在！）
+  const { getVideoDuration } = await import('@remotion/media-utils');
+  const durationInSeconds = await getVideoDuration(props.videoSrc);
+  return {
+    durationInFrames: Math.ceil(durationInSeconds * 60),
+  };
+};
 
 ### Q: `useCurrentFrame()` 在 Sequence 内调用报错？
 
@@ -1488,8 +1490,9 @@ export const VerticalVideo: React.FC<{
         <OutroScene cta={cta} frame={frame} /> {/* ✅ 传递 frame */}
       </Sequence>
 
-      {/* 单一音频从头到尾 */}
-      {audioSrc && <Audio src={staticFile(audioSrc)} />}
+      {/* ⚠️ headless 环境：音频通过 ffmpeg 外部注入，Remotion 不内嵌音频 */}
+      {/* audioSrc prop 仅用于 Remotion Studio 预览环境 */}
+      {/* {audioSrc && <Audio src={staticFile(audioSrc)} />} */}
     </AbsoluteFill>
   );
 };

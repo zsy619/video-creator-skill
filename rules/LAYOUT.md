@@ -44,7 +44,8 @@ export const VerticalVideo: React.FC = () => {
         <CoverScene frame={frame} />
       </Sequence>
       {/* ... */}
-      <Audio src={staticFile('audio/neural_1_2x.m4a')} />
+      {/* ⚠️ headless 环境：音频通过 ffmpeg 外部注入，Remotion 不内嵌音频 */}
+      {/* <Audio src={staticFile('audio/neural_1_2x.m4a')} /> */}
     </div>
   );
 };

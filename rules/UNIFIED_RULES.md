@@ -451,9 +451,11 @@ Step 4: 删除所有中间文件
 1. **禁止**字幕 < 72px
 2. **禁止**场景帧数之和 < 总帧数（会导致黑屏）
 3. **禁止**使用 `top: xxx px` 硬编码布局
-4. **禁止**保留中间文件
-5. **禁止**封面使用 PIL 作为首选（必须用 baoyu-imagine）
-6. **禁止**在 Remotion 中集成字幕（用 ffmpeg 烧录）
+4. **禁止**Remotion Audio 组件（headless 环境不工作，音频通过 ffmpeg 外部注入）
+5. **禁止**在 Remotion 内嵌音频轨道（Remotion 渲染输出无音频 → ffmpeg 混流）
+6. **禁止**使用 `-c:a copy`（Remotion 内嵌音频轨道实际为静音 AAC）
+7. **禁止**封面使用 PIL 作为首选（必须用 baoyu-imagine）
+8. **禁止**在 Remotion 中集成字幕（用 ffmpeg 烧录）
 
 ---
 
