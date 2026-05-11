@@ -5,7 +5,8 @@
 【核心铁律】
 - 所有文字必须经过 smart_resize_text() 检测，超出画布90%宽度时自动缩小
 - 禁止直接用固定字号渲染而不检测宽度
-- 如缩到最小字号(24px)仍超出，报错（不能静默截断）
+- 如缩到最小字号(36px)仍超出，报错（不能静默截断）
+- 字体路径由系统动态探测，禁止硬编码不存在的字体文件
 
 【使用方式】
 python3 scripts/generate_cover.py "主标题" "副标题" output_dir [canvas_type]
@@ -20,7 +21,110 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import sys
 
-FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
+# ──────────────────────────────────────────────────────────────
+# 字体选择：macOS → 字体名（非路径），Windows/Linux → 字体名
+# ──────────────────────────────────────────────────────────────
+import platform
+import subprocess
+
+def _get_available_font_name(preferred_name, font_dir='/System/Library/Fonts'):
+    """在系统字体目录中查找可用字体文件名（返回字体的实际文件名）。"""
+    try:
+        result = subprocess.run(
+            ['find', font_dir, '-iname', f'*{preferred_name}*.ttf'],
+            capture_output=True, text=True, timeout=5
+        )
+        candidates = [l.strip() for l in result.stdout.strip().split('\n') if l.strip()]
+        for c in candidates:
+            if os.path.exists(c):
+                return c
+        # 找不到同名 → 搜索同类中文字体
+        result2 = subprocess.run(
+            ['find', font_dir, '-iname', '*.ttf', '-o', '-iname', '*.ttc'],
+            capture_output=True, text=True, timeout=10
+        )
+        all_fonts = [l.strip() for l in result2.stdout.strip().split('\n') if l.strip()]
+        for f in all_fonts:
+            basename = os.path.basename(f).lower()
+            if any(x in basename for x in ['pingfang', 'hiragino', 'heiti', 'songti', 'kaiti']):
+                return f
+        return None
+    except Exception:
+        return None
+
+def _find_cjk_font():
+    """
+    动态探测可用的中文字体。
+    优先级：用户目录（安装的中文字体）> 系统 PingFang > 系统 Hiragino > 系统 STHeiti
+    返回第一个存在的字体文件路径，找不到则返回 None。
+    """
+    import subprocess
+
+    search_dirs = [
+        '/Users/zhushuyan/Library/Fonts',   # 用户安装的中文字体优先
+        '/System/Library/Fonts',
+        '/Library/Fonts',
+    ]
+    # 字体名关键词（按优先级）
+    keywords = [
+        'pingfang', 'hiragino', 'heiti', 'songti',
+        'wenkai', 'cangti', 'tsanger', 'lxgw',
+    ]
+
+    for d in search_dirs:
+        if not os.path.exists(d):
+            continue
+        try:
+            result = subprocess.run(
+                ['find', d, '-type', 'f', '(', '-name', '*.ttf', '-o', '-name', '*.ttc', '-o', '-name', '*.otf', ')'],
+                capture_output=True, text=True, timeout=10
+            )
+            for line in result.stdout.strip().split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                basename = os.path.basename(line).lower()
+                if any(k in basename for k in keywords):
+                    # 再次确认文件可读
+                    if os.path.exists(line) and os.path.getsize(line) > 100_000:
+                        return line
+        except Exception:
+            pass
+    return None
+
+
+# 动态解析字体路径
+FONT_PATH = _find_cjk_font()
+if not FONT_PATH:
+    raise RuntimeError(
+        "未找到任何中文字体（PingFang/Hiragino/Heiti/Songti/WenKai）。"
+        "请安装中文字体或检查 /System/Library/Fonts。"
+    )
+print(f"[字体] 使用: {FONT_PATH}")
+
+
+def _cjk_detect_render(text, font_path, size=72):
+    """
+    用 textbbox 检测字体是否支持 CJK 文字。
+    原理：CJK 汉字 bbox 宽 > 高（横向结构），aspect > 1.1
+          方块字/缺失字体的特征：BBox 宽高接近 1:1
+    返回 True = 正常渲染，False = 方块/乱码或加载失败。
+    """
+    try:
+        dummy_img = Image.new('RGB', (1, 1))
+        dummy_draw = ImageDraw.Draw(dummy_img)
+        font = ImageFont.truetype(font_path, size)
+        bbox = dummy_draw.textbbox((0, 0), text[:8], font=font)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        if w <= 0 or h <= 0:
+            return False  # 完全没有渲染
+        aspect = w / h
+        # CJK 正常字 aspect > 1.1；方块字 aspect ≈ 1.0
+        return aspect > 1.1
+    except Exception:
+        return False
+
 
 # ========== 字号安全上限（不能超过这些值）==========
 TITLE_SIZES = {
@@ -66,25 +170,36 @@ def measure_text(draw, text, font):
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
 
-def smart_resize_text(text, font_path, start_size, canvas_width, max_ratio=0.90, min_size=24):
+def smart_resize_text(text, font_path, start_size, canvas_width, max_ratio=0.90, min_size=36):
     """
     自动缩小字号直到文字宽度 < canvas_width * max_ratio。
 
     参数:
         text:          要渲染的文字
-        font_path:     字体文件路径
+        font_path:     字体文件路径（必须是实际存在的字体文件）
         start_size:    起始字号（安全上限）
         canvas_width:  画布宽度（像素）
         max_ratio:     最大宽度占比（默认 90%）
-        min_size:      最小字号（低于此值报错，不继续缩）
+        min_size:      最小字号（低于此值报错，不继续缩；主标题不低于36px）
 
     返回: (font对象, 最终宽度, 最终高度)
 
-    抛出: ValueError — 达到最小字号仍超出
+    抛出: ValueError — 达到最小字号仍超出，或字体不支持CJK文字
     """
     size = start_size
     dummy_img = Image.new('RGB', (1, 1))
     dummy_draw = ImageDraw.Draw(dummy_img)
+
+    # 前置检查：字体必须能渲染 CJK 文字
+    if _cjk_detect_render(text[:8], font_path, size):
+        pass  # 正常
+    else:
+        # 尝试用 52px 再检测一次（大字号更容易暴露缺失字体问题）
+        if not _cjk_detect_render(text[:8], font_path, 52):
+            raise ValueError(
+                f"字体 '{font_path}' 无法正确渲染 CJK 文字（检测到方块/乱码）。"
+                f"请确保使用支持中文的系统字体（PingFang SC / Hiragino Sans GB 等）。"
+            )
 
     while size >= min_size:
         font = ImageFont.truetype(font_path, size)
@@ -105,8 +220,8 @@ def smart_resize_text(text, font_path, start_size, canvas_width, max_ratio=0.90,
     )
 
 
-def smart_resize_tag(text, font_path, start_size, canvas_width, max_ratio=0.90, min_size=20):
-    """标签文字的 smart_resize（字号下限更低：20px）"""
+def smart_resize_tag(text, font_path, start_size, canvas_width, max_ratio=0.90, min_size=32):
+    """标签文字的 smart_resize（字号下限更低：32px，比主标题略保守）"""
     return smart_resize_text(text, font_path, start_size, canvas_width, max_ratio, min_size)
 
 

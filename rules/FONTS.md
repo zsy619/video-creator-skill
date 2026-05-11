@@ -10,7 +10,7 @@
 ## 🎨 PIL 封面字体规范（2026-04-27 新增）
 
 > ⚠️ 封面生成首选 **baoyu-imagine（AI 生成）**，PIL 仅在 API 不可用时使用。
-> ⚠️ **字体路径必须是 `/System/Library/Fonts/STHeiti Medium.ttc`**，不得使用 `LiHei Pro Medium.ttc`！
+> ⚠️ **字体由脚本自动探测**（PingFang SC → Hiragino Sans GB → 其他），禁止硬编码不存在字体路径！
 
 ### PIL 封面字体速查表（固定字号）
 
@@ -28,7 +28,33 @@
 
 ```python
 from PIL import Image, ImageDraw, ImageFont
-FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
+import os
+import subprocess
+
+# ── 动态字体探测（跨 macOS 版本兼容，禁止硬编码字体路径）─────────────────────
+FONT_PATH = None
+_candidates = ['PingFang.ttc', 'PingFang SC', 'Hiragino Sans GB', 'HiraginoSansGB']
+_font_dir = '/System/Library/Fonts'
+for _name in _candidates:
+    try:
+        result = subprocess.run(
+            ['find', _font_dir, '-iname', f'*{_name}*', '-type', 'f'],
+            capture_output=True, text=True, timeout=5
+        )
+        for _line in result.stdout.strip().split('\n'):
+            if _line.strip() and os.path.exists(_line.strip()):
+                FONT_PATH = _line.strip()
+                break
+    except Exception:
+        pass
+    if FONT_PATH:
+        break
+
+if not FONT_PATH:
+    raise RuntimeError(
+        "未找到任何中文字体（PingFang/Hiragino）。"
+        "请在 /System/Library/Fonts 中确认存在 .ttf 或 .ttc 文件。"
+    )
 
 def create_cover(width, height, output_path, title_text, sub_text):
     """根据宽度比例计算字体大小"""
@@ -83,7 +109,7 @@ def smart_resize_text(text, font_path, start_size, max_width_ratio=0.90):
     返回: (font, width, height)
     """
     size = start_size
-    while size >= 24:  # 最小字号保护
+    while size >= 36:  # 最小字号保护（主标题不低于36px）
         font = ImageFont.truetype(font_path, size)
         dummy_draw = ImageDraw(Image.new('RGB', (1, 1)))
         w, h = measure_text(dummy_draw, text, font)
@@ -94,7 +120,7 @@ def smart_resize_text(text, font_path, start_size, max_width_ratio=0.90):
             return font, w, h
         size -= 4
     # 兜底：返回最小字号
-    return ImageFont.truetype(font_path, 24), w, h
+    return ImageFont.truetype(font_path, 36), w, h
 
 # 使用示例
 font_title, tw, th = smart_resize_text("让 AI Agent 控制 Office 文档", FONT_PATH, 52)
@@ -118,11 +144,27 @@ assert tw < 1080 * 0.90, f"文字仍超出画布: {tw}px"
 | 旧（亮网格+单层发光） | 字体被背景掩盖 |
 | 新（暗网格+多层发光） | 字体清晰醒目 |
 
-**完整代码模板**：
+**完整代码模板**（字体自动探测，禁止硬编码）：
 ```python
 from PIL import Image, ImageDraw, ImageFont
-import os
-FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
+import os, subprocess
+
+# ── 动态字体探测 ──
+FONT_PATH = None
+for _name in ['PingFang.ttc', 'Hiragino Sans GB']:
+    result = subprocess.run(
+        ['find', '/System/Library/Fonts', '-iname', f'*{_name}*', '-type', 'f'],
+        capture_output=True, text=True, timeout=5
+    )
+    for _line in result.stdout.strip().split('\n'):
+        if _line.strip() and os.path.exists(_line.strip()):
+            FONT_PATH = _line.strip()
+            break
+    if FONT_PATH:
+        break
+
+if not FONT_PATH:
+    raise RuntimeError("未找到中文字体")
 
 def create_prominent_cover(output_path, size, title_size, sub_size, tag_size, url_size, title_y_ratio=0.18):
     w, h = size

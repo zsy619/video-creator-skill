@@ -435,7 +435,7 @@ function checkFinal() {
 }
 
 // ─────────────────────────────────────────────
-// 节点 E: cover — 封面图检查
+// 节点 E: cover — 封面图检查（尺寸+文件大小）
 // ─────────────────────────────────────────────
 function checkCover() {
   section('节点 E: 封面图检查');
@@ -494,6 +494,74 @@ function checkCover() {
 }
 
 // ─────────────────────────────────────────────
+// 节点 F: cover-font — 封面字体可用性检查
+// ─────────────────────────────────────────────
+function checkCoverFont() {
+  section('节点 F: 封面字体检查');
+
+  const SKILL_DIR = path.resolve(__dirname, '..');
+  const scriptPath = path.join(SKILL_DIR, 'scripts', 'generate_cover.py');
+
+  // 检测字体文件是否存在
+  let fontPath = null;
+  try {
+    const out = execSync(
+      `python3 - <<'PYEOF'\nimport subprocess, os
+candidates = ['PingFang.ttc', 'PingFang SC', 'Hiragino Sans GB', 'HiraginoSansGB']
+for name in candidates:
+    result = subprocess.run(
+        ['find', '/System/Library/Fonts', '-iname', f'*{name}*', '-type', 'f'],
+        capture_output=True, text=True, timeout=5
+    )
+    for line in result.stdout.strip().split('\\n'):
+        line = line.strip()
+        if line and os.path.exists(line):
+            print(line)
+            break
+PYEOF`,
+      { encoding: 'utf8', timeout: 15000 }
+    ).trim();
+    if (out) {
+      fontPath = out.split('\n')[0].trim();
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  if (!fontPath) {
+    fail('字体探测: 未找到任何中文字体（PingFang/Hiragino）');
+    return;
+  }
+  pass(`字体: ${path.basename(fontPath)}`);
+
+  // CJK 渲染检测（textbbox 宽高比法）
+  const testTexts = ['LlamaIndex 入门', '目标驱动协作', 'GitHub Stars'];
+  let cjkOk = true;
+  for (const text of testTexts) {
+    try {
+      const result = execSync(
+        `python3 - <<'PYEOF'\nfrom PIL import Image, ImageDraw, ImageFont\nimport os, sys\ntry:\n    dummy_img = Image.new('RGB', (1,1))\n    dummy_draw = ImageDraw.Draw(dummy_img)\n    font = ImageFont.truetype('${fontPath.replace(/'/g, "'\"'\"'")}', 72)\n    bbox = dummy_draw.textbbox((0,0), '${text.replace(/'/g, "\\'")}', font=font)\n    w = bbox[2]-bbox[0]; h = bbox[3]-bbox[1]\n    if w <= 0 or h <= 0:\n        print('EMPTY')\n    else:\n        aspect = w/h\n        print('OK' if aspect > 1.1 else 'BLOCK')\nexcept Exception as e:\n    print('ERR:'+str(e)[:40])\nPYEOF`,
+        { encoding: 'utf8', timeout: 10000 }
+      ).trim();
+      const status = result.split('\n').slice(-1)[0].trim();
+      if (status === 'OK') {
+        pass(`CJK渲染[${text.slice(0, 6)}]: 正常`);
+      } else {
+        fail(`CJK渲染[${text.slice(0, 6)}]: ${status === 'BLOCK' ? '方块/乱码' : status}`);
+        cjkOk = false;
+      }
+    } catch (e) {
+      fail(`CJK渲染[${text.slice(0, 6)}]: 检测失败`);
+      cjkOk = false;
+    }
+  }
+
+  if (!cjkOk) {
+    fail('封面字体: 存在 CJK 渲染问题，请修复 generate_cover.py 中的字体路径');
+  }
+}
+
+// ─────────────────────────────────────────────
 // 主流程
 // ─────────────────────────────────────────────
 console.log(`\n${BLUE}═══════════════════════════════════════════${RESET}`);
@@ -506,6 +574,7 @@ if (NODE_NAME === 'all' || NODE_NAME === 'audio') checkAudio();
 if (NODE_NAME === 'all' || NODE_NAME === 'subtitle') checkSubtitle();
 if (NODE_NAME === 'all' || NODE_NAME === 'render') checkRender();
 if (NODE_NAME === 'all' || NODE_NAME === 'cover') checkCover();
+if (NODE_NAME === 'all' || NODE_NAME === 'font') checkCoverFont();
 if (NODE_NAME === 'all' || NODE_NAME === 'final') checkFinal();
 
 section('检查结果');
