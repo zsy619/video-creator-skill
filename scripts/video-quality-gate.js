@@ -148,12 +148,16 @@ function checkASSFormat(filePath) {
     pass('ASS: PlayResX=1080, PlayResY=1920');
   }
 
-  // 检查 Fontsize=72
-  if (!content.includes('Style: Default,PingFang SC,72,')) {
-    fail('ASS: Fontsize 不是 72');
+  // 检查 Fontsize=72 + STHeiti Medium（launch.sh sed 替换后为 STHeiti Medium，不再是 PingFang SC）
+  const styleLine = content.split('\n').find(l => l.startsWith('Style: Default,'));
+  if (!styleLine) {
+    fail('ASS: 未找到 Style: Default 行');
     ok = false;
+  } else if (styleLine.includes('STHeiti Medium') && styleLine.includes(',72,')) {
+    pass('ASS: Fontsize=72, STHeiti Medium ✓');
   } else {
-    pass('ASS: Fontsize=72');
+    fail('ASS: 字体或字号错误，launch.sh sed 替换后应为 STHeiti Medium');
+    ok = false;
   }
 
   // 检查 Outline=2（Style行格式: Name,Fontname,Fontsize,...,BorderStyle,Outline,Shadow,...）

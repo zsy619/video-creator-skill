@@ -88,14 +88,18 @@ metadata:
 
 ## 参考文档
 - [references/remotion-package-discovery.md](references/remotion-package-discovery.md) — `@remotion/core` 不存在；正确包名 `remotion`；47个 exports（Text 不存在）；React Error #130 根因；package.json 正确写法；渲染+混流命令
+- [references/subtitle-tiktok-highlight.md](references/subtitle-tiktok-highlight.md) — **⚠️ TikTok 逐字高亮特效完整方案**：`createTikTokStyleCaptions` 需要 word-level timing，ASS 只有 sentence-level，**必须用 interpolate 自定义 CaptionOverlay**；含完整 TSX 实现 + 入场/退场动画 + 荧光绿高亮
+- [references/video-one-shot-checks.md](references/video-one-shot-checks.md) — **⚠️ 一次生成到位铁律**：渲染前必做的 4 项预检（字数上限 / 英文句点 split 陷阱 / 叠速检测 / CaptionOverlay 方案确认）；"一次到位"用户偏好，工作流起点执行而非返工补救
 - [references/REMOTION_NATIVE.md](references/REMOTION_NATIVE.md) — **Remotion Native 渲染规范**：音频内嵌 + 字幕烧录 + 60fps/1080×1920/MP4 直出；三同步机制；create-remotion-project.js 用法
 - [音频验证协议](references/audio-validation-protocol.md) — 音频有效性验证完整协议（4个验证节点）
 - [references/video-creator-remotion-conflicts-2026-05-11.md](references/video-creator-remotion-conflicts-2026-05-11.md) — **C1-C9 冲突审计报告**：video-composer.js Audio组件移除、calculateMetadata添加、entry路径修正、concurrency=4；含 remotion-best-practices 30+ 规则文件审查结果
 - [references/ass-subtitle-spec-2026-05-10.md](references/ass-subtitle-spec-2026-05-10.md) — **最终权威值**：Fontsize=72/PlayResX=1080/PlayResY=1920/MarginV=50/Outline=2/Format 10字段
+- [references/ass-subtitle-gen.md](references/ass-subtitle-gen.md) — **ASS字幕生成核心陷阱**：`re.split(r'[，。；、]+')` 不包含ASCII句点（否则`Claude4.5`被切断）；ASS时间解析`H:MM:SS.cc`需split成3段而非2段
 - [references/cover-smart-resize.md](references/cover-smart-resize.md) — PIL 封面 `smart_resize_text()` 自动缩放函数；实测 STHeiti 130px 字体渲染实际高度 81px（62%效率），长标题自动缩至 36px；以及封面质量门禁节点 E 检查项
 - [references/remotion-sequence-black-screen-fix.md](references/remotion-sequence-black-screen-fix.md) — Sequence内帧计算错误（局部帧vs全局帧）
 - [references/pil-frame-generation-pitfalls.md](references/pil-frame-generation-pitfalls.md) — **PIL帧生成陷阱**：3位hex崩溃、`radius=`参数、连续帧编号、字体兜底、60fps性能基准
-- [Remotion 双字幕问题修复](references/remotion-subtitles-double-fix.md) — `<Subtitles />` 组件 + ASS 烧录导致双层字幕
+- [references/remotion-subtitles-double-fix.md](references/remotion-subtitles-double-fix.md) — `<Subtitles />` 组件 + ASS 烧录导致双层字幕
+- [references/remotion-caption-overlay-pitfalls.md](references/remotion-caption-overlay-pitfalls.md) — ⚠️ **`createTikTokStyleCaptions` 对句子级字幕静默失效**；`useDelayRender` 在 Remotion 4.x 导致 `delayRender is not a function`；含两种解法（直接渲染 + TikTok 逐字高亮 `interpolate` 方案）
 - [references/ffmpeg-single-pass-mux.md](references/ffmpeg-single-pass-mux.md) — **ffmpeg单次混流正确语法**：ASS过滤器只有视频输入，`-map 1:a` 单独处理音频；竖屏60fps参数模板
 - [references/edge-tts-cli-usage.md](references/edge-tts-cli-usage.md) — **edge-tts正确CLI用法**：`--write-media`（不是`--output`）；`--rate`用百分比格式；SubtitleGenerator是默认导出（`require()`直接，不可用named import）
 - [references/dynamic-scene-boundaries.md](references/dynamic-scene-boundaries.md) — 动态场景帧边界计算：取代硬编码 `SCENE_BOUNDARIES`，基于 `sceneFractions` 比例自动分配，支持任意场景数量
@@ -131,6 +135,18 @@ metadata:
 # 生成音频前执行文本长度检查
 node {SKILL_DIR}/scripts/pre-subtitle-check.js <project-dir> --target-duration 60
 ```
+
+### ⚠️ 一次生成到位：返工预防优先
+
+> **用户明确要求**：每次生成视频必须一次到位，不接受"渲染→发现问题→修复→重新渲染"的返工循环。
+>
+> **工作流起点**：渲染前先执行 `video-one-shot-checks.md` 中的 4 项预检。问题在起点修复，不是终点补救。
+
+**预检顺序（不可跳过）**：
+1. 配音文本字数上限验证（目标秒数 × 6.45）
+2. 英文句点分割陷阱检查（`Claude4.5` 等含 ASCII 句点的词不得被 split 切断）
+3. 音频叠速检查（`edge-tts +20%` + `atempo 1.2x` 禁止叠加）
+4. CaptionOverlay 方案确认（`interpolate` 替代 `createTikTokStyleCaptions`）
 
 ### 音频三禁止
 | 禁止 | 正确做法 |
@@ -184,7 +200,7 @@ node {SKILL_DIR}/video-creator/scripts/pre-render-check.js <Video.tsx> <fps> <du
 | 禁止 `\\\\N` 换行 | 必须 `\N` 换行 |
 | 禁止字段数不匹配 | Format 10字段，Dialogue 10字段 |
 | 禁止先于音频生成字幕 | 必须音频后处理完成后生成 |
-| 禁止直接调用 subtitle-generator.js 作为 CLI | SubtitleGenerator 是类库，必须 require 后实例化调用；详见 [references/subtitle-generator-usage.md](references/subtitle-generator-usage.md) |
+| 禁止双重加速 | 禁止 edge-tts rate=+20% + atempo=1.2 叠加，会导致音频过短；正确做法：edge-tts rate=+0%，ffmpeg atempo=1.2 单独处理 |
 
 ### 字幕生成
 
@@ -460,7 +476,21 @@ grep -i "fontsize\|marginv\|outline" {project}/audio/subtitles.ass
 # 期望：Fontsize: 72, MarginV: 50, Outline: 2
 ```
 
-### ❌ 错误4：session-log.md 记录被遗漏
+### ❌ 错误5：`createTikTokStyleCaptions` 对句子级字幕静默失效
+
+**影响**：Remotion 渲染成功无报错，但字幕完全不可见。
+
+**根因**：`createTikTokStyleCaptions` 需要词级时间戳（每个词有 `fromMs/toMs`），来自语音识别服务。当 captions.json 只有句子级 timing（TTS 文本分割产生）时，所有 token 的 `toMs` 塌陷为 `Infinity`，逐字高亮完全不触发。
+
+**正确做法**：对于句子级字幕，**不使用** `createTikTokStyleCaptions`，直接渲染每条字幕文本。详见 [references/remotion-caption-overlay-pitfalls.md](references/remotion-caption-overlay-pitfalls.md)。
+
+### ❌ 错误6：`useDelayRender` 在 Remotion 4.x 导致 `delayRender is not a function`
+
+**影响**：CaptionOverlay 组件加载 captions.json 时崩溃。
+
+**根因**：Remotion 4.x 中 `useDelayRender()` 返回的不是函数类型。
+
+**正确做法**：禁止使用 `useDelayRender()`，改用纯 `useState + useEffect`。详见同上参考文件。
 
 **影响**：session-log.md 只有表头，没有任何 token 记录行，无法追踪成本。
 
@@ -485,7 +515,7 @@ grep -c "^[|]" "${PROJECT_DIR}/docs/session-log.md"
 阅读各个规则文件以获取详细说明和代码示例：
 - [references/ONEPASS_WORKFLOW.md](references/ONEPASS_WORKFLOW.md) — **一键生成工作流**：配置驱动，10步完整命令（edge-tts→门禁A→字幕→门禁B→Remotion渲染→门禁C→混流→字幕烧录→门禁D），含完整 bash 脚本。**所有步骤的门禁退出码控制**。
 - [references/video-quality-gate-optimization.md](references/video-quality-gate-optimization.md) — video-quality-gate.js 黑屏检测 execSync 批量优化（12次→1次进程创建）
-- [references/skill-audit-methodology.md](references/skill-audit-methodology.md) — 技能深度审计方法论。**摘要永远不可信**，必须 grep 验证文件系统实际值；8类文件检查清单；常见遗漏模式（验证器不同步/实例化覆盖/文档不同步）。
+- [references/skill-audit-methodology.md](references/skill-audit-methodology.md) — **技能深度审计方法论**：识别文档与脚本脱节的 8 类问题模板；2026-05-12 审计发现 8 类缺陷（5个已修复/3个待修复）；含一键验证命令。**摘要永远不可信**，必须 grep 验证文件系统实际值；8类文件检查清单；常见遗漏模式（验证器不同步/实例化覆盖/文档不同步）。
 - [references/baoyu-config.json](references/baoyu-config.json) - 宝玉技能配置
 - [references/cdn-mapping.json](references/cdn-mapping.json) - CDN映射配置
 - [references/tailwind-config.json](references/tailwind-config.json) - Tailwind配置
@@ -522,21 +552,37 @@ node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> all
 node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> render
 ```
 
-**launch.sh 快速启动**（推荐）：
-```bash
-bash {SKILL_DIR}/scripts/launch.sh init <项目名>   # 创建项目
-bash {SKILL_DIR}/scripts/launch.sh gate all         # 质量门禁检查
+**launch.sh 一键生成**（完整流程）：
 
-# ⭐ 一键生成（完整执行 Remotion CLI 或 ffmpeg PIL兜底）：
-# Step 1: edge-tts 配音（整段生成 → 1.2x atempo → AAC 256k）
-# Step 2: 音频快速验证（跳过 re-encoding，edge-tts 输出码率已足够）
-# Step 3: Gate A（音频有效性）+ 字幕生成 并行执行
-# Step 4: Gate B（字幕 ASS 格式检查）
-# Step 5: <Text>→<div> 自动修复（Remotion 4.x 不存在 Text 组件）
-# Step 6: Remotion 渲染 或 PIL帧序列+ffmpeg单次混流（自动选择）
-# Step 7: Gate D（最终视频质量检查）
+```bash
+# 1. 初始化项目（创建 video-config.json + article.md 占位文件）
+bash {SKILL_DIR}/scripts/launch.sh init <项目名>
+
+# 2. 编辑 video-config.json（平台/时长/主题/封面标题/配音等）
+# 3. 粘贴内容到 docs/article.md
+
+# 4. 一键生成（完整执行 7 步）：
+#    Step 0: generate_docs.js（11个文档，含 narration.txt）
+#    Step -1: generate_cover.py（封面图 vertical/wechat/xhs）
+#    Step 1: edge-tts --rate +0%（配音）
+#    Step 2: ffmpeg（去静音 + atempo 1.2x + AAC 256k）
+#    Step 3: subtitle-generator.js（ASS 字幕，maxCharsPerLine=50）
+#    Step 4: create-remotion-project.js（Remotion 项目，含逐字高亮字幕）
+#    Step 5: npm install
+#    Step 6: pre-render-check.js（渲染前检查）
+#    Step 7: npx remotion render（60fps/1080×1920，含字幕特效）
 bash {SKILL_DIR}/scripts/launch.sh all
 ```
+
+**输出文件清单**：
+- `docs/assets/cover.png` — 竖屏封面（1080×1920）
+- `docs/assets/cover-wechat.png` — 公众号封面（900×383）
+- `docs/assets/cover-xhs.png` — 小红书封面（1440×2560）
+- `docs/narration.txt` — 配音文本
+- `docs/video-script.md` — 分镜脚本
+- `audio/neural_1_2x.m4a` — 处理后音频（AAC 256k）
+- `audio/subtitles.ass` — ASS字幕（逐字高亮特效）
+- `video-project/out/final.mp4` — 最终视频（含字幕/配音/60fps/H.264）
 
 **性能优化（2026-05-12 v3）**：
 - edge-tts + 帧生成并行：两者同时执行（~20s + ~50s → ~50s），节省 ~20s

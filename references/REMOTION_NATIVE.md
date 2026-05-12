@@ -99,7 +99,17 @@ video-project/
 
 ---
 
-## 字幕格式：ASS → captions.json
+## 字幕格式：sentence-level captions.json + TikTokCaptionOverlay
+
+> ⚠️ **重要**：Remotion Native 字幕渲染**不使用** `createTikTokStyleCaptions`（它需要 word-level timing，ASS 只有 sentence-level）。正确方案见 `subtitle-tiktok-highlight.md`。
+
+### 字幕方案对比
+
+| 方案 | 字幕来源 | 是否需要 word-level timing | 适用场景 |
+|------|---------|---------------------------|---------|
+| **TikTokCaptionOverlay** | `captions.json`（sentence-level） | ❌ 不需要，interpolate 模拟 | ✅ **Remotion Native 主方案** |
+| `createTikTokStyleCaptions` | 必须提供 `words[]` 数组 | ✅ 需要 | ❌ 不适用于 ASS 转换数据 |
+| ffmpeg ASS 烧录 | `subtitles.ass` | ❌ 不需要 | ffmpeg 兜底渲染路径 |
 
 ### ASS 规范（subtitle-generator.js 输出）
 - Fontsize: 72（PlayResY=1920 时约 40px 视觉）
@@ -110,30 +120,32 @@ video-project/
 - 换行符: `\N`
 - 时间戳: 2位厘秒（CC），如 `0:00:04.50`
 
-### captions.json 格式（@remotion/captions）
+### captions.json 格式（sentence-level，用于 TikTokCaptionOverlay）
+
+> ⚠️ **不能用 `createTikTokStyleCaptions`**：该 API 需要每个词有独立 timing，ASS 只能导出句子级 timing，会导致字幕不显示。
+
 ```json
 [
   {
-    "text": "第一行字幕文字",
+    "text": "今天介绍免费AI路由工具9Router",
     "startMs": 0,
-    "endMs": 4500,
-    "timestampMs": null,
-    "confidence": null
+    "endMs": 2960
   },
   {
-    "text": "第二行字幕文字",
-    "startMs": 4500,
-    "endMs": 9000,
-    "timestampMs": null,
-    "confidence": null
+    "text": "永不停码节省tokens",
+    "startMs": 2960,
+    "endMs": 4830
   }
 ]
 ```
 
-### 转换逻辑（create-remotion-project.js 内置）
+### 转换逻辑
+
 ```
-ASS Dialogue 行 → 正则解析 Start/End 时间（时分秒.厘秒 → 毫秒）→ 文本清洗 → Caption[]
+ASS Dialogue 行 → Python 正则解析 Start/End 时间 → 文本清洗 → captions.json
 ```
+
+> 完整转换脚本见 `ass-subtitle-gen.md` 或 `subtitle-tiktok-highlight.md`。
 
 ---
 

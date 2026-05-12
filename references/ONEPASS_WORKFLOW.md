@@ -48,26 +48,42 @@ cp video-config.json video-project/
 
 ---
 
-### Step 2：edge-tts 配音（方案A：直接生成）
+### Step 2：edge-tts 配音
+
+**先写 narration.txt（配音文本），再生成音频。**
 
 ```bash
+# 配音文本：字数上限 = ⌊目标时长 × 6.45⌋ 字（不用 --rate +20%，会导致叠速）
+# 音频处理：edge-tts --rate +0% → atempo 1.2x → AAC 256k
+# 禁止叠速：--rate +20% + atempo 1.2x 会导致音频过度加速
+
 edge-tts \
   --voice zh-CN-YunjianNeural \
-  --rate "+20%" \
-  --text "$(cat video-project/docs/narration.txt)" \
-  --output video-project/audio/neural_1_2x.m4a
+  --rate "+0%" \
+  --text "$(cat docs/narration.txt)" \
+  --write-media audio/neural_full.mp3
 ```
 
-**关键**：rate 参数用百分比（`+20%`），不是倍数（`1.2`）
-**edge-tts 已按目标语速生成，不需要 atempo 后处理**
+**配音文本字数公式（实测验证）：**
+- 上限 = ⌊目标时长 × 6.45⌋ 字
+- 52秒目标 → 最多 335 字（zh-CN-YunjianNeural --rate +0% 测得）
+- 旧公式 ⌊目标时长 ÷ 1.2 × 4.5⌋ 严重偏低（52秒仅195字），已废弃
+
+**禁止叠速规则（二选一）：**
+- 方案A：`--rate +0%` + `atempo 1.2x`（推荐，音频质量最高）
+- 方案B：`--rate +20%` + `atempo 1.0x`（也可以）
+- **禁止**：`--rate +20%` + `atempo 1.2x`（双重加速，音频严重失真）
 
 ---
 
-### Step 3：重编码为 m4a（固定比特率）
+### Step 3：ffmpeg 音频后处理（atempo 1.2x + AAC 256k）
 
 ```bash
-ffmpeg -y -i video-project/audio/neural_1_2x.m4a \
-  -c:a aac -b:a 256k video-project/audio/neural_1_2x.m4a
+# 去静音 + 1.2x 加速 + AAC 256k
+ffmpeg -y -i audio/neural_full.mp3 \
+  -af "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.3,atempo=1.2" \
+  -c:a aac -b:a 256k \
+  audio/neural_1_2x.m4a
 ```
 
 ---
@@ -94,12 +110,12 @@ node {SKILL_DIR}/scripts/video-quality-gate.js audio
 node -e "
 const { SubtitleGenerator } = require('{SKILL_DIR}/scripts/subtitle-generator.js');
 const fs = require('fs');
-const gen = new SubtitleGenerator({ maxCharsPerLine: 25 });
-const text = fs.readFileSync('video-project/docs/narration.txt', 'utf8');
-const config = JSON.parse(fs.readFileSync('video-project/video-config.json', 'utf8'));
+const gen = new SubtitleGenerator({ maxCharsPerLine: 50 });
+const text = fs.readFileSync('docs/narration.txt', 'utf8');
+const config = JSON.parse(fs.readFileSync('video-config.json', 'utf8'));
 const totalDuration = config.duration;
 gen.generateFromText(text, totalDuration).then(subs => {
-  return gen.generateASS(subs, 'video-project/audio/subtitles.ass');
+  return gen.generateASS(subs, 'audio/subtitles.ass');
 }).then(() => console.log('ASS generated')).catch(e => { console.error(e); process.exit(1); });
 "
 ```

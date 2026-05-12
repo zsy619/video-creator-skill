@@ -204,111 +204,160 @@ export function getTheme(id: string): ThemeConfig {
   fs.writeFileSync(path.join(themesDir, "index.ts"), themesIndex);
 
   // ── 5. src/components/CaptionOverlay.tsx ───────────────────────────────────
-  const captionOverlay = `import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { AbsoluteFill, staticFile, useDelayRender, useCurrentFrame, useVideoConfig } from "remotion";
-import { createTikTokStyleCaptions } from "@remotion/captions";
-import type { Caption, TikTokPage } from "@remotion/captions";
+  // TikTok 风格逐字高亮字幕（sentence-level captions.json，无需 word-level timing）
+  const captionOverlay = `import React, { useState, useEffect, useMemo } from "react";
+import {
+  AbsoluteFill,
+  Sequence,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+  interpolate,
+} from "remotion";
+import type { Caption } from "@remotion/captions";
 
-const SWITCH_CAPTIONS_EVERY_MS = 1200;
 const HIGHLIGHT_COLOR = "#39E508";
+const ACTIVE_COLOR = "#FFFFFF";
+const INACTIVE_COLOR = "rgba(255,255,255,0.45)";
+const FONT_SIZE = 64;
+const LINE_HEIGHT = 1.5;
 
-const CaptionPage: React.FC<{ page: TikTokPage }> = ({ page }) => {
+function tokenize(text: string): string[] {
+  const tokens: string[] = [];
+  const regex = /[\\u4e00-\\u9fff]+|[\\u3000-\\u303f\\uff00-\\uffef]+|[a-zA-Z0-9]+|[\\u0020-\\u007f]+/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const token = match[0];
+    if (token.trim()) tokens.push(token);
+  }
+  return tokens.length === 0 ? text.split("") : tokens;
+}
+
+const TikTokCaptionLine: React.FC<{
+  text: string;
+  startFrame: number;
+  durationInFrames: number;
+  fps: number;
+}> = ({ text, startFrame, durationInFrames, fps }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const currentTimeMs = (frame / fps) * 1000;
-  const absoluteTimeMs = page.startMs + currentTimeMs;
+  const localFrame = frame - startFrame;
+  const tokens = useMemo(() => tokenize(text), [text]);
+  const msPerToken = (durationInFrames / tokens.length / fps) * 1000;
+
+  const entryProgress = interpolate(localFrame, [0, 15], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const entryScale = interpolate(entryProgress, [0, 1], [0.85, 1]);
+  const entryOpacity = interpolate(entryProgress, [0, 1], [0, 1]);
+
+  const exitFadeStart = Math.max(0, durationInFrames - 20);
+  const exitOpacity = interpolate(localFrame, [exitFadeStart, durationInFrames], [1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  const opacity = entryOpacity * exitOpacity;
 
   return (
-    <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center" }}>
+    <div
+      style={{
+        position: "absolute",
+        bottom: 56,
+        left: 0,
+        right: 0,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        pointerEvents: "none",
+        opacity,
+        transform: \`scale(\${entryScale})\`,
+      }}
+    >
       <div
         style={{
-          fontSize: 72,
-          fontWeight: "bold",
-          whiteSpace: "pre",
-          color: "white",
-          textShadow: "0 0 10px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.8)",
-          marginBottom: 50,
-          textAlign: "center",
-          padding: "0 40px",
-          fontFamily: "PingFang SC, STHeiti Medium, sans-serif",
+          background: "rgba(0,0,0,0.55)",
+          borderRadius: 12,
+          padding: "12px 36px",
+          maxWidth: "92%",
         }}
       >
-        {page.tokens.map((token) => {
-          const isActive = token.fromMs <= absoluteTimeMs && token.toMs > absoluteTimeMs;
-          return (
-            <span key={token.fromMs} style={{ color: isActive ? HIGHLIGHT_COLOR : "white" }}>
-              {token.text}
-            </span>
-          );
-        })}
+        <div
+          style={{
+            fontSize: FONT_SIZE,
+            fontWeight: "bold",
+            whiteSpace: "pre-wrap",
+            textAlign: "center",
+            padding: "0 8px",
+            fontFamily: "STHeiti Medium, sans-serif",
+            lineHeight: LINE_HEIGHT,
+            color: ACTIVE_COLOR,
+          }}
+        >
+          {tokens.map((token, i) => {
+            const tokenStartMs = i * msPerToken;
+            const tokenEndMs = (i + 1) * msPerToken;
+            const currentMs = localFrame * (1000 / fps);
+            const isActive = currentMs >= tokenStartMs;
+            const isPast = currentMs > tokenEndMs;
+            return (
+              <span
+                key={i}
+                style={{
+                  color: isPast ? INACTIVE_COLOR : isActive ? HIGHLIGHT_COLOR : ACTIVE_COLOR,
+                  display: "inline-block",
+                  transition: "color 0.08s ease",
+                }}
+              >
+                {token}
+              </span>
+            );
+          })}
+        </div>
       </div>
-    </AbsoluteFill>
+    </div>
   );
 };
 
-export const CaptionOverlay: React.FC<{ captionsFile?: string }> = ({ captionsFile = "audio/captions.json" }) => {
-  const [captions, setCaptions] = useState<Caption[] | null>(null);
+export const CaptionOverlay: React.FC<{ captionsFile?: string }> = ({
+  captionsFile = "audio/captions.json",
+}) => {
+  const [captions, setCaptions] = useState<Caption[]>([]);
   const { fps } = useVideoConfig();
-  const delayRender = useDelayRender();
-
-  const handle = useCallback(() => delayRender(), [delayRender]);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch(staticFile(captionsFile));
-        if (!res.ok) { handle(); return; }
-        const data = await res.json();
-        setCaptions(data);
-      } catch {
-        // fallback: no captions
-      }
-      delayRender();
-    };
-    load();
-  }, [captionsFile, delayRender, handle]);
+    fetch(staticFile(captionsFile))
+      .then((res) => res.json())
+      .then((data) => setCaptions(data))
+      .catch(() => setCaptions([]));
+  }, [captionsFile]);
 
-  const pages = useMemo(() => {
-    if (!captions || captions.length === 0) return [];
-    return createTikTokStyleCaptions({ captions, combineTokensWithinMilliseconds: SWITCH_CAPTIONS_EVERY_MS }).pages;
-  }, [captions]);
-
-  if (!captions || captions.length === 0) return null;
+  if (captions.length === 0 || !fps) return null;
 
   return (
     <AbsoluteFill>
-      {pages.map((page, index) => {
-        const nextPage = pages[index + 1] ?? null;
-        const startFrame = Math.floor((page.startMs / 1000) * fps);
-        const endFrame = Math.min(
-          nextPage ? Math.floor((nextPage.startMs / 1000) * fps) : Infinity,
-          startFrame + Math.floor((SWITCH_CAPTIONS_EVERY_MS / 1000) * fps)
-        );
+      {captions.map((caption, index) => {
+        const nextCaption = captions[index + 1] ?? null;
+        const startFrame = Math.floor((caption.startMs / 1000) * fps);
+        const endFrame = nextCaption
+          ? Math.floor((nextCaption.startMs / 1000) * fps)
+          : Math.floor((caption.endMs / 1000) * fps);
         const durationInFrames = endFrame - startFrame;
         if (durationInFrames <= 0) return null;
+
         return (
-          <React.Fragment key={index}>
-            {/* Render page content - handled by parent */}
-          </React.Fragment>
+          <Sequence key={index} from={startFrame} durationInFrames={durationInFrames}>
+            <TikTokCaptionLine
+              text={caption.text}
+              startFrame={0}
+              durationInFrames={durationInFrames}
+              fps={fps}
+            />
+          </Sequence>
         );
       })}
     </AbsoluteFill>
   );
-};
-
-// 字幕专用 Sequence 渲染器（独立导出供 Video.tsx 使用）
-export const renderCaptions = (pages: TikTokPage[], fps: number) => {
-  return pages.map((page, index) => {
-    const nextPage = pages[index + 1] ?? null;
-    const startFrame = Math.floor((page.startMs / 1000) * fps);
-    const endFrame = Math.min(
-      nextPage ? Math.floor((nextPage.startMs / 1000) * fps) : Infinity,
-      startFrame + Math.floor((SWITCH_CAPTIONS_EVERY_MS / 1000) * fps)
-    );
-    const durationInFrames = endFrame - startFrame;
-    if (durationInFrames <= 0) return null;
-    return { page, startFrame, durationInFrames };
-  }).filter(Boolean);
 };
 `;
   fs.writeFileSync(path.join(componentsDir, "CaptionOverlay.tsx"), captionOverlay);

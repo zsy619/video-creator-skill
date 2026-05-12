@@ -1,5 +1,24 @@
 # subtitle-generator.js 正确用法
 
+## ⚠️ SubtitleGenerator 内部 hard-cut bug
+
+**症状**："Claude4.5" 被切成 "Claude4" + "5" 两个独立字幕行；"git diff" 被切成 "di" + "ff"。
+
+**根因**：SubtitleGenerator 的 `maxCharsPerLine` 默认值为 **25**，当某段文本（split 后不含逗号）接近 50 字符时：
+1. 合并短行用 `\N` 连接 → 可能超过 50 字符
+2. 硬切只检查**后半部分** substring，不检查合并总长度
+
+**规避方法**：在 voice_text.txt 中用句号 `。` 打断高密度文本段：
+```
+# 错误（会被硬切）:
+三个免费AI方案：Kiro AI提供Claude4.5，免费无限使用
+
+# 正确（句号打断，无硬切风险）:
+三个免费AI方案：Kiro AI提供Claude4.5。免费无限使用。
+```
+
+**备选方案**：绕过 SubtitleGenerator，直接用 Python 或 Node.js 生成 ASS（见下方"手工 ASS 生成"模板）。
+
 ## 重要：SubtitleGenerator 是类库，不是 CLI
 
 **错误用法**:
@@ -80,6 +99,20 @@ for (let i = 0; i < n; i++) {
 
 fs.writeFileSync('audio/subtitles.ass', ass, 'utf8');
 console.log(`✅ 字幕已生成: ${n}条`);
+```
+
+## ASS 时间格式陷阱
+
+SubtitleGenerator 输出时间格式为 `0:00:00.00`（单数字小时），但 **ffmpeg ASS 滤镜要求 `00:00:00.00`（双数字小时）**。直接用会导致字幕烧录失败。
+
+**修正命令**：
+```bash
+sed -i '' 's/\([0-9]\):\([0-9][0-9]\):\([0-9][0-9]\)\.\([0-9][0-9]\)/\1:\2:\3.\4/g' audio/subtitles.ass
+```
+
+**字体替换**：ffmpeg 无法加载 PingFang SC，实测 STHeiti Medium 可用：
+```bash
+sed -i '' 's/PingFang SC/STHeiti Medium/g' audio/subtitles.ass
 ```
 
 ## 关键参数（规范值）

@@ -5,7 +5,9 @@
  * Remotion 视频渲染前置检查 - 渲染前验证所有配置
  * 检查帧数计算、Sequence结构、字体大小等
  * 
- * 用法: node pre-render-check.js <tsx-file> [fps] [duration]
+ * 用法: 
+ *   node pre-render-check.js <tsx-file> [fps] [duration]
+ *   node pre-render-check.js <project-dir>  ← 自动查找 tsx 文件并推断 fps/duration
  * 
  * 退出码:
  *   0 = 检查通过，可以渲染
@@ -16,9 +18,55 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const TSX_FILE = process.argv[2];
-const FPS = parseInt(process.argv[3] || '60');
-const EXPECTED_DURATION = parseFloat(process.argv[4] || '60');
+let TSX_FILE = process.argv[2];
+const FPS_ARG = process.argv[3];
+const EXPECTED_DURATION_ARG = process.argv[4];
+
+let FPS = FPS_ARG ? parseInt(FPS_ARG) : 60;
+let EXPECTED_DURATION = EXPECTED_DURATION_ARG ? parseFloat(EXPECTED_DURATION_ARG) : 60;
+
+// 自动检测：如果传入的是目录而非文件，自动查找 tsx 并推断 fps/duration
+if (TSX_FILE && fs.existsSync(TSX_FILE) && fs.statSync(TSX_FILE).isDirectory()) {
+  const projDir = TSX_FILE;
+  // 查找 tsx 文件
+  const candidates = ['Video.tsx', 'VerticalVideo.tsx', 'MainVideo.tsx', 'App.tsx'];
+  let foundTsx = null;
+  for (const name of candidates) {
+    const p = path.join(projDir, 'src', name);
+    if (fs.existsSync(p)) { foundTsx = p; break; }
+  }
+  if (!foundTsx) {
+    const srcDir = path.join(projDir, 'src');
+    if (fs.existsSync(srcDir)) {
+      const tsxFiles = fs.readdirSync(srcDir).filter(f => /\.tsx$/.test(f));
+      if (tsxFiles.length > 0) foundTsx = path.join(srcDir, tsxFiles[0]);
+    }
+  }
+  if (!foundTsx) {
+    console.error(`❌ 在 ${projDir}/src/ 下找不到 .tsx 文件`);
+    process.exit(1);
+  }
+  TSX_FILE = foundTsx;
+  // 从 video-config.json 推断 fps 和 duration
+  const configFile = path.join(projDir, 'video-config.json');
+  const configFileAlt = path.join(projDir, 'video-project', 'video-config.json');
+  const cfg = fs.existsSync(configFile)
+    ? JSON.parse(fs.readFileSync(configFile, 'utf8'))
+    : (fs.existsSync(configFileAlt) ? JSON.parse(fs.readFileSync(configFileAlt, 'utf8')) : null);
+  if (cfg) {
+    if (cfg.fps) FPS = cfg.fps;
+    if (cfg.duration) EXPECTED_DURATION = cfg.duration;
+  }
+  // 从音频时长推断
+  const audioFile = path.join(projDir, 'audio', 'neural_1_2x.m4a');
+  if (fs.existsSync(audioFile)) {
+    try {
+      const out = execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${audioFile}"`, { encoding: 'utf8', timeout: 10000 });
+      const dur = parseFloat(out.trim());
+      if (dur > 0) EXPECTED_DURATION = dur;
+    } catch (e) { /* ignore */ }
+  }
+}
 
 // ANSI颜色
 const RED = '\x1b[31m';
@@ -83,8 +131,10 @@ function checkGlobalFrameUsage(content, sequences) {
 
 function checkFontSize(content, maxWidth = 1080) {
   // 检查字体大小是否合理
-  // 竖屏 1080×1920 标准字号：字幕72px，标题96-130px，正文36-48px
-  // Remotion CSS fontSize 在 JSX style 中是实际像素值，与 PlayResY=1920 的 ASS Fontsize=72 不同
+  // 竖屏 1080×1920 标准字号：
+  //   - 字幕：ASS Fontsize=72（PlayResY=1920，约40px视觉），用字幕组件渲染
+  //   - CSS fontSize（Remotion JSX）：主标题80-130px，副标题36-56px，正文28-36px
+  // 注意：CSS fontSize 像素值与 ASS Fontsize 不是同一体系，不要混淆
   const warnings = [];
 
   // 只检查过小的字号（< 20px 在竖屏 1080×1920 下基本不可见）
@@ -96,7 +146,7 @@ function checkFontSize(content, maxWidth = 1080) {
       warnings.push({
         line: getLineNumber(content, match.index),
         size,
-        reason: `字号${size}px过小，竖屏视频中基本不可见`
+        reason: `字号${size}px过小（竖屏视频中<20px基本不可见）`
       });
     }
   }
@@ -197,7 +247,7 @@ function main() {
   log('\n【3/5】检查字体大小...');
   const fontWarnings = checkFontSize(content);
   if (fontWarnings.length > 0) {
-    log(`   ⚠️ 发现 ${fontWarnings.length} 处可能过大的字号`, YELLOW);
+    log(`   ⚠️ 发现 ${fontWarnings.length} 处可能过小的字号（<20px）`, YELLOW);
     fontWarnings.forEach(w => {
       log(`   行${w.line}: ${w.size}px - ${w.reason}`, YELLOW);
     });

@@ -88,16 +88,19 @@ function checkTextLength() {
 
   console.log(`\n   [文本长度检查] 目标时长: ${TARGET_DURATION}s`);
 
-  // 查找配音文本文件（video-script.md 或 raw/text.txt）
+  // 配音文本文件路径（launch.sh all 使用 docs/narration.txt）
+  const narrationFile = path.join(PROJECT_DIR, 'docs', 'narration.txt');
   const scriptFile = path.join(PROJECT_DIR, 'docs', 'video-script.md');
   const textFile = path.join(PROJECT_DIR, 'raw', 'text.txt');
 
   let text = null;
   let textSource = null;
 
-  if (fs.existsSync(scriptFile)) {
+  if (fs.existsSync(narrationFile)) {
+    text = fs.readFileSync(narrationFile, 'utf8').trim();
+    textSource = narrationFile;
+  } else if (fs.existsSync(scriptFile)) {
     const content = fs.readFileSync(scriptFile, 'utf8');
-    // 去掉 frontmatter、markdown 标记
     text = content.replace(/^---[\s\S]*?---\n/, '').replace(/[#*`\[\]]/g, '').trim();
     textSource = scriptFile;
   } else if (fs.existsSync(textFile)) {
@@ -110,12 +113,13 @@ function checkTextLength() {
     return true;
   }
 
-  // 中文字符粗略计数
+  // 中文字符粗略计数（仅统计中文，英文/标点不计入）
   const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
   const totalChars = text.length;
 
-  // 字数上限 = floor(目标时长 / 1.2 * 4.5)
-  const maxChars = Math.floor(TARGET_DURATION / 1.2 * 4.5);
+  // 字数上限 = floor(目标时长 × 6.45)，实测依据：zh-CN-YunjianNeural --rate +20%
+  // ⚠️ 旧公式 floor(TARGET_DURATION / 1.2 * 4.5) 严重偏低（52秒仅195字），已废弃
+  const maxChars = Math.floor(TARGET_DURATION * 6.45);
 
   console.log(`   文本字数: ${chineseChars}字（中文）/ ${totalChars}字（总计）`);
   console.log(`   字数上限: ${maxChars}字（目标${TARGET_DURATION}s @1.2x语速）`);

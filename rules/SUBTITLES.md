@@ -75,7 +75,7 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,PingFang SC,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,30,30,50,1
+Style: Default,STHeiti Medium,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,30,30,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -142,7 +142,7 @@ for i, (start, end, text) in enumerate(subtitles):
 | `MarginR` | **30** | 右侧边距 30px |
 | `MarginV` | **50** | 底部边距 50px |
 | `WrapStyle` | **0** | 支持 `\N` 换行符 |
-| `Fontname` | `PingFang SC` | macOS 系统中文字体 |
+| `Fontname` | `STHeiti Medium` | macOS 系统中文字体，实测 ffmpeg 烧录可用 |
 | `Outline` | **2** | 2px 黑色描边（1px太细） |
 | `Shadow` | **0** | 无阴影（霓虹风格用发光效果更好） |
 
@@ -215,7 +215,7 @@ video-creator batch --directory ./workspace --fix
 
 ### 功能特性
 - **智能字体选择**：自动根据操作系统选择兼容字体
-  - macOS: `PingFang SC`
+  - macOS: `STHeiti Medium`（PingFang SC 在 ffmpeg 烧录时不可用）
   - Windows: `Microsoft YaHei`
   - Linux: `WenQuanYi Micro Hei`
 - **ASS格式支持**：生成标准ASS字幕文件
@@ -352,16 +352,57 @@ node scripts/video-check.js batch-process --directory ./workspace --output batch
 
 | 参数 | 值 | 说明 |
 |------|-----|-----|
-| Fontsize | 72 | PlayResY=1920时约40px视觉 |
-| PlayResX/PlayResY | 1080/1920 | 必须设置 |
-| PrimaryColour | &H00FFFF | 黄色 |
-| Alignment | 2 | 底部居中 |
-| MarginL/MarginR | 30 | 左右边距 |
-| MarginV | 50 | 底部边距 |
-| Outline | 2 | 2px描边 |
-| Shadow | 0 | 无阴影 |
-| WrapStyle | 0 | \N换行 |
-| Fontname | PingFang SC | macOS字体 |
+| `Fontsize` | **72** | ASS字幕标准化像素值（PlayResY=1920时，约40px视觉，已验证） |
+| `PlayResX` | **1080** | 竖屏视频宽度 |
+| `PlayResY` | **1920** | 竖屏视频高度 |
+| `PrimaryColour` | `&H00FFFFFF` | **白色**（TikTokCaptionOverlay 负责高亮染色） |
+| `Alignment` | **2** | 底部居中 |
+| `MarginL` | **10** | 左侧边距 10px |
+| `MarginR` | **10** | 右侧边距 10px |
+| `MarginV` | **10** | 底部边距 10px（TikTokCaptionOverlay 自行用 bottom:56 定位） |
+| `WrapStyle` | **0** | 支持 `\N` 换行符 |
+| `Fontname` | `STHeiti Medium` | macOS 实测可用（PingFang SC 在 ffmpeg 烧录时不可用） |
+| `Outline` | **2** | 2px 黑色描边（1px太细） |
+| `Shadow` | **0** | 无阴影（霓虹风格用发光效果更好） |
+
+> **⚠️ 颜色说明**：`PrimaryColour=&H00FFFFFF`（白色）是 ASS 文件规范色。TikTokCaptionOverlay 在渲染时动态将当前朗读字变为 `#39E508` 荧光绿、已读字变为半透明白 `rgba(255,255,255,0.45)`。如果直接在 ASS 里设置高亮色，就无法实现逐字动态变色效果。
+
+### ⚠️ re.split 致命陷阱：ASCII 句点切断英文词
+
+> **已确认 bug**（2026-05-12 调试 9Router 项目时发现）
+
+**错误 pattern**：
+```python
+re.split(r'[，。；、→\.．,;]+', text)  # ❌ 含 \. 会匹配英文句点
+```
+当 text 包含 `Claude4.5` 时，ASCII 句点 `.` 触发分割：
+```
+'三个免费AI方案：Kiro AI提供Claude4'  ← 25字符，orphaned 5
+'5'                                      ← 单独成条目
+```
+
+**正确 pattern**：
+```python
+re.split(r'[，。；、]+', text)  # ✅ 只分割中文句子边界
+```
+> **原则**：中文文本的 ASS 字幕，**只用中文标点**（，。；、...）作为分割符。英文句点、逗号、永不混入 split pattern。
+
+**验证命令**：
+```bash
+python3 -c "
+import re
+text = open('audio/voice_text.txt').read()
+# 找含英文句点的段落
+import re
+for m in re.finditer(r'[a-zA-Z0-9]\.[a-zA-Z0-9]', text):
+    idx = m.start()
+    print(repr(text[max(0,idx-10):idx+20]))
+parts = re.split(r'[，。；、]+', text)
+for p in parts:
+    if 'Claude' in p:
+        print(f'Claude段 len={len(p)}: {p}')
+"
+```
 
 > **重要**：Fontsize=72 是相对于 PlayResY=1920 的标准化值，不是实际像素值。
 
