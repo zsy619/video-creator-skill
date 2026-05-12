@@ -12,13 +12,22 @@
 | Outline | **2px**（1px太细） | ~~1px~~ |
 | MarginV | **50px** | ~~30px~~ |
 | 换行符 | `\N`（单个反斜杠） | `\\N`（双反斜杠） |
-| 字幕格式 | ASS 烧录到画面 | MP4 内嵌（不支持） |
+| 字幕格式 | **@remotion/captions 烧录（Remotion Native）**；ffmpeg ASS 滤镜（fallback） | MP4 内嵌（不支持） |
 | 时间轴基准 | **最终音频时长**（后处理后） | 原始音频时长 |
 | PlayRes | **PlayResX=1080, PlayResY=1920** | 不设置 |
 | 字段数 | Format 声明10字段，Dialogue 写10字段 | 字段数不匹配 |
 | 时间戳格式 | **2位厘秒**（如 `0:00:04.50`） | ~~3位毫秒~~ |
 
 > **⚠️ 字幕时间轴必须基于最终音频时长**。在音频后处理（atempo）完成之前，禁止生成字幕。
+
+### 字幕烧录方案
+
+| 方案 | 渲染路径 | 字幕来源 |
+|------|----------|----------|
+| **Remotion Native（主）** | Remotion 渲染 | `captions.json`（由 `create-remotion-project.js` 从 ASS 转换）|
+| **ffmpeg ASS（fallback）** | PIL 帧序列混流 | `subtitles.ass`（`subtitle-generator.js` 输出）|
+
+> **Remotion Native 字幕烧录**：`create-remotion-project.js` 内置 ASS → `captions.json` 转换，`CaptionOverlay` 组件通过 `@remotion/captions` API 渲染到帧。
 
 ### 规范冲突记录（已废弃的值）
 

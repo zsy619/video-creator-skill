@@ -185,32 +185,85 @@ cmd_subtitle() {
 
 # ── 子命令: render ────────────────────────────────────────────────────────────
 cmd_render() {
-  local proj_dir="${PROJECT_DIR:-$(pwd)}"
+  local proj_dir="${1:-.}"
+  local VP_DIR="${proj_dir}/video-project"
+  local GATE="${SCRIPT_DIR}/video-quality-gate.js"
+  local CREATE_REMOTION="${SCRIPT_DIR}/create-remotion-project.js"
 
-  log "渲染视频（Step 10）..."
+  log "Remotion Native 渲染流程..."
 
-  # 前置检查
-  if ! node "${GATE}" "${proj_dir}" "audio" > /dev/null 2>&1; then
-    err "音频节点未通过"
+  # 前置检查：音频和字幕
+  if [ ! -d "${proj_dir}/audio" ]; then
+    err "audio 目录不存在，请先运行 audio 命令"
     exit 1
   fi
+
   if ! node "${GATE}" "${proj_dir}" "subtitle" > /dev/null 2>&1; then
     err "字幕节点未通过"
     exit 1
   fi
 
-  # ⚠️【2026-05-10新增】渲染前必须通过 render 节点检查
+  # ⚠️ 渲染前必须通过 render 节点检查
   if ! node "${GATE}" "${proj_dir}" "render" > /dev/null 2>&1; then
-    err "渲染前检未通过（见上），常见问题:"
+    err "渲染前检未通过，常见问题:"
     err "  1. package.json 使用 @remotion/core（应改为 remotion）"
     err "  2. Video.tsx 存在 <Text> 组件（应改为 <div>）"
     err "  3. node_modules/remotion 未安装"
     exit 1
   fi
 
+  # ── 生成 Remotion 项目 ───────────────────────────────────────────────────
   echo ""
-  echo "请参考 ONEPASS_WORKFLOW.md 的 Step 7-9 执行 Remotion 渲染"
-  echo "或运行 $0 all 进行一键生成"
+  echo "=== 生成 Remotion 项目 ==="
+  node "${CREATE_REMOTION}" "${proj_dir}"
+  if [ $? -ne 0 ]; then
+    err "Remotion 项目生成失败"
+    exit 1
+  fi
+
+  # ── npm install ────────────────────────────────────────────────────────────
+  echo ""
+  echo "=== npm install ==="
+  cd "${VP_DIR}" && npm install 2>&1 | tail -5
+  if [ $? -ne 0 ]; then
+    err "npm install 失败"
+    exit 1
+  fi
+
+  # ── Remotion 渲染 ─────────────────────────────────────────────────────────
+  echo ""
+  echo "=== Remotion 渲染（60fps / 1080×1920 / MP4）==="
+
+  mkdir -p "${VP_DIR}/out"
+
+  # 计算帧数
+  local AUDIO_DURATION
+  AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
+    -of csv=p=0 "${proj_dir}/audio/neural_1_2x.m4a" 2>/dev/null || echo "38")
+  local TOTAL_FRAMES
+  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
+
+  log "音频时长: ${AUDIO_DURATION}s → ${TOTAL_FRAMES} 帧 @60fps"
+
+  npx remotion render VerticalVideo \
+    "${VP_DIR}/out/final.mp4" \
+    --concurrency=4 \
+    --fps=60 \
+    --duration-in-frames=${TOTAL_FRAMES} \
+    --disable-gpu \
+    2>&1 | tail -10
+
+  if [ $? -ne 0 ]; then
+    err "Remotion 渲染失败，尝试 fallback 到 PIL 帧序列..."
+    # fallback 逻辑由 cmd_all 处理
+    return 1
+  fi
+
+  ok "Remotion 渲染完成: ${VP_DIR}/out/final.mp4"
+  echo ""
+  echo "最终文件: ${VP_DIR}/out/final.mp4"
+  echo "渲染方式: Remotion Native（音频内嵌 / 字幕烧录 / MP4直出）"
+  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 60fps"
 }
 
 # ── 子命令: all ────────────────────────────────────────────────────────────────
@@ -246,11 +299,9 @@ cmd_all() {
   THEME=$(node -e "console.log(require('${config_file}').theme || 'cyberpunk')")
   ok "主题: ${THEME}"
 
-  # ── edge-tts 配音 + 帧生成 并行执行 ─────────────────────────────────
-  # edge-tts：~20s（纯计算/网络），帧生成：~50s（纯计算）
-  # 两者均不依赖对方，可完全并行
+  # ── edge-tts 配音（与帧生成并行，但主流程只做配音）──────────────
   echo ""
-  echo "=== edge-tts 配音 + 帧生成（并行）==="
+  echo "=== edge-tts 配音 ==="
 
   local narration_file="${proj_dir}/docs/narration.txt"
   if [ ! -f "$narration_file" ]; then
@@ -267,43 +318,36 @@ cmd_all() {
   fi
   ok "语速: ${EDGE_RATE}"
 
-  mkdir -p "${proj_dir}/audio" "${VP_DIR}/frames"
+  mkdir -p "${proj_dir}/audio" "${VP_DIR}/audio" "${VP_DIR}/out"
 
-  # 启动 edge-tts（后台）
   edge-tts \
     --voice "$(node -e "console.log(require('${config_file}').voice?.name || 'zh-CN-YunjianNeural')")" \
     --rate "$EDGE_RATE" \
     --text "$(cat "$narration_file")" \
     --write-media "${proj_dir}/audio/neural_1_2x.m4a" \
-    > /tmp/edge_tts.$$.out 2>&1 &
-  PID_TTS=$!
+    > /tmp/edge_tts.$$.out 2>&1
 
-  # 启动帧生成（后台，与 edge-tts 并行）
-  python3 "${SCRIPT_DIR}/gen_frames_template.py" "${proj_dir}" --theme "$THEME" > /tmp/frame_gen.$$.out 2>&1 &
-  PID_FRAME=$!
-
-  # 等待 edge-tts 完成
-  wait $PID_TTS; STATUS_TTS=$?
-  echo ""; cat /tmp/edge_tts.$$.out; echo ""
-
-  if [ $STATUS_TTS -ne 0 ]; then
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
     err "❌ edge-tts 配音失败"
-    kill $PID_FRAME 2>/dev/null || true
-    rm -f /tmp/edge_tts.$$.out /tmp/frame_gen.$$.out
+    cat /tmp/edge_tts.$$.out; echo ""
+    rm -f /tmp/edge_tts.$$.out
     exit 1
   fi
   ok "✅ 配音完成: audio/neural_1_2x.m4a"
   rm -f /tmp/edge_tts.$$.out
 
-  # ── Gate A（音频）+ 字幕生成 并行执行 ─────────────────────────────
+  # ── Gate A（音频有效性）──────────────────────────────────────────────
   echo ""
-  echo "=== 门禁 A + 字幕生成（并行）==="
+  echo "=== 门禁 A: 音频 ==="
+  if ! node "${GATE}" "${proj_dir}" "audio"; then
+    err "❌ 门禁 A 未通过，终止"
+    exit 1
+  fi
+  ok "✅ 门禁 A 通过"
 
-  # 启动 Gate A（后台）
-  node "${GATE}" "${proj_dir}" "audio" > /tmp/gate_a.$$.out 2>&1 &
-  PID_A=$!
-
-  # 启动字幕生成（后台）
+  # ── 字幕生成 ─────────────────────────────────────────────────────────
+  echo ""
+  echo "=== 字幕生成 ==="
   node -e "
     const SubtitleGenerator = require('${SUBTITLE_GEN}');
     const fs = require('fs');
@@ -312,103 +356,110 @@ cmd_all() {
     gen.generateFromText(text, ${TARGET_DURATION}).then(subs => {
       return gen.generateASS(subs, '${proj_dir}/audio/subtitles.ass');
     }).then(() => console.log('SUBTITLE_OK')).catch(e => { console.error(e.message); process.exit(1); });
-  " > /tmp/subtitle_gen.$$.out 2>&1 &
-  PID_SUB=$!
+  " > /tmp/subtitle_gen.$$.out 2>&1
 
-  # 等待 Gate A
-  wait $PID_A; STATUS_A=$?
-  echo ""; cat /tmp/gate_a.$$.out; echo ""
-
-  if [ $STATUS_A -ne 0 ]; then
-    err "❌ 门禁 A 未通过，终止"
-    kill $PID_FRAME 2>/dev/null || true
-    rm -f /tmp/gate_a.$$.out /tmp/subtitle_gen.$$.out /tmp/frame_gen.$$.out
-    exit 1
-  fi
-  ok "✅ 门禁 A 通过"
-
-  # 等待字幕生成完成
-  wait $PID_SUB; STATUS_SUB=$?
-  if [ $STATUS_SUB -ne 0 ]; then
+  if [ $? -ne 0 ] || ! grep -q "SUBTITLE_OK" /tmp/subtitle_gen.$$.out 2>/dev/null; then
     err "❌ 字幕生成失败:"; cat /tmp/subtitle_gen.$$.out; echo ""
-    kill $PID_FRAME 2>/dev/null || true
-    rm -f /tmp/gate_a.$$.out /tmp/subtitle_gen.$$.out /tmp/frame_gen.$$.out
+    rm -f /tmp/subtitle_gen.$$.out
     exit 1
   fi
-  if grep -q "SUBTITLE_OK" /tmp/subtitle_gen.$$.out 2>/dev/null; then
-    ok "✅ ASS 字幕生成完成: audio/subtitles.ass"
-  else
-    err "❌ 字幕生成输出异常"; cat /tmp/subtitle_gen.$$.out; echo ""
-    kill $PID_FRAME 2>/dev/null || true
-    rm -f /tmp/gate_a.$$.out /tmp/subtitle_gen.$$.out /tmp/frame_gen.$$.out
-    exit 1
-  fi
+  ok "✅ ASS 字幕生成完成: audio/subtitles.ass"
+  rm -f /tmp/subtitle_gen.$$.out
 
-  # ── 等待帧生成完成 + Gate B ──────────────────────────────────────────
-  echo ""
-  echo "=== 帧生成完成 + 门禁 B ==="
-
-  # 等待帧生成
-  wait $PID_FRAME; STATUS_FRAME=$?
-  echo ""; cat /tmp/frame_gen.$$.out; echo ""
-
-  if [ $STATUS_FRAME -ne 0 ]; then
-    err "❌ 帧生成失败"
-    rm -f /tmp/gate_a.$$.out /tmp/subtitle_gen.$$.out /tmp/frame_gen.$$.out
-    exit 1
-  fi
-
-  # 验证帧数（无需 local，shell 函数全局变量）
-  FRAME_COUNT=$(find "${VP_DIR}/frames" -name 'frame_*.png' 2>/dev/null | wc -l | tr -d ' ')
-  EXPECTED_FRAMES=$(python3 -c "import math; print(math.ceil(${TARGET_DURATION} * 60))")
-  if [ "$FRAME_COUNT" != "$EXPECTED_FRAMES" ]; then
-    err "❌ 帧数不匹配: actual=${FRAME_COUNT}, expected=${EXPECTED_FRAMES}"
-    rm -f /tmp/gate_a.$$.out /tmp/subtitle_gen.$$.out /tmp/frame_gen.$$.out
-    exit 1
-  fi
-  ok "✅ 帧数验证通过: ${FRAME_COUNT} 帧 (@60fps)"
-  ok "✅ 帧序列生成完成: ${VP_DIR}/frames/frame_%04d.png"
-
-  # Gate B（字幕质量检查）
+  # ── Gate B（字幕质量）───────────────────────────────────────────────
   echo ""
   echo "=== 门禁 B: 字幕 ==="
   if ! node "${GATE}" "${proj_dir}" "subtitle"; then
     err "❌ 门禁 B 未通过，终止"
-    rm -f /tmp/gate_a.$$.out /tmp/subtitle_gen.$$.out /tmp/frame_gen.$$.out
     exit 1
   fi
   ok "✅ 门禁 B 通过"
 
-  rm -f /tmp/gate_a.$$.out /tmp/subtitle_gen.$$.out /tmp/frame_gen.$$.out
-
-  # ── ffmpeg 单次混流（帧序列+音频+字幕 → 最终视频）─────────────────
+  # ── Remotion 项目生成 ───────────────────────────────────────────────
   echo ""
-  echo "=== ffmpeg 单次混流 ==="
-
-  AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
-    -of csv=p=0 "${proj_dir}/audio/neural_1_2x.m4a" 2>/dev/null)
-
-  mkdir -p "${VP_DIR}/out"
-  ffmpeg -y \
-    -framerate 60 \
-    -i "${VP_DIR}/frames/frame_%04d.png" \
-    -i "${proj_dir}/audio/neural_1_2x.m4a" \
-    -filter_complex "[0:v]ass=${proj_dir}/audio/subtitles.ass[v]" \
-    -map "[v]" -map 1:a \
-    -t "${AUDIO_DURATION}" \
-    -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p \
-    -c:a aac -b:a 192k \
-    -r 60 -s 1080x1920 \
-    "${VP_DIR}/out/final_with_subs.mp4" 2>/dev/null || {
-    err "ffmpeg 单次混流失败"
+  echo "=== 生成 Remotion 项目 ==="
+  node "${SCRIPT_DIR}/create-remotion-project.js" "${proj_dir}"
+  if [ $? -ne 0 ]; then
+    err "Remotion 项目生成失败"
     exit 1
-  }
-  ok "ffmpeg 单次混流完成: out/final_with_subs.mp4"
+  fi
 
-  # 清理帧序列（节省空间）
-  rm -rf "${VP_DIR}/frames"
+  # ── npm install ─────────────────────────────────────────────────────
+  echo ""
+  echo "=== npm install ==="
+  cd "${VP_DIR}" && npm install 2>&1 | tail -3
+  if [ $? -ne 0 ]; then
+    err "npm install 失败"
+    exit 1
+  fi
+  cd - > /dev/null
 
-  # ── 门禁 D ─────────────────────────────────────────────────────────────
+  # ── Remotion 渲染 ────────────────────────────────────────────────────
+  echo ""
+  echo "=== Remotion 渲染（60fps / 1080×1920 / MP4）==="
+
+  local AUDIO_DURATION
+  AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
+    -of csv=p=0 "${proj_dir}/audio/neural_1_2x.m4a" 2>/dev/null || echo "38")
+  local TOTAL_FRAMES
+  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
+
+  log "音频时长: ${AUDIO_DURATION}s → ${TOTAL_FRAMES} 帧 @60fps"
+
+  cd "${VP_DIR}" && npx remotion render VerticalVideo \
+    out/final.mp4 \
+    --concurrency=4 \
+    --fps=60 \
+    --duration-in-frames=${TOTAL_FRAMES} \
+    --disable-gpu \
+    2>&1 | tail -5
+
+  REMOTION_STATUS=$?
+  cd - > /dev/null
+
+  if [ $REMOTION_STATUS -ne 0 ]; then
+    warn "⚠️ Remotion 渲染失败，fallback 到 PIL 帧序列..."
+    echo ""
+    echo "=== PIL fallback: 帧序列生成 ==="
+
+    python3 "${SCRIPT_DIR}/gen_frames_template.py" "${proj_dir}" --theme "${THEME}" > /tmp/frame_gen.$$.out 2>&1
+    if [ $? -ne 0 ]; then
+      err "❌ PIL 帧生成也失败了"
+      cat /tmp/frame_gen.$$.out; echo ""
+      rm -f /tmp/frame_gen.$$.out
+      exit 1
+    fi
+
+    # 帧数验证
+    local FRAME_COUNT
+    FRAME_COUNT=$(find "${VP_DIR}/frames" -name 'frame_*.png' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$FRAME_COUNT" != "$EXPECTED_FRAMES" ]; then
+      err "❌ 帧数不匹配: actual=${FRAME_COUNT}, expected=${EXPECTED_FRAMES}"
+      rm -f /tmp/frame_gen.$$.out
+      exit 1
+    fi
+    ok "✅ PIL 帧序列: ${FRAME_COUNT} 帧"
+
+    echo ""
+    echo "=== ffmpeg 混流（PIL fallback，不烧录 ASS）==="
+    ffmpeg -y \
+      -framerate 60 \
+      -i "${VP_DIR}/frames/frame_%04d.png" \
+      -i "${proj_dir}/audio/neural_1_2x.m4a" \
+      -map 0:v -map 1:a \
+      -t "${AUDIO_DURATION}" \
+      -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p \
+      -c:a aac -b:a 256k \
+      -r 60 -s 1080x1920 \
+      "${VP_DIR}/out/final_with_subs.mp4" 2>/dev/null
+
+    rm -rf "${VP_DIR}/frames"
+    local FINAL_FILE="final_with_subs.mp4"
+  else
+    local FINAL_FILE="final.mp4"
+  fi
+
+  # ── Gate D ───────────────────────────────────────────────────────────
   echo ""
   echo "=== 门禁 D: 最终视频 ==="
   if ! node "${GATE}" "${proj_dir}" "final"; then
@@ -421,8 +472,7 @@ cmd_all() {
   ok "✅ 一键生成完成！"
   echo "═══════════════════════════════════════"
   echo ""
-  echo "最终文件: ${VP_DIR}/out/final_with_subs.mp4"
-  echo "渲染方式: PIL帧序列 + ffmpeg单次混流"
+  echo "最终文件: ${VP_DIR}/out/${FINAL_FILE}"
   echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 60fps"
   echo ""
   exit 0

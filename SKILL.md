@@ -22,6 +22,10 @@ metadata:
       - "Remotion音频隔离"
       - "ffmpeg-map音频"
       - "静音音频轨道"
+      - "Remotion Native渲染"
+      - "@remotion/captions"
+      - "音频内嵌视频"
+      - "60fps视频"
     "clawdbot":
         "emoji": "🎬"
         "requires":
@@ -84,6 +88,7 @@ metadata:
 
 ## 参考文档
 - [references/remotion-package-discovery.md](references/remotion-package-discovery.md) — `@remotion/core` 不存在；正确包名 `remotion`；47个 exports（Text 不存在）；React Error #130 根因；package.json 正确写法；渲染+混流命令
+- [references/REMOTION_NATIVE.md](references/REMOTION_NATIVE.md) — **Remotion Native 渲染规范**：音频内嵌 + 字幕烧录 + 60fps/1080×1920/MP4 直出；三同步机制；create-remotion-project.js 用法
 - [音频验证协议](references/audio-validation-protocol.md) — 音频有效性验证完整协议（4个验证节点）
 - [references/video-creator-remotion-conflicts-2026-05-11.md](references/video-creator-remotion-conflicts-2026-05-11.md) — **C1-C9 冲突审计报告**：video-composer.js Audio组件移除、calculateMetadata添加、entry路径修正、concurrency=4；含 remotion-best-practices 30+ 规则文件审查结果
 - [references/ass-subtitle-spec-2026-05-10.md](references/ass-subtitle-spec-2026-05-10.md) — **最终权威值**：Fontsize=72/PlayResX=1080/PlayResY=1920/MarginV=50/Outline=2/Format 10字段
@@ -132,7 +137,7 @@ node {SKILL_DIR}/scripts/pre-subtitle-check.js <project-dir> --target-duration 6
 |------|---------|
 | 禁止分段拼接配音 | 整段连续生成 |
 | 禁止跳过音频后处理 | 去静音 + 1.2x 语速 + AAC 256k |
-| 禁止在 Remotion 内嵌音频 | Remotion 渲染无音频 → ffmpeg 混流 |
+| ~~禁止在 Remotion 内嵌音频~~ | ✅ **已更新（2026-05-12）**：Remotion `<Audio>` 组件直接内嵌 MP4，无需 ffmpeg 外部混流（Remotion Native 路径）。ffmpeg 混流仅用于 PIL fallback |
 
 ### ⚠️ 音频验证（必须执行）
 
@@ -578,6 +583,13 @@ Remotion render  ffmpeg兜底   Remotion     ffmpeg兜底
 - Remotion CLI 可用 = `remotion compositions --entry-point src/index.ts` 能列出 composition（非超时）
 - 多场景动态画面 = 视频脚本包含 ≥2 个不同场景，且需要转场/动画效果
 
+**⚠️ create-remotion-project.js 生成后必须立即运行 fix-remotion-project.js**：
+```bash
+node {SKILL_DIR}/scripts/fix-remotion-project.js <project-dir>
+```
+生成的模板存在三个 Remotion 4.0.459 API 不兼容问题（连字符key、useDelayRender、spring），
+详见 `scripts/fix-remotion-project.js`。
+
 **实际经验**：截至 2026-05-11，在 Mac M-series headless 环境下，Remotion CLI **始终超时**，所有视频项目均通过 ffmpeg 兜底完成。
 
 ### ffmpeg 兜底渲染命令（标准输出）
@@ -707,7 +719,47 @@ import { Text } from 'remotion';
 ```
 不要写任何 `@remotion/*` scoped 包（`@remotion/core`、`@remotion/fonts` 等在 npm 不存在）。
 
-**Remotion CLI 在 M-series Mac headless 环境始终失败**：
+4. **themes/index.ts 连字符key**：ThemeConfig 接口定义中的 key（如 `tech-modern`）未加引号，esbuild 解析失败（`Expected "}" but found "-"`）。修复方法：Python 脚本自动将 `key-name:` 替换为 `"key-name":`：
+   ```python
+   import re
+   content = open('src/themes/index.ts').read()
+   fixed = re.sub(r'(\s+)([a-z][a-z0-9]*-[a-z0-9-]+):(\s*\{)', r'\1"\2":\3', content)
+   open('src/themes/index.ts', 'w').write(fixed)
+   ```
+   **必须在 npm install 后、remotion render 前执行此修复。**
+
+5. **CaptionOverlay `delayRender is not a function`**：`create-remotion-project.js` 生成的 `CaptionOverlay.tsx` 使用了 `useDelayRender()` hook，但该 hook 在 Remotion 4.0.459 中返回的不是函数类型，导致 `delayRender is not a function`。修复方法：**重写 CaptionOverlay**，移除所有 `useDelayRender` 相关逻辑，改为纯 state + useEffect：
+   ```tsx
+   // ✅ 正确的 CaptionOverlay 模式（无 useDelayRender）
+   export const CaptionOverlay: React.FC<{ captionsFile?: string }> = ({ captionsFile = "audio/captions.json" }) => {
+     const [captions, setCaptions] = useState<Caption[] | null>(null);
+     const { fps } = useVideoConfig();
+
+     useEffect(() => {
+       fetch(staticFile(captionsFile))
+         .then(r => r.json())
+         .then(data => setCaptions(data))
+         .catch(() => {});
+     }, [captionsFile]);
+
+     if (!captions || captions.length === 0) return null;
+
+     const pages = createTikTokStyleCaptions({ captions, combineTokensWithinMilliseconds: 1200 }).pages;
+     // ... 使用 Sequence 渲染每页
+     return (/* ... */);
+   };
+   ```
+   **禁止使用 `useDelayRender()`**。
+
+6. **spring() 动画缺少 fps 参数**：Scene 组件中的 `spring({ frame, config: {...} })` 缺少 `fps` 参数会报错。修复：所有 spring 动画改为 `interpolate(frame, [0, 30], [0.85, 1], { extrapolateRight: "clamp" })`。
+
+> **根因**：这些问题都是 `create-remotion-project.js` 模板生成代码与 Remotion 4.0.459 实际 API 不匹配导致的。模板中的 `spring()` 和 `useDelayRender()` 是旧版 Remotion（3.x）的 API。**必须同时修复模板文件和现有受损项目**。
+
+**自动修复工具**（创建后立即运行）：
+```bash
+node {SKILL_DIR}/scripts/fix-remotion-project.js <project-dir>
+```
+该脚本自动修复：themes/index.ts 连字符key、CaptionOverlay useDelayRender、Scene spring() 动画。运行后必须重新 `npm install` 再 `remotion render`。
 - 根因：`@remotion/renderer` 的 `selectComposition()` 需要 bundler dev server 响应，但 arm64 环境下 dev server 60s 超时
 - 现象：`TimeoutInMilliseconds should be bigger or equal than 7000, but is 300` / `No video config found`
 - **结论**：所有 Mac M-series headless 视频项目必须使用 **ffmpeg 兜底方案（PIL帧序列+ffmpeg单次混流）**

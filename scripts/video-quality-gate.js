@@ -564,6 +564,26 @@ print('\\n'.join(results))
   } else {
     warn('未找到 AbsoluteFill');
   }
+
+  // C7: @remotion/captions 包检查（Remotion Native 字幕渲染必需）
+  const captionsFile = path.join(vpDir, 'node_modules', '@remotion', 'captions', 'package.json');
+  if (fs.existsSync(captionsFile)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(captionsFile, 'utf8'));
+      pass(`@remotion/captions@${pkg.version} 已安装`);
+    } catch {
+      warn('@remotion/captions 版本未知');
+    }
+  } else {
+    warn('@remotion/captions 未安装（Remotion Native 字幕渲染将不可用）');
+  }
+
+  // C8: 检查是否使用 @remotion/captions API（createTikTokStyleCaptions / parseSrt）
+  if (content.includes('createTikTokStyleCaptions') || content.includes('parseSrt')) {
+    pass('使用 @remotion/captions API');
+  } else {
+    warn('未找到 @remotion/captions API 调用');
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -572,7 +592,7 @@ print('\\n'.join(results))
 function checkFinal() {
   section('节点 D: 最终视频检查');
 
-  const videoFile = path.join(PROJECT_DIR, 'video-project', 'out', 'final-video.mp4');
+  const videoFile = path.join(PROJECT_DIR, 'video-project', 'out', 'final.mp4');
   const altFile = path.join(PROJECT_DIR, 'video-project', 'out', 'final_with_subs.mp4');
   const finalFile = fs.existsSync(videoFile) ? videoFile : (fs.existsSync(altFile) ? altFile : null);
 
@@ -593,6 +613,67 @@ function checkFinal() {
     if (!audioOk) {
       fail('最终视频音频无效，请检查混流步骤');
     }
+  }
+
+  // D1: 帧率检查（60fps）
+  if (finalFile) {
+    const fpsOut = execSync(
+      `ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "${finalFile}" 2>/dev/null`,
+      { encoding: 'utf8' }
+    ).trim();
+    if (fpsOut) {
+      const [num, den] = fpsOut.split('/').map(Number);
+      const fps = den ? (num / den).toFixed(2) : num.toFixed(2);
+      if (parseFloat(fps) === 60) {
+        pass(`帧率: ${fps} fps ✓`);
+      } else {
+        fail(`帧率: ${fps} fps（期望 60fps）`);
+      }
+    }
+  }
+
+  // D2: 编码格式（H.264 / libx264）
+  if (finalFile) {
+    const codecOut = execSync(
+      `ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "${finalFile}" 2>/dev/null`,
+      { encoding: 'utf8' }
+    ).trim();
+    if (codecOut === 'h264') {
+      pass(`视频编码: H.264 ✓`);
+    } else {
+      fail(`视频编码: ${codecOut}（期望 h264）`);
+    }
+  }
+
+  // D3: 分辨率（1080×1920）
+  if (finalFile) {
+    const sizeOut = execSync(
+      `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${finalFile}" 2>/dev/null`,
+      { encoding: 'utf8' }
+    ).trim();
+    const [w, h] = sizeOut.split('x').map(Number);
+    if (w === 1080 && h === 1920) {
+      pass(`分辨率: ${w}×${h} ✓`);
+    } else {
+      fail(`分辨率: ${w}×${h}（期望 1080×1920）`);
+    }
+  }
+
+  // D4: captions.json 存在检查（Remotion Native 字幕验证）
+  const captionsJson = path.join(PROJECT_DIR, 'video-project', 'public', 'audio', 'captions.json');
+  if (fs.existsSync(captionsJson)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(captionsJson, 'utf8'));
+      if (Array.isArray(data) && data.length > 0) {
+        pass(`captions.json: ${data.length} 条字幕记录 ✓`);
+      } else {
+        warn('captions.json 格式异常或为空');
+      }
+    } catch {
+      warn('captions.json 解析失败');
+    }
+  } else {
+    warn('captions.json 不存在（Remotion Native 字幕渲染未启用）');
   }
 }
 

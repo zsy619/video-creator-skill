@@ -1,6 +1,6 @@
 # 一键视频生成工作流
 
-> **最后更新**：2026-05-12
+> **最后更新**：2026-05-12 15:30
 > **适用范围**：所有 video-creator 技能项目
 > **目标**：从内容输入到最终视频，一键完成，所有节点自动门禁。
 
@@ -11,9 +11,9 @@
 1. **配置驱动**：`video-config.json` 是唯一配置源，所有步骤读取同一份配置
 2. **时长基准**：`video-config.json` 中的目标时长是基准，后续步骤不依赖测量值
 3. **门禁退出码**：A/B/D 三个节点，退出码≠0 则终止（C 节点已内联）
-4. **音频隔离**：Remotion 渲染无音频，音频通过 ffmpeg 外部注入
-5. **并行优化**：Gate A + 字幕生成并行；Gate B + 帧生成并行
-6. **单次混流**：帧序列 + 音频 + 字幕一次 ffmpeg 完成
+4. **音频内嵌**：Remotion `<Audio>` 组件直接嵌入 MP4，无需 ffmpeg 外部注入
+5. **字幕烧录**：Remotion Native 路径通过 `@remotion/captions` 在渲染时烧录到帧，无需 ffmpeg ASS 滤镜
+6. **Remotion Native 为主**：主渲染路径走 Remotion（含音频内嵌+字幕烧录），PIL 帧序列为 fallback（fallback 不烧录 ASS，仅混音频轨）
 
 ---
 
@@ -29,7 +29,7 @@ bash {SKILL_DIR}/scripts/launch.sh all
 ```bash
 bash {SKILL_DIR}/scripts/launch.sh init      # Step 1 初始化
 bash {SKILL_DIR}/scripts/launch.sh audio     # Step 2-3 配音+门禁A+字幕生成
-bash {SKILL_DIR}/scripts/launch.sh subtitle  # Step 4 门禁B + 帧生成（并行）→ ffmpeg混流
+bash {SKILL_DIR}/scripts/launch.sh subtitle  # Step 4 门禁B
 bash {SKILL_DIR}/scripts/launch.sh final     # Step 5 门禁D
 ```
 
@@ -131,94 +131,75 @@ node {SKILL_DIR}/scripts/video-quality-gate.js subtitle
 
 ---
 
-### Step 7：渲染（Remotion CLI vs PIL帧序列+ffmpeg兜底）
+### Step 7：Remotion Native 渲染（主路径）
+
+**前置条件**：`create-remotion-project.js` 已生成完整 Remotion 项目（含 `src/`、`public/`、`package.json`）
 
 ```bash
-cd video-project
+# 1. 生成 Remotion 项目
+node {SKILL_DIR}/scripts/create-remotion-project.js .
 
-# 先测试 Remotion CLI 是否可用
-timeout 30 npx remotion compositions --entry-point src/index.ts 2>&1 | grep -q "VerticalVideo"
+# 2. npm install
+cd video-project && npm install 2>&1 | tail -3
 
-if [ $? -eq 0 ]; then
-  # ✅ Remotion CLI 可用：标准渲染路径
-  npx remotion render VerticalVideo out/video_noaudio.mp4 \
-    --concurrency=4 --fps=60 --duration-in-frames=3540
-else
-  # ❌ headless 环境：PIL帧序列 + ffmpeg单次混流
-  # ── Step 7a: 生成帧序列 ─────────────────────────────────────────
-  mkdir -p out/frames
+# 3. 计算帧数
+AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
+  -of csv=p=0 audio/neural_1_2x.m4a)
+TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
 
-  # 读取主题配置
-  THEME=$(node -e "console.log(require('./video-config.json').theme || 'cyberpunk')")
+# 4. Remotion 渲染 → MP4（音频内嵌 + 字幕烧录，60fps / 1080×1920）
+npx remotion render VerticalVideo \
+  out/final.mp4 \
+  --concurrency=4 \
+  --fps=60 \
+  --duration-in-frames=${TOTAL_FRAMES} \
+  --disable-gpu
 
-  python3 {SKILL_DIR}/scripts/gen_frames_template.py . --theme "$THEME"
-
-  # 验证帧数：TOTAL_FRAMES = ceil(音频时长 × 60)
-  FRAME_COUNT=$(ls out/frames/frame_*.png 2>/dev/null | wc -l | tr -d ' ')
-  EXPECTED_FRAMES=$(python3 -c "import math; print(math.ceil($(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a) * 60))")
-  [ "$FRAME_COUNT" != "$EXPECTED_FRAMES" ] && echo "帧数不匹配: $FRAME_COUNT vs $EXPECTED_FRAMES" && exit 1
-
-  # ── Step 7b: ffmpeg单次混流（帧序列+音频+字幕 → 最终视频）──────────
-  AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a)
-
-  ffmpeg -y \
-    -framerate 60 \
-    -i "out/frames/frame_%04d.png" \
-    -i "audio/neural_1_2x.m4a" \
-    -filter_complex "[0:v]ass=audio/subtitles.ass[v]" \
-    -map "[v]" -map 1:a \
-    -t "${AUDIO_DURATION}" \
-    -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
-    -c:a aac -b:a 192k \
-    -r 60 -s 1080x1920 \
-    "out/final_with_subs.mp4"
-
-  # 清理帧序列（节省空间）
-  rm -rf out/frames
-
-  # ffmpeg兜底直接输出最终视频，跳到门禁 D
-  node {SKILL_DIR}/scripts/video-quality-gate.js final
-  exit $?
-fi
+# 输出: video-project/out/final.mp4
+#       60fps / H.264 / 1080×1920 / MP4
+#       音频直接嵌入（无需 ffmpeg 混流）
+#       字幕通过 @remotion/captions 烧录到帧（无需 ffmpeg ASS）
 ```
-- Remotion 并发数：`concurrency=4`（M1 MAX 实测最优）
 
-> **多主题模式**：THEMES.md 中的每个主题（cyberpunk / tech-modern / neon-future / minimal-tech）都有对应的配色方案，gen_frames_template.py 自动读取 `video-config.json.theme` 选择配色。
+**Remotion Native 渲染架构**：
+- 音频：`<Audio src={staticFile("audio/neural_1_2x.m4a")} />` 内嵌 MP4
+- 字幕：`CaptionOverlay` 组件 + `@remotion/captions` 直接烧录到每一帧
+- 同步：三同步（画面/Audio/字幕）基于同一 composition fps 时间基准
+- 严禁黑屏：`Sequence premountFor=1fps` + `AbsoluteFill` 全覆盖背景
 
-### ffmpeg 单次混流命令（Step 7b）
+**Remotion 并发数**：`concurrency=4`（M1 MAX 实测最优）
 
-> **更新 2026-05-12**：移除 `force_style` 参数（见下方原因）。字幕样式全部写在 ASS 文件的 `[V4+ Styles]` 段里，ffmpeg 的 ASS 过滤器直接读取。
+**fallback**：Remotion 渲染失败自动回退到 PIL 帧序列 + ffmpeg 混音频轨（不烧录 ASS）
+
+> **多主题模式**：`video-config.json.theme` 字段选择主题（cyberpunk / neon-future / tech-modern 等30个主题），`create-remotion-project.js` 自动注入主题配置到 Remotion 组件。
+
+### Step 7b：PIL fallback（Remotion 渲染失败时）
 
 ```bash
-AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a)
+# 仅在 Remotion 渲染失败时触发
+python3 {SKILL_DIR}/scripts/gen_frames_template.py . --theme "$THEME"
+
+# ffmpeg 混流（不烧录 ASS，仅混音频轨）
+AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
+  -of csv=p=0 audio/neural_1_2x.m4a)
 
 ffmpeg -y \
   -framerate 60 \
   -i "out/frames/frame_%04d.png" \
   -i "audio/neural_1_2x.m4a" \
-  -filter_complex "[0:v]ass=audio/subtitles.ass[v]" \
-  -map "[v]" -map 1:a \
+  -map 0:v -map 1:a \
   -t "${AUDIO_DURATION}" \
-  -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
+  -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p \
   -c:a aac -b:a 256k \
-  -movflags +faststart \
   -r 60 -s 1080x1920 \
   "out/final_with_subs.mp4"
+
+rm -rf out/frames
 ```
-
-**⚠️ `force_style` 为什么不能用**：ffmpeg 的 `ass` 滤镜把 `:` 解析为滤镜图分隔符，所以 `force_style="FontSize=72,PrimaryColour=..."` 会在第一个 `:`（`FontSize=72` 的冒号）处截断，导致语法错误。**解决方案**：把所有样式声明写在 ASS 文件内部（`[V4+ Styles]` 段），滤镜命令只写 `-filter_complex "[0:v]ass=audio/subtitles.ass[v]"` 不带任何 `force_style`。
-
-**⚠️ 如果 Video.tsx 使用了 `<Text>` 组件（不存在），先修复**：
-
-```bash
-node {SKILL_DIR}/scripts/fix-text-component.js video-project/src
-```
-
-> **完整 headless 渲染问题分析**：见 [rules/REMOTION.md](rules/REMOTION.md)（搜索"headless"）
 
 ---
 
-### Step 8：门禁 C（渲染）
+### Step 8：门禁 C（Remotion 渲染）
 
 ```bash
 node {SKILL_DIR}/scripts/video-quality-gate.js render
@@ -228,6 +209,8 @@ node {SKILL_DIR}/scripts/video-quality-gate.js render
 - `package.json` 使用 `remotion` 包（不是 `@remotion/core`）
 - 无 `<Text>` 组件（已替换为 `<div>`）
 - `node_modules/remotion` 存在
+- `@remotion/captions` 包存在（Remotion Native 字幕必需）
+- Video.tsx 使用 `@remotion/captions` API
 
 **退出码**：0=通过，1=失败
 
@@ -240,11 +223,12 @@ node {SKILL_DIR}/scripts/video-quality-gate.js final
 ```
 
 **检查项**：
-- 文件存在：`final_with_subs.mp4`
-- codec：h264 + aac
-- 尺寸：1080×1920
-- 时长：匹配目标时长（偏差 ≤ 5%）
-- 音频流：非空
+- 文件存在：`out/final.mp4`（Remotion Native）或 `out/final_with_subs.mp4`（PIL fallback）
+- 帧率：60fps
+- 编码：H.264
+- 分辨率：1080×1920
+- 音频流：非空（AAC）
+- captions.json：Remotion Native 路径存在（PIL fallback 不需要）
 
 **退出码**：0=通过，1=失败
 

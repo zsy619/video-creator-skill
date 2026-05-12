@@ -8,8 +8,8 @@ related_skills:
   - THEMES.md
   - FONTS.md
   - THEME_ANIMATIONS.md
-version: 2.6.0
-last_updated: 2026-04-27
+version: 2.7.0
+last_updated: 2026-05-12
 ---
 
 # Remotion 视频组件规范 (Remotion Video Component Spec)
@@ -915,7 +915,9 @@ video-project/
 ### 静态文件引用
 
 > **⚠️ 重要**: 必须使用 `staticFile()` 引用 public 目录中的文件
-> **⚠️ 音频禁用**: M-series headless 环境 Remotion 渲染无音频，所有音频通过 ffmpeg 外部注入。**禁止在 Remotion 组件内使用 `<Audio>` 组件**。
+> **⚠️ 音频禁用（旧方案，已废弃）**：
+> M-series headless 环境 Remotion 渲染无音频 → 已废弃（2026-05-12）
+> **当前方案**：Remotion `<Audio>` 组件内嵌 MP4，音频直接输出到最终 MP4（无需 ffmpeg 混流）。**请使用 `create-remotion-project.js` 生成项目，不要手动引用 Audio 组件。**
 
 ```tsx
 import { Img, staticFile } from 'remotion';
@@ -927,7 +929,7 @@ import { Img, staticFile } from 'remotion';
 <Video src={staticFile('videos/clip.mp4')} />
 ```
 
-> **Studio 预览例外**: Remotion Studio 环境中可使用 `<Audio>` 预览，但渲染时必须移除。**headless 环境（含 M-series Mac）所有视频必须使用 ffmpeg 混流方案**。
+> **Studio 预览例外**: Remotion Studio 环境与 headless 环境行为一致（Audio 组件内嵌音频），无需额外混流。
 
 ### 远程资源
 
@@ -968,7 +970,9 @@ useEffect(() => {
 
 ### 音频组件规范
 
-> **⚠️ 【重要】headless 环境禁止使用 `<Audio>` 组件**
+> **⚠️ 【重要】headless 环境音频处理已更新（2026-05-12）**：
+> **当前方案**：Remotion `<Audio>` 组件直接内嵌音频到 MP4，无需 ffmpeg 外部注入。
+> 组件由 `create-remotion-project.js` 自动生成，**请勿手动编辑 Audio 引用**。
 >
 > M-series Mac 等 headless 环境下，Remotion 渲染无音频（Audio 组件不工作）。音频通过 **ffmpeg 外部注入**（见 `scripts/launch.sh` 的 `cmd_all()` 函数）。
 >
