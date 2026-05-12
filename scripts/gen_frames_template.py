@@ -174,8 +174,13 @@ THEME_COLORS = {
 # ─────────────────────────────────────────────────────────────────────────────
 # 字体工具
 # ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 字体缓存（避免每帧重复加载字体文件，2160帧视频可节省 100+ 次磁盘读取）
+# ─────────────────────────────────────────────────────────────────────────────
+_FONT_CACHE = {}  # {(size, path): ImageFont}
+
 def get_font(size, font_paths=None):
-    """字体兜底链，返回第一个可用字体"""
+    """字体兜底链 + 缓存。同一尺寸字体只加载一次。"""
     if font_paths is None:
         font_paths = [
             "/System/Library/Fonts/STHeiti Light.ttc",
@@ -184,8 +189,13 @@ def get_font(size, font_paths=None):
             "/System/Library/Fonts/Courier.ttc",
         ]
     for path in font_paths:
+        cache_key = (size, path)
+        if cache_key in _FONT_CACHE:
+            return _FONT_CACHE[cache_key]
         try:
-            return ImageFont.truetype(path, size)
+            font = ImageFont.truetype(path, size)
+            _FONT_CACHE[cache_key] = font
+            return font
         except (OSError, IOError):
             continue
     return ImageFont.load_default()
@@ -561,6 +571,23 @@ def compute_scene_boundaries(total_frames, config):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 并行帧绘制 worker（导入时锁定，确保多进程安全）
+# ─────────────────────────────────────────────────────────────────────────────
+def _draw_frame_worker(args):
+    """单帧绘制（供 ProcessPoolExecutor 调用）。
+    返回 (frame_idx, output_path) 而非 PIL Image，避免 pickle 大对象。
+    所有颜色/配置数据通过参数传入，避免全局状态竞争。"""
+    fn, total_local, scene_config, colors, output_path, scene_func, bg_color = args
+    try:
+        img = scene_func(fn, total_local, scene_config, colors)
+        # 直接 save 到目标路径（绕过返回值 pickle）
+        img.save(output_path, 'PNG')
+        return (fn, True, None)
+    except Exception as e:
+        return (fn, False, str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 主流程
 # ─────────────────────────────────────────────────────────────────────────────
 def get_audio_duration(m4a_path):
@@ -590,6 +617,9 @@ def get_scene_config(project_dir):
 
 
 def main():
+    import multiprocessing
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
     if len(sys.argv) < 2:
         print("用法: python3 gen_frames.py <project-dir> [--theme THEME]")
         sys.exit(1)
@@ -640,36 +670,75 @@ def main():
     ]
     n_funcs = len(scene_funcs)
 
-    # 生成每一帧
-    print(f"🖼️  开始生成 {TOTAL_FRAMES} 帧...")
+    # ── 构建全帧任务列表（序列化所有参数，避免全局状态）─────────────
+    print(f"🖼️  开始生成 {TOTAL_FRAMES} 帧（并行 {multiprocessing.cpu_count()} 进程）...")
+    tasks = []
     for fn in range(TOTAL_FRAMES):
-        # 确定当前帧属于哪个场景
         frame_img = None
+        selected_scene_func = None
+        local_fn = 0
+        scene_end = 0
+        scene_cfg = config
+
         for i, (start, end) in enumerate(SCENE_BOUNDARIES):
             if start <= fn < end:
-                local_fn = fn - start  # 局部帧（从0开始！）
-                scene_config = config.get('scenes', [{}]*n_funcs)[i] if config.get('scenes') else config
-                func_idx = i % n_funcs  # 动态场景数量：循环使用场景函数
-                frame_img = scene_funcs[func_idx](local_fn, end - start, scene_config, colors)
+                local_fn = fn - start
+                scene_end = end - start
+                scene_cfg = config.get('scenes', [{}]*n_funcs)[i] if config.get('scenes') else config
+                selected_scene_func = scene_funcs[i % n_funcs]
                 break
 
-        if frame_img is None:
-            # 如果超出所有场景（理论上不会发生），用最后一个场景函数填充
+        if selected_scene_func is None:
             func_idx = (len(SCENE_BOUNDARIES) - 1) % n_funcs
-            frame_img = scene_funcs[func_idx](
-                TOTAL_FRAMES - SCENE_BOUNDARIES[-1][0],
-                SCENE_BOUNDARIES[-1][1] - SCENE_BOUNDARIES[-1][0],
-                config, colors
-            )
+            selected_scene_func = scene_funcs[func_idx]
+            local_fn = TOTAL_FRAMES - SCENE_BOUNDARIES[-1][0]
+            scene_end = SCENE_BOUNDARIES[-1][1] - SCENE_BOUNDARIES[-1][0]
+            scene_cfg = config
 
-        # 保存帧（严格4位补零编号）
         output_path = os.path.join(frames_dir, f"frame_{fn:04d}.png")
-        frame_img.save(output_path, 'PNG')
+        tasks.append((local_fn, scene_end, scene_cfg, colors,
+                       output_path, selected_scene_func))
 
-        if fn > 0 and fn % 500 == 0:
-            print(f"  进度: {fn}/{TOTAL_FRAMES} ({(fn/TOTAL_FRAMES)*100:.1f}%)")
+    # ── 并行绘制（ProcessPoolExecutor，跳过首帧已知cover）─────────
+    # 首帧 cover 是静态的，先单独快速处理
+    first_output = os.path.join(frames_dir, "frame_0000.png")
+    if not os.path.exists(first_output):
+        # 生成首帧（cover 静态场景）
+        cover_img = scene_funcs[0](0, SCENE_BOUNDARIES[0][1] - SCENE_BOUNDARIES[0][0],
+                                    config, colors)
+        cover_img.save(first_output, 'PNG')
 
-    print(f"✅ 帧生成完成: {TOTAL_FRAMES} 帧 → {frames_dir}")
+    # 其余帧并行处理
+    done_count = 1  # 首帧已完成
+    failed = []
+
+    with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        futures = {}
+        for fn, task in enumerate(tasks):
+            if fn == 0:
+                continue  # 首帧已处理
+            local_fn, scene_end, scene_cfg, colors_arg, output_path, sfunc = task
+            # 直接传 scene_func 对象不行（lambda），用 module-level 函数
+            futures[executor.submit(_draw_frame_worker,
+                                     (fn, scene_end, scene_cfg, colors_arg,
+                                      output_path, sfunc))] = fn
+
+        for future in as_completed(futures):
+            fn = futures[future]
+            ok, _, err = future.result()
+            done_count += 1
+            if not ok:
+                failed.append((fn, err))
+            if done_count > 0 and done_count % 500 == 0:
+                print(f"  进度: {done_count}/{TOTAL_FRAMES} ({(done_count/TOTAL_FRAMES)*100:.1f}%)")
+
+    print(f"✅ 帧生成完成: {done_count}/{TOTAL_FRAMES} 帧 → {frames_dir}")
+
+    if failed:
+        print(f"❌ {len(failed)} 帧生成失败:", file=sys.stderr)
+        for fn, err in failed[:5]:
+            print(f"   frame_{fn:04d}: {err}", file=sys.stderr)
+        sys.exit(1)
 
     # 验证帧数
     actual = len([f for f in os.listdir(frames_dir) if f.endswith('.png')])

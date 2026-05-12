@@ -1,6 +1,6 @@
 # 一键视频生成工作流
 
-> **最后更新**：2026-05-10
+> **最后更新**：2026-05-12
 > **适用范围**：所有 video-creator 技能项目
 > **目标**：从内容输入到最终视频，一键完成，所有节点自动门禁。
 
@@ -10,8 +10,10 @@
 
 1. **配置驱动**：`video-config.json` 是唯一配置源，所有步骤读取同一份配置
 2. **时长基准**：`video-config.json` 中的目标时长是基准，后续步骤不依赖测量值
-3. **门禁退出码**：A/B/C/D 四个节点，退出码≠0 则终止
+3. **门禁退出码**：A/B/D 三个节点，退出码≠0 则终止（C 节点已内联）
 4. **音频隔离**：Remotion 渲染无音频，音频通过 ffmpeg 外部注入
+5. **并行优化**：Gate A + 字幕生成并行；Gate B + 帧生成并行
+6. **单次混流**：帧序列 + 音频 + 字幕一次 ffmpeg 完成
 
 ---
 
@@ -22,22 +24,18 @@ cd {WORKSPACE_DIR}/<项目名>
 bash {SKILL_DIR}/scripts/launch.sh all
 ```
 
-或分步执行：
+分步命令（仅供参考，`all` 已内联所有步骤）：
 
 ```bash
-bash {SKILL_DIR}/scripts/launch.sh init    # Step 1
-bash {SKILL_DIR}/scripts/launch.sh audio    # Step 2-3
-bash {SKILL_DIR}/scripts/launch.sh gate-a   # Step 4  门禁A
-bash {SKILL_DIR}/scripts/launch.sh subtitle # Step 5
-bash {SKILL_DIR}/scripts/launch.sh gate-b   # Step 6  门禁B
-bash {SKILL_DIR}/scripts/launch.sh render    # Step 7
-bash {SKILL_DIR}/scripts/launch.sh gate-c    # Step 8  门禁C
-bash {SKILL_DIR}/scripts/launch.sh final    # Step 9  门禁D
+bash {SKILL_DIR}/scripts/launch.sh init      # Step 1 初始化
+bash {SKILL_DIR}/scripts/launch.sh audio     # Step 2-3 配音+门禁A+字幕生成
+bash {SKILL_DIR}/scripts/launch.sh subtitle  # Step 4 门禁B + 帧生成（并行）→ ffmpeg混流
+bash {SKILL_DIR}/scripts/launch.sh final     # Step 5 门禁D
 ```
 
 ---
 
-## 完整流程（Step 1 → Step 10）
+## 完整流程（`launch.sh all` 一键执行）
 
 ### Step 1：初始化
 

@@ -111,16 +111,24 @@ function findTsxFile(vpDir) {
   return null;
 }
 
-/** 获取音频时长 */
-function getDuration(filePath) {
-  const r = run(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${filePath}" 2>/dev/null`);
-  return parseFloat(r.stdout.trim()) || null;
-}
-
-/** 获取音频码率 */
-function getBitrate(filePath) {
-  const r = run(`ffprobe -v error -select_streams a:0 -show_entries stream=bit_rate -of csv=p=0 "${filePath}" 2>/dev/null`);
-  return parseInt(r.stdout.trim() || '0') || 0;
+/** 获取音频时长和码率（一次 ffprobe 获取两个值） */
+function getAudioMeta(filePath) {
+  try {
+    const r = execSync(
+      `ffprobe -v error -show_entries format=duration:stream=bit_rate -of csv=p=0 \"${filePath}\" 2>/dev/null`,
+      { encoding: 'utf8', timeout: 10000 }
+    );
+    const lines = r.stdout.trim().split('\n').filter(l => l.trim());
+    // format行: duration
+    // stream行: bit_rate (音频)
+    const duration = parseFloat(lines.find(l => !l.includes(',')) || '0') || null;
+    // 找 bit_rate 行（有逗号的，stream行）
+    const bitrateLine = lines.find(l => l.includes(','));
+    const bitrate = bitrateLine ? parseInt(bitrateLine.split(',')[0] || '0') || 0 : 0;
+    return { duration, bitrate };
+  } catch (e) {
+    return { duration: null, bitrate: 0 };
+  }
 }
 
 /** 检查字幕文件 ASS 格式 */
@@ -210,7 +218,10 @@ function checkAudio() {
 
   if (!fs.existsSync(audioFile)) return;
 
-  const duration = getDuration(audioFile);
+  const meta = getAudioMeta(audioFile);
+  const duration = meta.duration;
+  const bitrate = meta.bitrate;
+
   if (duration !== null && duration > 0) {
     pass(`音频时长: ${duration.toFixed(2)}s`);
     if (duration < 30) warn('音频时长偏短（<30s）');
@@ -243,7 +254,6 @@ function checkAudio() {
     fail('音频时长无效');
   }
 
-  const bitrate = getBitrate(audioFile);
   if (bitrate >= 128000) {
     pass(`音频码率: ${(bitrate / 1000).toFixed(0)}kbps`);
   } else {
@@ -290,7 +300,7 @@ function checkSubtitle() {
   }
 
   const audioFile = path.join(PROJECT_DIR, 'audio', 'neural_1_2x.m4a');
-  const audioDur = getDuration(audioFile);
+  const audioDur = getAudioMeta(audioFile).duration;
   if (audioDur) {
     pass(`参考音频时长: ${audioDur.toFixed(2)}s`);
   }
@@ -325,13 +335,11 @@ function checkRender() {
     const configFile = path.join(vpDir, 'video-config.json');
     if (fs.existsSync(audioFile)) {
       try {
-        const durResult = execSync(
-          `ffprobe -v error -show_entries format=duration -of csv=p=0 "${audioFile}" 2>/dev/null`,
-          { encoding: 'utf8', timeout: 10000 }
-        );
-        const audioDur = parseFloat(durResult.stdout.trim()) || 0;
-        targetFrames = Math.ceil(audioDur * 60);
-        pass(`目标帧数: ${targetFrames} (@60fps, 音频${audioDur.toFixed(2)}s)`);
+        const { duration: audioDur } = getAudioMeta(audioFile);
+        if (audioDur) {
+          targetFrames = Math.ceil(audioDur * 60);
+          pass(`目标帧数: ${targetFrames} (@60fps, 音频${audioDur.toFixed(2)}s)`);
+        }
       } catch (e) {
         warn('无法获取音频时长');
       }
@@ -400,27 +408,47 @@ function checkRender() {
       let blackFrames = 0;
       let allFramesBrightness = [];
 
-      for (const idx of uniqueSamples) {
-        const framePath = path.join(framesDir, frameFiles[idx]);
-        const escapedPath = framePath.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
-        const result = execSync(
+      // TODO-6 优化：单次批量 Python 调用替代逐帧 execSync 循环
+      // 优化前：12次进程创建（每帧一次）；优化后：1次进程创建
+      const escapedFrames = uniqueSamples.map(idx => {
+        const fp = path.join(framesDir, frameFiles[idx]);
+        return fp.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
+      });
+      const escapedFramesJson = JSON.stringify(escapedFrames);
+
+      let batchResult = '';
+      try {
+        batchResult = execSync(
           `python3 -c "
-import sys
+import json, sys
 from PIL import Image
 import numpy as np
-img = Image.open('${escapedPath}').convert('RGB')
-arr = np.array(img).astype(float)
-mean_brightness = arr.mean()
-is_black = 1 if mean_brightness < 5.0 else 0
-print(f'{mean_brightness:.2f},{is_black}')
-" 2>/dev/null`,
-          { encoding: 'utf8', timeout: 15000 }
-        ).trim();
 
-        const parts = result.split(',');
-        const brightness = parseFloat(parts[0]);
-        const isBlack = parseInt(parts[1]);
-        allFramesBrightness.push({ idx, brightness });
+frames = json.loads('${escapedFramesJson}')
+results = []
+for fp in frames:
+    try:
+        img = Image.open(fp).convert('RGB')
+        arr = np.array(img).astype(float)
+        mean_brightness = arr.mean()
+        is_black = 1 if mean_brightness < 5.0 else 0
+        results.append(f'{mean_brightness:.2f},{is_black}')
+    except Exception as e:
+        results.append(f'ERR,{str(e)[:30]}')
+print('\\n'.join(results))
+" 2>/dev/null`,
+          { encoding: 'utf8', timeout: 30000 }
+        ).trim();
+      } catch (e) {
+        warn('黑屏检测跳过: ' + (e.message || 'unknown'));
+      }
+
+      const lines = batchResult.split('\n').filter(l => l.trim());
+      for (let i = 0; i < uniqueSamples.length && i < lines.length; i++) {
+        const parts = lines[i].split(',');
+        const brightness = parseFloat(parts[0]) || 0;
+        const isBlack = parseInt(parts[1] || '0');
+        allFramesBrightness.push({ idx: uniqueSamples[i], brightness });
         if (isBlack) blackFrames++;
       }
 
@@ -550,7 +578,7 @@ function checkFinal() {
 
   if (finalFile) {
     pass(`最终视频: ${path.basename(finalFile)}`);
-    const duration = getDuration(finalFile);
+    const duration = getAudioMeta(finalFile).duration;
     if (duration) {
       pass(`视频时长: ${duration.toFixed(2)}s`);
     }
@@ -668,26 +696,56 @@ PYEOF`,
   }
   pass(`字体: ${path.basename(fontPath)}`);
 
-  // CJK 渲染检测（textbbox 宽高比法）
+  // CJK 渲染检测（textbbox 宽高比法，批量单次调用替代逐帧循环）
+  // 优化前：3次 execSync；优化后：1次 execSync
   const testTexts = ['LlamaIndex 入门', '目标驱动协作', 'GitHub Stars'];
+  const testTextsJson = JSON.stringify(testTexts);
+  const fontPathEscaped = fontPath.replace(/'/g, "'\\''");
   let cjkOk = true;
-  for (const text of testTexts) {
-    try {
-      const result = execSync(
-        `python3 - <<'PYEOF'\nfrom PIL import Image, ImageDraw, ImageFont\nimport os, sys\ntry:\n    dummy_img = Image.new('RGB', (1,1))\n    dummy_draw = ImageDraw.Draw(dummy_img)\n    font = ImageFont.truetype('${fontPath.replace(/'/g, "'\"'\"'")}', 72)\n    bbox = dummy_draw.textbbox((0,0), '${text.replace(/'/g, "\\'")}', font=font)\n    w = bbox[2]-bbox[0]; h = bbox[3]-bbox[1]\n    if w <= 0 or h <= 0:\n        print('EMPTY')\n    else:\n        aspect = w/h\n        print('OK' if aspect > 1.1 else 'BLOCK')\nexcept Exception as e:\n    print('ERR:'+str(e)[:40])\nPYEOF`,
-        { encoding: 'utf8', timeout: 10000 }
-      ).trim();
-      const status = result.split('\n').slice(-1)[0].trim();
+
+  try {
+    const batchResult = execSync(
+      `python3 - <<'PYEOF'
+from PIL import Image, ImageDraw, ImageFont
+import json, sys
+
+test_texts = json.loads('${testTextsJson}')
+font = ImageFont.truetype('${fontPathEscaped}', 72)
+dummy_img = Image.new('RGB', (1, 1))
+dummy_draw = ImageDraw.Draw(dummy_img)
+
+results = []
+for text in test_texts:
+    try:
+        bbox = dummy_draw.textbbox((0, 0), text, font=font)
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        if w <= 0 or h <= 0:
+            results.append('EMPTY')
+        else:
+            aspect = w / h
+            results.append('OK' if aspect > 1.1 else 'BLOCK')
+    except Exception as e:
+        results.append('ERR:' + str(e)[:30])
+
+print('\\n'.join(results))
+PYEOF`,
+      { encoding: 'utf8', timeout: 10000 }
+    ).trim();
+
+    const lines = batchResult.split('\n').filter(l => l.trim());
+    for (let i = 0; i < testTexts.length; i++) {
+      const status = (lines[i] || '').trim();
       if (status === 'OK') {
-        pass(`CJK渲染[${text.slice(0, 6)}]: 正常`);
+        pass(`CJK渲染[${testTexts[i].slice(0, 6)}]: 正常`);
       } else {
-        fail(`CJK渲染[${text.slice(0, 6)}]: ${status === 'BLOCK' ? '方块/乱码' : status}`);
+        fail(`CJK渲染[${testTexts[i].slice(0, 6)}]: ${status === 'BLOCK' ? '方块/乱码' : status}`);
         cjkOk = false;
       }
-    } catch (e) {
-      fail(`CJK渲染[${text.slice(0, 6)}]: 检测失败`);
-      cjkOk = false;
     }
+  } catch (e) {
+    fail('封面字体: CJK渲染检测失败');
+    cjkOk = false;
   }
 
   if (!cjkOk) {
