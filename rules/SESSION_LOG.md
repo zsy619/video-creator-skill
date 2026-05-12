@@ -69,17 +69,68 @@ echo "$STATUS" | grep Tokens
 
 ---
 
-## 记录时机
+## 铁律：关键节点必须手动记录（强制执行）
 
-每次执行以下操作时**手动**追加一行到 session-log.md：
+> **⚠️ 强制要求：以下每个节点完成后必须执行"记录三步曲"，禁止跳过。**
+>
+> 遗漏记录是 video-creator 最高频错误（见 SKILL.md 致命错误 #4）。本节将"记录时机"从软性建议升级为**硬性铁律**，任何跳过行为都是违规。
 
-- `Step 1`: 内容获取（web_fetch / 搜索）
-- `Step 4`: 文案生成
-- `Step 6`: 视觉生成（封面、插图）
-- `Step 7`: 音频生成（edge-tts）
-- `Step 8`: 字幕生成
-- `Step 10`: 视频渲染
-- `Step 11`: 报告生成
+### 记录三步曲（每个节点必执行）
+
+```
+第1步：节点任务完成
+    ↓
+第2步：在 AI 对话中调用 session_status 工具
+    ↓
+第3步：将 emoji 输出追加到 session-log.md
+    ↓
+第4步：进入下一个节点
+```
+
+### 必须记录的 7 个关键节点
+
+| # | 节点 | 时机 | 操作 |
+|---|------|------|------|
+| 1 | **Step 0 完成** | docs/session-log.md 初始化后 | 记录初始快照 |
+| 2 | **Step 1 完成** | 内容获取（baoyu-fetch / 搜索）完成后 | 记录 Snapshot #1 |
+| 3 | **Step 4 完成** | 文案生成（copy.md / wechat-copy.md）完成后 | 记录 Snapshot #2 |
+| 4 | **Step 6 完成** | 视觉生成（封面、插图）完成后 | 记录 Snapshot #3 |
+| 5 | **Step 7 完成** | 音频生成（edge-tts）完成后 | 记录 Snapshot #4 |
+| 6 | **Step 10 完成** | 视频渲染（Remotion / PIL）完成后 | 记录 Snapshot #5 |
+| 7 | **Step 11 完成** | 报告生成（report.json）完成后 | 记录最终累计 |
+
+### 具体操作命令（可直接复制）
+
+**Step X 完成后，在 AI 对话中执行：**
+
+```
+1. 调用 session_status 工具（输入 /status 或直接说"调用 session_status"）
+2. AI 返回 emoji 格式输出，例如：
+   🧮 Tokens: 138k in / 723 out · 💵 Cost: $0.04
+3. 执行追加命令：
+```
+
+```bash
+TS=$(date '+%Y-%m-%d %H:%M:%S %Z')
+REQ_NUM=$(($(grep -c "^[|]" "${PROJECT_DIR}/docs/session-log.md" 2>/dev/null || echo 0) + 1))
+echo "| $(printf '%02d' $REQ_NUM) | $TS | Step X: 任务名 | minimax/MiniMax-M2.7 | - | - | - | - | <此处粘贴emoji输出> |" >> "${PROJECT_DIR}/docs/session-log.md"
+```
+
+或使用辅助脚本：
+
+```bash
+SKILL_SCRIPT="${HOME}/.hermes/skills/video-creator/scripts/session-log-append.py"
+PROJECT_DIR="/Volumes/OpenClawDrive/.hermes/workspace/{project-name}"
+python3 "${SKILL_SCRIPT}" "${PROJECT_DIR}" "Step X: 任务名" "<emoji输出>"
+```
+
+### 违规处罚
+
+- **任何节点跳过记录**，导致 session-log.md 缺失数据行 → 视为文档不一致严重故障
+- **禁止理由**："任务紧急"、"马上就结束"、"我知道没问题" — 所有理由无效
+- 补录只能推算，无法还原真实 session_status 数据（见附录）
+
+---
 
 ---
 
@@ -110,7 +161,10 @@ workspace/{project-name}/docs/session-log.md
 | # | 时间 | 任务 | 模型 | 输入token | 输出token | 总token | 费用 | Context |
 |---|------|------|------|----------|----------|---------|------|---------|
 | 01 | 2026-04-17 13:09 | 内容获取（baoyu-fetch） | minimax/MiniMax-M2.7 | - | - | - | - | - |
+| 02 | 2026-04-17 13:15 | 文案生成（Step 4） | minimax/MiniMax-M2.7 | - | - | - | - | - |
 ```
+
+> **⚠️ 每个 Step 完成后必须追加一行**。Token 值填 session_status 的累计值，参考"Snapshot 快照法"估算单步骤消耗。禁止只创建表头而不填充数据行。
 
 ---
 
@@ -137,6 +191,22 @@ python3 "${SKILL_SCRIPT}" "${PROJECT_DIR}" "Step X: 任务描述" "${STATUS_TEXT
 ## 历史记录
 
 每次会话完成后，将最终数据追加到项目 `docs/session-log.md`，并在 HEARTBEAT.md 中更新状态。
+
+**执行步骤**：
+1. 调用 `session_status` 获取最终累计值
+2. 追加一行到 `${PROJECT_DIR}/docs/session-log.md` 的"请求记录"表：
+
+```bash
+TS=$(date '+%Y-%m-%d %H:%M:%S %Z')
+REQ_NUM=$(($(grep -c "^[|]" "${PROJECT_DIR}/docs/session-log.md" 2>/dev/null || echo 0) + 1))
+printf '|%02d | %s | 最终报告生成 | minimax/MiniMax-M2.7 | {tokens_in} | {tokens_out} | {total_tokens} | {cost} | ctx:{context} |\n' "$REQ_NUM" "$TS" >> "${PROJECT_DIR}/docs/session-log.md"
+```
+
+3. 更新状态为"已完成"
+
+```bash
+sed -i '' 's/- **状态**: 进行中/- **状态**: 已完成/' "${PROJECT_DIR}/docs/session-log.md"
+```
 
 ---
 

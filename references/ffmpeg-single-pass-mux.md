@@ -1,5 +1,7 @@
 # ffmpeg 单次混流：PIL 帧序列 + ASS 字幕 + 音频
 
+> **更新 2026-05-12**：移除 `force_style` 参数。字幕样式全部写在 ASS 文件的 `[V4+ Styles]` 段，ffmpeg ASS 滤镜直接读取。`force_style` 中的 `:` 被 ffmpeg 解析为滤镜图分隔符导致语法错误。
+
 ## 正确语法（60fps, 1080×1920 竖屏）
 
 ```bash
@@ -9,11 +11,25 @@ ffmpeg -y \
   -i video-project/audio/neural_1_2x.m4a \
   -filter_complex "[0:v]ass=video-project/audio/subtitles.ass[v]" \
   -map "[v]" -map 1:a \
-  -c:v libx264 -preset fast -crf 18 \
-  -c:a aac -b:a 128k \
+  -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
+  -c:a aac -b:a 256k \
+  -movflags +faststart \
   -r 60 -s 1080x1920 \
   video-project/final.mp4
 ```
+
+## ⚠️ force_style 不能用的原因
+
+```bash
+# ❌ 错误：force_style 中的 ":" 被 ffmpeg 解析为滤镜图分隔符
+-filter_complex "[0:v]ass=subs.ass:force_style='FontSize=72'[v]"
+# → Error: Unable to parse option value "FontSize=72" ... the :(colon) acts as a filtergraph delimiter
+
+# ✅ 正确：所有样式写在 ASS 文件 [V4+] Styles 段，滤镜命令不带 force_style
+-filter_complex "[0:v]ass=video-project/audio/subtitles.ass[v]"
+```
+
+**根本原因**：ffmpeg 的 AVOption 系统把 `:` 解析为命令分隔符。ASS 文件本身已经完整描述了样式（Fontsize=72, MarginV=50, Outline=2, Alignment=2），不需要 `force_style` 覆盖。
 
 ## 关键教训
 

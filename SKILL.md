@@ -176,6 +176,7 @@ node {SKILL_DIR}/video-creator/scripts/pre-render-check.js <Video.tsx> <fps> <du
 | 禁止先于音频生成字幕 | 必须音频后处理完成后生成 |
 | 禁止 MP4 内嵌 ASS | 必须用 `-vf "ass=..."` 烧录 |
 | 禁止 Outline=1 | 必须 Outline=2（1px太细） |
+| 禁止在 ffmpeg 命令中使用 `force_style` 参数 | ASS样式必须写在文件内部 `[V4+ Styles]` 段；ffmpeg ASS 滤镜把 `:` 解析为分隔符，`force_style="FontSize=72:..."` 会导致语法错误 |
 
 ### 执行顺序（不可颠倒）
 ```
@@ -342,26 +343,31 @@ done
 
 ## ⚠️ 致命错误修复记录（2026-05-10）
 
-> 以下是已确认的技能文档级错误，正在分阶段修复。遇到文档与实际行为冲突时，以本文为准。
+> 以下是已确认的技能文档级错误，已验证修复。遇到文档与实际行为冲突时，以本文为准。
 
 ### ⚠️ 验证铁律：上下文摘要≠实际落盘
 
-> **本次（2026-05-10）经验**：多轮修订后，上下文摘要声称 12 项全部完成，但实际验证发现 `references/ONEPASS_WORKFLOW.md` 根本不存在，`launch.sh all` 也只跑门禁检查而非执行生成步骤。
->
-> **根因**：上下文压缩（context compaction）将"声称完成"当作"实际完成"处理。摘要来自 handoff，不是文件系统真相。
->
-> **修复**：每次大修订后，必须用 `read_file` 或 `search_files` 验证关键文件**实际存在且内容正确**，不能信任摘要声称。
+> **经验**：上下文压缩（context compaction）将"声称完成"当作"实际完成"处理。摘要来自 handoff，不是文件系统真相。
 
 **验证清单（每次修订后必须执行）**：
 ```bash
-# 1. ONEPASS_WORKFLOW.md 是否存在
-ls -la {SKILL_DIR}/references/ONEPASS_WORKFLOW.md
+# 0. 【关键】移除文件引用前必须先验证文件是否真实存在
+# 摘要声称"X不存在"不等于X不存在——必须ls确认
+for f in references/ONEPASS_WORKFLOW.md rules/SESSION_LOG.md scripts/session-log-append.py; do
+  if [ -f "$SKILL_DIR/$f" ]; then echo "✅ 存在: $f"
+  else echo "❌ 不存在: $f（确认后再移除引用）"; fi
+done
 
-# 2. launch.sh all 命令是否真正执行全链路（不只是跑门禁）
-grep -A5 "cmd_all()" {SKILL_DIR}/scripts/launch.sh | grep "edge-tts\|ffmpeg\|remotion render"
+# 1. launch.sh all 是否真正执行全链路（不只是跑门禁）
+grep -n "edge-tts\\|ffmpeg\\|remotion render\\|gen_frames_template" {SKILL_DIR}/scripts/launch.sh | grep -v "^#" | head -5
 
-# 3. 关键脚本行号验证
-grep -n "fontSize: 72\|outline: 2\|marginV: 50" {SKILL_DIR}/scripts/subtitle-generator.js
+# 2. 关键脚本行号验证
+grep -n "fontSize: 72\\|outline: 2\\|marginV: 50" {SKILL_DIR}/scripts/subtitle-generator.js | head -3
+
+# 3. 关键文件存在性
+for f in scripts/launch.sh scripts/subtitle-generator.js scripts/gen_frames_template.py scripts/video-quality-gate.js; do
+  [ -f "{SKILL_DIR}/$f" ] || echo "❌ 缺失: $f"
+done
 ```
 
 ### ❌ 错误1：技能文档引用不存在的 `@remotion/core`
@@ -430,6 +436,24 @@ grep -i "fontsize\|marginv\|outline" {project}/audio/subtitles.ass
 # 期望：Fontsize: 72, MarginV: 50, Outline: 2
 ```
 
+### ❌ 错误4：session-log.md 记录被遗漏
+
+**影响**：session-log.md 只有表头，没有任何 token 记录行，无法追踪成本。
+
+**根因**：`session_status` 是 OpenClaw 工具调用，输出在 tool result 中（emoji 格式），不是 stdout。执行时直接调用工具会忽略 token 追踪。
+
+**修复**：每个 Step 完成后必须：
+1. 调用 `session_status` 工具（AI 对话中输入）
+2. 将 emoji 输出追加到 `docs/session-log.md` 的请求记录表
+3. 使用 `scripts/session-log-append.py` 或手动 echo 追加行
+
+**验证命令**：
+```bash
+# 验证 session-log.md 有数据行（不只是表头）
+grep -c "^[|]" "${PROJECT_DIR}/docs/session-log.md"
+# 结果 >= 3 才正常（表头 + 至少2行数据）
+```
+
 ---
 
 ## 如何使用
@@ -449,6 +473,8 @@ grep -i "fontsize\|marginv\|outline" {project}/audio/subtitles.ass
 - [rules/WORKFLOW.md](rules/WORKFLOW.md) - 定义视频创作从内容获取到报告生成的11步完整工作流程。
 - [rules/COPY.md](rules/COPY.md) - 规定公众号文案的输出格式、标题规范（8-32字）、摘要规范（≤44字）及正文结构（开头→引出→解决→功能→效果→号召→结尾）。
 - [rules/SUBTITLES.md](rules/SUBTITLES.md) - 集成智能字幕生成（ASS格式）、质量检查（字体/音频/字幕/视频）及自动修复功能，支持批量处理多个视频项目。
+
+**文档一致性维护**：详见 [references/documentation-consistency-guide.md](references/documentation-consistency-guide.md) — 预防 skill 文档与实际代码脱节的检查清单和常见模式。
 
 ### ⚠️ 强制质量门禁（2026-05-10 升级版）
 

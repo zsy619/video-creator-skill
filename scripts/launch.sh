@@ -209,7 +209,7 @@ cmd_render() {
   fi
 
   echo ""
-  echo "请参考 ONEPASS_WORKFLOW.md 的 Step 7-9 执行渲染+混流"
+  echo "请参考 ONEPASS_WORKFLOW.md 的 Step 7-9 执行 Remotion 渲染"
   echo "或运行 $0 all 进行一键生成"
 }
 

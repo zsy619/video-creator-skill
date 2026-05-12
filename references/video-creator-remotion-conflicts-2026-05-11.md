@@ -134,7 +134,7 @@ grep -n "<Audio src=" ~/.hermes/skills/video-creator/**/*.md
 | C13 | rules/REMOTION.md 音量控制 | ✅ 本轮修复 |
 | C14 | rules/REMOTION.md 动态音量残留 | ✅ 本轮修复 |
 | C15 | rules/REMOTION.md @remotion/media-utils | ✅ 本轮修复 |
-| C16 | ONEPASS_WORKFLOW.md 死链 | ✅ 本轮修复 |
+| C16 | ONEPASS_WORKFLOW.md 死链 | ✅ 本轮修复（已从 SKILL.md/launch.sh/REMOTION.md 移除所有引用，SKILL.md 新增强调 `launch.sh` 为唯一入口） |
 
 ---
 

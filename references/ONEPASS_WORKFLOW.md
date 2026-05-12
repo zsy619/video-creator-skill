@@ -183,16 +183,32 @@ else
   exit $?
 fi
 ```
-
-**关键规范**：
-- `TOTAL_FRAMES = ceil(音频时长 × 60)` — 强制60fps，不允许缺帧导致黑屏
-- 帧编号严格连续：`frame_0000.png` → `frame_NNNN.png`
-- 每个场景内部帧从0开始计算（局部帧），场景边界由 `SCENE_BOUNDARIES` 定义
-- ffmpeg 单次混流：帧序列 + 音频 + 字幕同时处理，输出 `final_with_subs.mp4`
-- 移除旧两步流程：不再有 `video_noaudio.mp4` → `final.mp4` → `final_with_subs.mp4` 的中间文件
 - Remotion 并发数：`concurrency=4`（M1 MAX 实测最优）
 
 > **多主题模式**：THEMES.md 中的每个主题（cyberpunk / tech-modern / neon-future / minimal-tech）都有对应的配色方案，gen_frames_template.py 自动读取 `video-config.json.theme` 选择配色。
+
+### ffmpeg 单次混流命令（Step 7b）
+
+> **更新 2026-05-12**：移除 `force_style` 参数（见下方原因）。字幕样式全部写在 ASS 文件的 `[V4+ Styles]` 段里，ffmpeg 的 ASS 过滤器直接读取。
+
+```bash
+AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a)
+
+ffmpeg -y \
+  -framerate 60 \
+  -i "out/frames/frame_%04d.png" \
+  -i "audio/neural_1_2x.m4a" \
+  -filter_complex "[0:v]ass=audio/subtitles.ass[v]" \
+  -map "[v]" -map 1:a \
+  -t "${AUDIO_DURATION}" \
+  -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p \
+  -c:a aac -b:a 256k \
+  -movflags +faststart \
+  -r 60 -s 1080x1920 \
+  "out/final_with_subs.mp4"
+```
+
+**⚠️ `force_style` 为什么不能用**：ffmpeg 的 `ass` 滤镜把 `:` 解析为滤镜图分隔符，所以 `force_style="FontSize=72,PrimaryColour=..."` 会在第一个 `:`（`FontSize=72` 的冒号）处截断，导致语法错误。**解决方案**：把所有样式声明写在 ASS 文件内部（`[V4+ Styles]` 段），滤镜命令只写 `-filter_complex "[0:v]ass=audio/subtitles.ass[v]"` 不带任何 `force_style`。
 
 **⚠️ 如果 Video.tsx 使用了 `<Text>` 组件（不存在），先修复**：
 

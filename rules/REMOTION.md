@@ -970,7 +970,7 @@ useEffect(() => {
 
 > **⚠️ 【重要】headless 环境禁止使用 `<Audio>` 组件**
 >
-> M-series Mac 等 headless 环境下，Remotion 渲染无音频（Audio 组件不工作）。音频通过 **ffmpeg 外部注入**（见 ONEPASS_WORKFLOW.md）。
+> M-series Mac 等 headless 环境下，Remotion 渲染无音频（Audio 组件不工作）。音频通过 **ffmpeg 外部注入**（见 `scripts/launch.sh` 的 `cmd_all()` 函数）。
 >
 > Remotion Studio 预览环境可临时使用 `<Audio>`，但渲染前必须移除。
 
