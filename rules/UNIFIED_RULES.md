@@ -301,10 +301,21 @@ def create_cover(title, subtitle, output_path, canvas_type='vertical'):
     # ========== 文字渲染（全部使用 smart_resize_text）==========
     X = w // 2
 
-    # 1. 主标题 — 核心：必须经过 smart_resize_text
+    # ---- 文字尺寸计算 ----
     font_title, title_w, title_h = smart_resize_text(title, FONT_PATH, TITLE_SIZES[canvas_type], w)
-    title_y = int(h * 0.18)
-    # 多层发光效果
+    gap = 40
+    if subtitle:
+        font_sub, sub_w, sub_h = smart_resize_text(subtitle, FONT_PATH, SUBTITLE_SIZES[canvas_type], w)
+    else:
+        font_sub, sub_w, sub_h = None, 0, 0
+
+    # ---- 整体垂直居中 ----
+    # 大标题 + 副标题作为整体，在画布垂直方向居中
+    total_height = title_h + gap + sub_h if subtitle else title_h
+    start_y = (h - total_height) // 2
+    title_y = start_y
+
+    # ---- 主标题（多层霓虹发光）----
     for glow_size, glow_color in [
         (int(TITLE_SIZES[canvas_type] * 0.08), '#004444'),
         (int(TITLE_SIZES[canvas_type] * 0.05), '#006666'),
@@ -315,10 +326,9 @@ def create_cover(title, subtitle, output_path, canvas_type='vertical'):
             draw.text((X + dx, title_y + dy), title, fill=glow_color, font=font_title, anchor='mm')
     draw.text((X, title_y), title, fill='#FFFFFF', font=font_title, anchor='mm')
 
-    # 2. 副标题（如果提供）
+    # ---- 副标题（垂直居中，跟在主标题下方）----
     if subtitle:
-        font_sub, sub_w, sub_h = smart_resize_text(subtitle, FONT_PATH, SUBTITLE_SIZES[canvas_type], w)
-        sub_y = title_y + title_h // 2 + 40
+        sub_y = title_y + title_h + gap
         draw.text((X, sub_y), subtitle, fill='#00FFFF', font=font_sub, anchor='mm')
 
     # 3. 自校验：标题高度占比 ≥8%

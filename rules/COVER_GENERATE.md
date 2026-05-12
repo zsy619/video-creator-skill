@@ -96,19 +96,26 @@ def create_cover(width, height, title, subtitle, output_path):
     title_font = load_chinese_font(title_font_size)
     sub_font = load_chinese_font(sub_font_size)
     
-    # 主标题（换行处理）
-    lines = title.split('\n')
-    current_y = (height - (len(lines) * title_font_size)) // 2 - 50
+    # ---- 整体垂直居中 ----
+    # 大标题（可能换行）+ 副标题作为整体，在画布垂直方向居中
+    line_count = len(lines)
+    title_block_h = line_count * title_font_size + (line_count - 1) * 10
+    sub_bbox = draw.textbbox((0, 0), subtitle, font=sub_font)
+    sub_h = sub_bbox[3] - sub_bbox[1]
+    total_height = title_block_h + 40 + sub_h
+    start_y = (height - total_height) // 2
+    current_y = start_y
+
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=title_font)
         text_width = bbox[2] - bbox[0]
         x = (width - text_width) // 2
         draw.text((x, current_y), line, fill=THEME['textColor'], font=title_font)
         current_y += title_font_size + 10
-    
+
     # 副标题
     sub_bbox = draw.textbbox((0, 0), subtitle, font=sub_font)
-    sub_width = sub_bbox[2] - sub_bbox[0']
+    sub_width = sub_bbox[2] - sub_bbox[0]
     draw.text(((width - sub_width) // 2, current_y + 40), subtitle, fill=THEME['primaryColor'], font=sub_font)
     
     # 装饰线

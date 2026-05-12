@@ -285,13 +285,24 @@ def create_cover(title, subtitle, output_path, canvas_type='vertical'):
     X = w // 2
     safe_max = TITLE_SIZES[canvas_type]   # 起始字号上限
 
-    # ---- 主标题 ----
+    # ---- 文字尺寸计算 ----
     font_title, title_w, title_h = smart_resize_text(
         title, FONT_PATH, safe_max, w
     )
-    title_y = int(h * 0.18)
+    gap = 40
+    if subtitle:
+        font_sub, sub_w, sub_h = smart_resize_text(
+            subtitle, FONT_PATH, SUBTITLE_SIZES[canvas_type], w
+        )
+    else:
+        font_sub, sub_w, sub_h = None, 0, 0
 
-    # 多层霓虹发光
+    # ---- 整体垂直居中 ----
+    total_height = title_h + gap + sub_h if subtitle else title_h
+    start_y = (h - total_height) // 2
+    title_y = start_y
+
+    # ---- 主标题（多层霓虹发光）----
     for glow_px, glow_hex in [
         (int(safe_max * 0.08), '#004444'),
         (int(safe_max * 0.05), '#006666'),
@@ -305,10 +316,7 @@ def create_cover(title, subtitle, output_path, canvas_type='vertical'):
 
     # ---- 副标题 ----
     if subtitle:
-        font_sub, sub_w, sub_h = smart_resize_text(
-            subtitle, FONT_PATH, SUBTITLE_SIZES[canvas_type], w
-        )
-        sub_y = title_y + title_h // 2 + 40
+        sub_y = title_y + title_h + gap
         draw.text((X, sub_y), subtitle, fill='#00FFFF', font=font_sub, anchor='mm')
 
     # ========== 自校验 ==========

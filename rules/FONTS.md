@@ -201,7 +201,15 @@ def create_prominent_cover(output_path, size, title_size, sub_size, tag_size, ur
     assert ratio >= 10, f"Too small: {ratio:.1f}%"
     
     # 5. 多层发光标题（字体突出核心）
-    title_y = int(h * title_y_ratio)
+    # ---- 整体垂直居中（大标题+副标题作为整体）----
+    # 测量主标题块高度（支持多行）
+    line_count = len(title_text.split('\n')) if '\n' in title_text else 1
+    title_height = line_count * title_size
+    # 副标题高度
+    sub_h = int(sub_size * 1.2)
+    total_height = title_height + int(sub_size * 0.8) + sub_h
+    start_y = h // 2 - total_height // 2
+    title_y = start_y
     for glow_size, glow_color in [
         (int(title_size*0.08), '#004444'),
         (int(title_size*0.05), '#006666'),

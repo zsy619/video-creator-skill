@@ -1,7 +1,8 @@
-# 封面图 smart_resize_text() 自动缩放函数
+# 封面图 smart_resize_text() 自动缩放函数 + 垂直居中布局
 
-> **日期**：2026-05-10
-> **来源**：封面图生成反复修订根因分析 + 修复执行
+> **日期**：2026-05-12
+> **更新**：新增大标题+副标题整体垂直居中算法（替换旧 `title_y = h * 0.18` 固定位置）
+> **来源**：封面图生成反复修订根因分析 + understanding-apis-video 项目 PIL 封面生成实践
 
 ## 背景
 
@@ -103,8 +104,48 @@ node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> cover
 2. 如标题超过 8 个字：自动缩小字体但必须保持清晰可读（不得小于 48px）
 3. 如标题超过 14 个字：可拆分为两行展示（主标题 + 副标题结构）
 4. 字体颜色：白色（#FFFFFF），外发光青色（#00FFFF）效果
-5. 标题位置：画面垂直方向约 18-25% 高度处居中
+5. 标题位置：画面整体垂直居中（大标题 + 副标题作为整体，在画布垂直方向居中）
 ```
+
+## 封面文字垂直居中算法（2026-05-12 新增）
+
+> **旧逻辑（已废弃）**：`title_y = h * 0.18`（固定在画布18%高度，偏向顶部）
+> **新逻辑**：大标题 + 副标题作为整体，计算 `total_height`，然后 `start_y = (h - total_height) // 2` 垂直居中
+
+**核心代码模式**：
+```python
+# 1. 先测量所有文字尺寸
+font_title, title_w, title_h = smart_resize_text(title, FONT_PATH, TITLE_SIZES[canvas_type], w)
+gap = 40
+if subtitle:
+    font_sub, sub_w, sub_h = smart_resize_text(subtitle, FONT_PATH, SUBTITLE_SIZES[canvas_type], w)
+else:
+    font_sub, sub_w, sub_h = None, 0, 0
+
+# 2. 整体垂直居中
+total_height = title_h + gap + sub_h if subtitle else title_h
+start_y = (h - total_height) // 2
+title_y = start_y
+
+# 3. 主标题绘制
+draw.text((X, title_y), title, fill='#FFFFFF', font=font_title, anchor='mm')
+
+# 4. 副标题（跟在主标题下方，而非叠加在主标题内部）
+if subtitle:
+    sub_y = title_y + title_h + gap
+    draw.text((X, sub_y), subtitle, fill='#00FFFF', font=font_sub, anchor='mm')
+```
+
+**关键点**：
+- 副标题 `sub_y = title_y + title_h + gap`，不是 `title_y + title_h // 2 + 40`（旧错误写法：叠加在主标题下半部分）
+- `anchor='mm'` 确保文字以中心点为锚对齐
+- gap = 40px 是固定值，适用于所有画布类型
+
+**已同步的技能文件**：
+- `scripts/generate_cover.py` ✅
+- `rules/UNIFIED_RULES.md` Section 5.5 ✅
+- `rules/FONTS.md` ✅
+- `rules/COVER_GENERATE.md` ✅
 
 ## 相关文件
 
