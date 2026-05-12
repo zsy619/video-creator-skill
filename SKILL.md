@@ -179,6 +179,20 @@ node {SKILL_DIR}/video-creator/scripts/pre-render-check.js <Video.tsx> <fps> <du
 | 禁止 `\\\\N` 换行 | 必须 `\N` 换行 |
 | 禁止字段数不匹配 | Format 10字段，Dialogue 10字段 |
 | 禁止先于音频生成字幕 | 必须音频后处理完成后生成 |
+| 禁止直接调用 subtitle-generator.js 作为 CLI | SubtitleGenerator 是类库，必须 require 后实例化调用；详见 [references/subtitle-generator-usage.md](references/subtitle-generator-usage.md) |
+
+### 字幕生成
+
+> ⚠️ `subtitle-generator.js` 是 **class 类库**，不是 CLI。直接 `node scripts/subtitle-generator.js` 调用不会有任何输出。必须写调用脚本或用 Node.js 内联脚本生成 ASS。详见 [references/subtitle-generator-usage.md](references/subtitle-generator-usage.md)。
+
+**ASS 字幕手工生成（标准流程）**：
+```bash
+node -e "
+const { execSync } = require('child_process');
+// 用 Node.js 内联脚本生成 ASS（见 references/subtitle-generator-usage.md）
+"
+```
+或参考 `references/subtitle-generator-usage.md` 中的完整脚本模板。
 | 禁止 MP4 内嵌 ASS | 必须用 `-vf "ass=..."` 烧录 |
 | 禁止 Outline=1 | 必须 Outline=2（1px太细） |
 | 禁止在 ffmpeg 命令中使用 `force_style` 参数 | ASS样式必须写在文件内部 `[V4+ Styles]` 段；ffmpeg ASS 滤镜把 `:` 解析为分隔符，`force_style="FontSize=72:..."` 会导致语法错误 |
@@ -623,7 +637,15 @@ rm -rf out/frames
 场景6 cta:      帧 3360-3600 (4秒)  — CTA行动号召
 ```
 
-**gen_frames_template.py**：`scripts/gen_frames_template.py` — 完整的 6 场景 PIL 帧生成脚本，支持 cyberpunk / tech-modern / neon-future / minimal-tech 四套主题配色，从 `video-project/video-config.json` 读取场景内容。
+### gen_frames_template.py（已知问题，调用前必读）
+
+> ⚠️ gen_frames_template.py 有**两个已知 bug**（2026-05-12）：
+> 1. **音频路径双重 video-project**：`main()` 无条件拼接 `video-project`，当 `project_dir` 已是 video-project 形式时会路径错误。**临时解法**：调用时用 `.` 代替绝对路径。
+> 2. **_draw_frame_worker 参数解包错误**：`tasks.append` 只有6个值，但 `_draw_frame_worker` 期望7个（缺少 `bg_color`）。必须修复后才能并行渲染。
+>
+> 详见 [references/gen-frames-template-bugs-2026-05-12.md](references/gen-frames-template-bugs-2026-05-12.md)。
+>
+> **推荐做法**：对于简单单项目，直接写项目专属 `gen_frames.py`（内联场景逻辑），绕过 gen_frames_template.py 的复杂性。
 
 **致命错误**：帧编号必须严格连续。如果帧文件命名有跳步（如 `frame_0000.png`, `frame_0003.png`, ...），ffmpeg 只会读取第一帧并认为输入结束。修复方法：
 ```bash
