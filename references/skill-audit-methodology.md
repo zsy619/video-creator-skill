@@ -119,3 +119,40 @@ main.js 第784行注释：Fontsize=10（已过时）
 | 路径硬编码 | 14 处 | 全部替换为 {SKILL_DIR}/{WORKSPACE_DIR} |
 | 验证器旧值 | video-creator-validator.js / check-subtitle.js | 同步更新 |
 | 文档旧值 | CHECKLIST.md / QUICKSTART.md / SUBTITLES.md | 同步更新 |
+
+## 本次审计战果（2026-05-13）
+
+| 类型 | 发现 | 修复 |
+|------|------|------|
+| 封面帧号缺失规范 | UNIFIED_RULES.md 无帧号指导 | 添加 `--frame=N-2` 规则 |
+| npx create-video 挂起 | CLI bug 无文档 | 新增 TROUBLESHOOTING.md Q&A |
+| zod 版本错误 | create-remotion-project.js 写 3.4.0 | 修正为 4.3.6 |
+| Root.tsx 硬编码 | fps=60/duration=3180/标题="视频标题" | 改为从 config 读取 |
+| launch.sh 顺序错误 | Step -1 封面在 Remotion 项目之前 | 标注 PIL 占位质量 |
+| 缺少正式封面生成 | Step 7 后无 Remotion still | 新增 Step 8 重生成封面 |
+| 场景内容硬编码 | create-remotion-project.js 全 Hysteria 模板 | 架构问题，待重构 |
+
+### 新增 Remotion 项目生成审计检查项
+
+```bash
+# 检查 create-remotion-project.js 输出目录
+grep "path.join.*project.*video-project" {SKILL_DIR}/scripts/create-remotion-project.js
+# 期望：vpDir = path.join(projectDir, "video-project")
+
+# 检查 Root.tsx 是否硬编码 fps/duration/标题
+grep "fps={60}\|fps=60\|3180\|视频标题" {SKILL_DIR}/scripts/create-remotion-project.js
+# 期望：无硬编码值，应从 config 读取
+
+# 检查 launch.sh 是否在 Step 7 后生成封面
+grep -n "remotion still\|Step 8\|--frame=" {SKILL_DIR}/scripts/launch.sh
+# 期望：有 Step 8 remotion still，且使用 --frame=$((TOTAL_FRAMES-2))
+```
+
+### Remotion 项目生成 4 大常见失败模式
+
+| 模式 | 症状 | 根因 |
+|------|------|------|
+| CLI 挂起 | npx create-video 不返回 | --yes + --template 冲突 |
+| 目录错乱 | 生成了 subdir/ 而非 video-project/ | 手动创建 vs 脚本生成 |
+| 内容无关 | 视频是"视频标题/Hysteria" | create-remotion-project.js 硬编码模板 |
+| 封面模糊 | 帧0淡入中，文字不可见 | 未指定帧号或帧号错误 |

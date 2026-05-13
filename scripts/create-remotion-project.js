@@ -110,7 +110,7 @@ function createProject(projectDir, config) {
       "@remotion/captions": "4.0.459",
       react: "18.2.0",
       "react-dom": "18.2.0",
-      zod: "3.4.0",
+      zod: "4.3.6",
     },
     devDependencies: {
       "@types/react": "^18.2.0",
@@ -721,7 +721,26 @@ function createProject(projectDir, config) {
     "};\n");
 
   // ── Root.tsx ──────────────────────────────────────────────────────────────
-  // 帧数固定为 3180（52.824s @ 59.94fps），由 launch.sh 通过 --fps=59.94 传入
+  // fps/duration 从 config 读取（不硬编码），确保与 launch.sh --fps=59.94 一致
+  const fps = config.fps || 59.94;
+  const audioPath = path.join(projectDir, "audio", "neural_1_2x.m4a");
+  let totalFrames;
+  if (fs.existsSync(audioPath)) {
+    // 从音频时长计算帧数
+    const { execSync } = require("child_process");
+    try {
+      const dur = execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${audioPath}"`, { encoding: "utf8" });
+      totalFrames = Math.ceil(parseFloat(dur.trim()) * fps);
+    } catch (e) {
+      totalFrames = Math.ceil((config.duration || 52) * fps);
+    }
+  } else {
+    totalFrames = Math.ceil((config.duration || 52) * fps);
+  }
+  const coverTitle = (config.cover && config.cover.title) ? config.cover.title : (config.title || "视频标题");
+  const coverSubtitle = (config.cover && config.cover.subtitle) ? config.cover.subtitle : (config.subtitle || "副标题");
+  const themeId = config.theme || "cyberpunk";
+
   fs.writeFileSync(path.join(srcDir, "Root.tsx"),
     "import { Composition } from \"remotion\";\n" +
     "import { VerticalVideo } from \"./Video\";\n\n" +
@@ -730,14 +749,14 @@ function createProject(projectDir, config) {
     "    <Composition\n" +
     '      id="VerticalVideo"\n' +
     "      component={VerticalVideo}\n" +
-    "      durationInFrames={3180}\n" +
-    "      fps={60}\n" +
+    `      durationInFrames={${totalFrames}}\n` +
+    `      fps={${fps}}\n` +
     "      width={1080}\n" +
     "      height={1920}\n" +
     "      defaultProps={{\n" +
-    '        title: "视频标题",\n' +
-    '        subtitle: "副标题",\n' +
-    '        theme: "cyberpunk",\n' +
+    `        title: "${coverTitle}",\n` +
+    `        subtitle: "${coverSubtitle}",\n` +
+    `        theme: "${themeId}",\n` +
     "        scenes: [],\n" +
     '        audioFile: "audio/neural_1_2x.m4a",\n' +
     '        captionsFile: "audio/captions.json",\n' +

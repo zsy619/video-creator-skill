@@ -16,122 +16,35 @@
 
 ---
 
-## PIL 生成规则（推荐）
+## Remotion 封面生成（唯一方案）
 
-### 主题配置
+> **⚠️ 2026-05-13 重要更新**：封面图统一使用 `npx remotion still` 从 Remotion 项目渲染，禁止使用 PIL 生成封面。
 
-```python
-# tech-modern 主题配色
-THEME = {
-    'backgroundColor': '#0F172A',  # 深蓝黑
-    'primaryColor': '#2563EB',      # 蓝色
-    'secondaryColor': '#7C3AED',    # 紫色
-    'accentColor': '#10B981',       # 绿色
-    'textColor': '#F8FAFC',         # 白色
-}
+### 渲染命令
+
+```bash
+cd video-project
+
+# 渲染视频号封面 1080×1920
+npx remotion still VerticalVideo docs/assets/cover.png --frame=0 --log=error
+
+# 从同一帧截取公众号封面 900×383（居中裁剪）
+ffmpeg -y -i docs/assets/cover.png \
+  -vf "crop=900:383:(iw-900)/2:(ih-383)/2" \
+  docs/assets/cover-wechat.png
+
+# 从同一帧截取小红书封面 1440×2560
+ffmpeg -y -i docs/assets/cover.png \
+  -vf "scale=1440:2560:force_original_aspect_ratio=decrease,pad=1440:2560:(ow-iw)/2:(oh-ih)/2" \
+  docs/assets/cover-xhs.png
 ```
 
-### 完整生成脚本
+### 验证
 
-```python
-from PIL import Image, ImageDraw, ImageFont
-import os
-import random
-
-PROJECT = '/path/to/project'
-
-THEME = {
-    'backgroundColor': '#0F172A',
-    'primaryColor': '#2563EB',
-    'textColor': '#F8FAFC',
-}
-
-def hex_to_rgb(hex_color):
-    h = hex_color.lstrip('#')
-    return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
-
-def draw_gradient_background(draw, width, height, color1, color2):
-    c1 = hex_to_rgb(color1)
-    c2 = hex_to_rgb(color2)
-    for y in range(height):
-        ratio = y / height
-        r = int(c1[0] + (c2[0] - c1[0]) * ratio)
-        g = int(c1[1] + (c2[1] - c1[1]) * ratio)
-        b = int(c1[2] + (c2[2] - c1[2]) * ratio)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
-
-def load_chinese_font(font_size):
-    font_paths = [
-        '/System/Library/Fonts/Hiragino Sans GB.ttc',
-        '/System/Library/Fonts/PingFang.ttc',
-        '/Library/Fonts/Arial Unicode.ttf',
-    ]
-    for fp in font_paths:
-        if os.path.exists(fp):
-            try:
-                return ImageFont.truetype(fp, font_size)
-            except:
-                continue
-    return ImageFont.load_default()
-
-def create_cover(width, height, title, subtitle, output_path):
-    img = Image.new('RGB', (width, height), color=THEME['backgroundColor'])
-    draw = ImageDraw.Draw(img)
-    
-    # 渐变背景
-    draw_gradient_background(draw, width, height, '#0F172A', '#1E293B')
-    
-    # 粒子装饰（固定种子保证可复现）
-    random.seed(42)
-    for _ in range(50):
-        x = random.randint(0, width)
-        y = random.randint(0, height)
-        size = random.randint(1, 3)
-        color = (random.randint(30, 60), random.randint(80, 150), random.randint(200, 255))
-        draw.ellipse([x, y, x+size, y+size], fill=color)
-    
-    # 字体大小（根据宽度计算）
-    title_font_size = max(int(width * 0.067), 60)
-    sub_font_size = max(int(width * 0.041), 36)
-    title_font = load_chinese_font(title_font_size)
-    sub_font = load_chinese_font(sub_font_size)
-    
-    # ---- 整体垂直居中 ----
-    # 大标题（可能换行）+ 副标题作为整体，在画布垂直方向居中
-    line_count = len(lines)
-    title_block_h = line_count * title_font_size + (line_count - 1) * 10
-    sub_bbox = draw.textbbox((0, 0), subtitle, font=sub_font)
-    sub_h = sub_bbox[3] - sub_bbox[1]
-    total_height = title_block_h + 40 + sub_h
-    start_y = (height - total_height) // 2
-    current_y = start_y
-
-    for line in lines:
-        bbox = draw.textbbox((0, 0), line, font=title_font)
-        text_width = bbox[2] - bbox[0]
-        x = (width - text_width) // 2
-        draw.text((x, current_y), line, fill=THEME['textColor'], font=title_font)
-        current_y += title_font_size + 10
-
-    # 副标题
-    sub_bbox = draw.textbbox((0, 0), subtitle, font=sub_font)
-    sub_width = sub_bbox[2] - sub_bbox[0]
-    draw.text(((width - sub_width) // 2, current_y + 40), subtitle, fill=THEME['primaryColor'], font=sub_font)
-    
-    # 装饰线
-    line_y = height - 150
-    draw.rectangle([(width // 4, line_y), (3 * width // 4, line_y + 3)], fill=THEME['primaryColor'])
-    
-    img.save(output_path, 'PNG', quality=95)
-    print(f"✅ {os.path.basename(output_path)}: {width}x{height}")
-
-# 使用示例
-title = "让你的 AI 成为\n知识管家"
-subtitle = "Obsidian LLM Wiki"
-
-create_cover(1080, 1920, title, subtitle, f'{PROJECT}/docs/assets/cover.png')
-create_cover(900, 383, title, subtitle, f'{PROJECT}/docs/assets/cover-wechat.png')
-create_cover(1440, 2560, title, subtitle, f'{PROJECT}/docs/assets/cover-xhs.png')
+```bash
+ffprobe -v error -show_entries stream=width,height -of default=noprint_wrappers=1 \
+  docs/assets/cover.png docs/assets/cover-wechat.png docs/assets/cover-xhs.png
+# 期望：1080×1920 / 900×383 / 1440×2560
 ```
 
 ---

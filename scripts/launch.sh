@@ -168,7 +168,7 @@ cmd_audio() {
   fi
 
   echo ""
-  echo "请参考 ONEPASS_WORKFLOW.md 的 Step 2 执行 edge-tts 配音"
+  echo "请参考 video-creator 技能的音频流程生成配音"
   echo "或运行 $0 all 进行一键生成"
 }
 
@@ -196,7 +196,8 @@ cmd_subtitle() {
   ok "音频时长: ${duration}s"
 
   echo ""
-  echo "请参考 ONEPASS_WORKFLOW.md 的 Step 5 执行字幕生成"
+  echo "请生成 captions.json（startMs/endMs 毫秒格式）放入 audio/ 目录"
+  echo "格式参考: [{\"text\":\"字幕文本\",\"startMs\":0,\"endMs\":5000},...]"
   echo "或运行 $0 all 进行一键生成"
 }
 
@@ -258,7 +259,7 @@ cmd_render() {
 
   # ── Remotion 渲染 ─────────────────────────────────────────────────────────
   echo ""
-  echo "=== Remotion 渲染（60fps / 1080×1920 / MP4）==="
+  echo "=== Remotion 渲染（59.94fps / 1080×1920 / MP4）==="
 
   mkdir -p "${VP_DIR}/out"
 
@@ -272,7 +273,7 @@ cmd_render() {
   log "音频时长: ${AUDIO_DURATION}s → ${TOTAL_FRAMES} 帧 @59.94fps"
 
   npx remotion render VerticalVideo \
-    "${VP_DIR}/out/final.mp4" \
+    "${VP_DIR}/out/final_with_subs.mp4" \
     --concurrency=4 \
     --fps=59.94 \
     --duration-in-frames=${TOTAL_FRAMES} \
@@ -280,16 +281,15 @@ cmd_render() {
     2>&1 | tail -10
 
   if [ $? -ne 0 ]; then
-    err "Remotion 渲染失败，尝试 fallback 到 PIL 帧序列..."
-    # fallback 逻辑由 cmd_all 处理
+    err "❌ Remotion 渲染失败，请检查 node_modules 和 Remotion CLI"
     return 1
   fi
 
-  ok "Remotion 渲染完成: ${VP_DIR}/out/final.mp4"
+  ok "Remotion 渲染完成: ${VP_DIR}/out/final_with_subs.mp4"
   echo ""
-  echo "最终文件: ${VP_DIR}/out/final.mp4"
+  echo "最终文件: ${VP_DIR}/out/final_with_subs.mp4"
   echo "渲染方式: Remotion Native（音频内嵌 / 字幕烧录 / MP4直出）"
-  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 60fps"
+  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 59.94fps"
 }
 
 # ── 子命令: all ────────────────────────────────────────────────────────────────
@@ -350,9 +350,11 @@ cmd_all() {
     ok "字数检查: ${CHAR_COUNT}字 / ${MAX_CHARS}字上限"
   fi
 
-  # ── Step -1: 生成封面图（3个尺寸）────────────────────────────────────
+  # ── Step -1: 预生成封面图（占位，仅作早期预览）─────────────────────────
+  # ⚠️ 注意：此时 Remotion 项目尚未创建，只能用 PIL 生成占位封面
+  # 正式封面须在 Step 7 之后用 npx remotion still 重新生成
   echo ""
-  echo "=== Step -1: 生成封面图 ==="
+  echo "=== Step -1: 预生成封面图（占位）==="
   local COVER_TITLE
   COVER_TITLE=$(node -e "console.log(require('${config_file}').cover?.title || require('${config_file}').title || '视频标题')")
   local COVER_SUBTITLE
@@ -367,9 +369,9 @@ cmd_all() {
     > /tmp/cover.$$.out 2>&1
 
   if [ $? -eq 0 ]; then
-    ok "封面图生成完成（vertical / wechat / xhs）"
+    ok "预封面生成完成（占位，仅 PIL 质量）"
   else
-    warn "⚠️ AI封面生成失败，尝试 PIL 兜底..."
+    warn "⚠️ PIL封面生成失败（Remotion 项目尚未创建，无法生成高质量封面）"
     cat /tmp/cover.$$.out | tail -3
   fi
   rm -f /tmp/cover.$$.out
@@ -426,33 +428,46 @@ cmd_all() {
   fi
   ok "✅ 门禁 A 通过"
 
-  # ── Step 3: 字幕生成（maxCharsPerLine=50）──────────────────────────────
+  # ── Step 3: captions.json 生成（startMs/endMs 毫秒格式）──────────────
   echo ""
-  echo "=== Step 3: 字幕生成 ==="
-  node -e "
-    const SubtitleGenerator = require('${SUBTITLE_GEN}');
-    const fs = require('fs');
-    const gen = new SubtitleGenerator({ maxCharsPerLine: 50 });
-    const text = fs.readFileSync('${narration_file}', 'utf8');
-    gen.generateFromText(text, ${TARGET_DURATION}).then(subs => {
-      return gen.generateASS(subs, '${proj_dir}/audio/subtitles.ass');
-    }).then(() => console.log('SUBTITLE_OK')).catch(e => { console.error(e.message); process.exit(1); });
-  " > /tmp/subtitle_gen.$$.out 2>&1
+  echo "=== Step 3: 生成字幕时间戳（captions.json）==="
+  python3 -c "
+import json, re, sys
 
-  if [ $? -ne 0 ] || ! grep -q "SUBTITLE_OK" /tmp/subtitle_gen.$$.out 2>/dev/null; then
-    err "❌ 字幕生成失败:"; cat /tmp/subtitle_gen.$$.out; echo ""
-    rm -f /tmp/subtitle_gen.$$.out
+text = open('${narration_file}', encoding='utf-8').read()
+# 按中文标点和换行分割句子
+sentences = re.split(r'[。！？；\n]+', text.strip())
+sentences = [s.strip() for s in sentences if s.strip()]
+
+# 语速估算：3.73 字/秒
+chars_per_sec = 3.73
+captions = []
+current_ms = 0
+for s in sentences:
+    char_count = sum(1 for c in s if '\u4e00' <= c <= '\u9fff') + sum(1 for c in s if c.isalnum() and not '\u4e00' <= c <= '\u9fff')
+    duration_sec = char_count / chars_per_sec
+    start_ms = int(current_ms)
+    end_ms = int(current_ms + duration_sec * 1000)
+    captions.append({'text': s, 'startMs': start_ms, 'endMs': end_ms})
+    current_ms += duration_sec * 1000
+
+with open('${proj_dir}/audio/captions.json', 'w', encoding='utf-8') as f:
+    json.dump(captions, f, ensure_ascii=False, indent=2)
+print(f'CAPTION_OK:{len(captions)} captions')
+" > /tmp/caption_gen.$$.out 2>&1
+
+  if [ $? -ne 0 ] || ! grep -q "CAPTION_OK" /tmp/caption_gen.$$.out 2>/dev/null; then
+    err "❌ 字幕时间戳生成失败:"; cat /tmp/caption_gen.$$.out; echo ""
+    rm -f /tmp/caption_gen.$$.out
     exit 1
   fi
-  ok "✅ ASS 字幕生成完成: audio/subtitles.ass"
-  rm -f /tmp/subtitle_gen.$$.out
+  CAPTION_COUNT=$(grep "CAPTION_OK" /tmp/caption_gen.$$.out | cut -d: -f2)
+  ok "✅ captions.json 生成完成: audio/captions.json（${CAPTION_COUNT} 条）"
+  rm -f /tmp/caption_gen.$$.out
 
-  # 字体修复：PingFang SC → STHeiti Medium
-  sed -i '' 's/PingFang SC/STHeiti Medium/g' "${proj_dir}/audio/subtitles.ass" 2>/dev/null || true
-
-  # ── Gate B（字幕质量）───────────────────────────────────────────────
+  # ── Gate B（字数检查）───────────────────────────────────────────────
   echo ""
-  echo "=== 门禁 B: 字幕 ==="
+  echo "=== 门禁 B: 文本字数 ==="
   # --target-duration 传给 pre-subtitle-check 的文本长度门禁（字数上限 = TARGET_DURATION × 3.37）
   if ! node "${GATE}" "${proj_dir}" "subtitle" --target-duration="${TARGET_DURATION}" 2>&1 | tail -5; then
     err "❌ 门禁 B 未通过，终止"
@@ -518,45 +533,54 @@ cmd_all() {
   cd - > /dev/null
 
   if [ $REMOTION_STATUS -ne 0 ]; then
-    warn "⚠️ Remotion 渲染失败，fallback 到 PIL 帧序列..."
-    echo ""
-    echo "=== PIL fallback ==="
-
-    python3 "${SCRIPT_DIR}/gen_frames_template.py" "${proj_dir}" --theme "${THEME}" \
-      > /tmp/frame_gen.$$.out 2>&1
-
-    if [ $? -ne 0 ]; then
-      err "❌ PIL 帧生成也失败了"
-      cat /tmp/frame_gen.$$.out; echo ""
-      rm -f /tmp/frame_gen.$$.out
-      exit 1
-    fi
-
-    local FRAME_COUNT
-    FRAME_COUNT=$(find "${VP_DIR}/frames" -name 'frame_*.png' 2>/dev/null | wc -l | tr -d ' ')
-    ok "✅ PIL 帧序列: ${FRAME_COUNT} 帧"
-
-    echo ""
-    echo "=== ffmpeg 混流（PIL fallback，不含字幕）==="
-    ffmpeg -y \
-      -framerate 59.94 \
-      -i "${VP_DIR}/frames/frame_%04d.png" \
-      -i "${proj_dir}/audio/neural_1_2x.m4a" \
-      -map 0:v -map 1:a \
-      -t "${AUDIO_DURATION}" \
-      -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p \
-      -c:a aac -b:a 256k \
-      -r 59.94 -s 1080x1920 \
-      "${VP_DIR}/out/final_no_subs.mp4" 2>/dev/null
-
-    rm -rf "${VP_DIR}/frames"
-    local FINAL_FILE="final_no_subs.mp4"
-    warn "⚠️ PIL fallback 输出不含 ASS 字幕（如需字幕请使用 Remotion 渲染）"
-  else
-    ok "✅ Remotion 渲染完成"
-    local FINAL_FILE="final.mp4"
+    err "❌ Remotion 渲染失败，请检查 node_modules 和 Remotion CLI"
+    cat /tmp/remotion.$$.out; echo ""
+    exit 1
   fi
-  rm -f /tmp/remotion.$$.out /tmp/frame_gen.$$.out
+  ok "✅ Remotion 渲染完成"
+  rm -f /tmp/remotion.$$.out
+
+  # ── Step 8: 用 Remotion still 生成正式封面（3个尺寸）───────────────
+  # ⚠️ 必须在渲染完成后执行，此时 Remotion 项目已创建
+  # 帧号使用最后一帧减1（动画完全进入的那一帧），不得使用帧0
+  echo ""
+  echo "=== Step 8: Remotion still 生成正式封面 ==="
+  local COVER_FRAME=$((TOTAL_FRAMES - 2))
+  log "封面帧号: ${COVER_FRAME}（总帧数 ${TOTAL_FRAMES} - 2）"
+
+  mkdir -p "${proj_dir}/docs/assets"
+
+  npx remotion still VerticalVideo \
+    "${proj_dir}/docs/assets/cover.png" \
+    --frame=${COVER_FRAME} \
+    --log=error \
+    > /dev/null 2>&1
+
+  if [ $? -eq 0 ] && [ -f "${proj_dir}/docs/assets/cover.png" ]; then
+    ok "✅ 正式封面生成: docs/assets/cover.png (1080×1920)"
+  else
+    warn "⚠️ Remotion still 封面生成失败，跳过正式封面"
+  fi
+
+  # 截取公众号封面 900x383
+  if [ -f "${proj_dir}/docs/assets/cover.png" ]; then
+    magick "${proj_dir}/docs/assets/cover.png" \
+      -level 12%,65%,1.3 \
+      -brightness-contrast 20x15 \
+      -sharpen 1x0.5 \
+      -resize 900x383^ \
+      -gravity center \
+      -extent 900x383 \
+      "${proj_dir}/docs/assets/cover-wechat.png" 2>/dev/null && ok "✅ 公众号封面: cover-wechat.png (900×383)"
+
+    # 截取小红书封面 1440x2560
+    magick "${proj_dir}/docs/assets/cover.png" \
+      -level 12%,65%,1.3 \
+      -brightness-contrast 20x15 \
+      -sharpen 1x0.5 \
+      -resize 1440x2560 \
+      "${proj_dir}/docs/assets/cover-xhs.png" 2>/dev/null && ok "✅ 小红书封面: cover-xhs.png (1440×2560)"
+  fi
 
   # ── Gate D ───────────────────────────────────────────────────────────
   echo ""
@@ -572,10 +596,10 @@ cmd_all() {
   ok "✅ 一键生成完成！"
   echo "═══════════════════════════════════════"
   echo ""
-  echo "最终文件: ${VP_DIR}/out/${FINAL_FILE}"
-  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 59.94fps | AAC 256k"
+  echo "最终文件: ${VP_DIR}/out/final_with_subs.mp4"
+  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 59.94fps | H.264+AAC"
   echo "封面: docs/assets/cover.png (vertical) / cover-wechat.png / cover-xhs.png"
-  echo "字幕: audio/subtitles.ass（含逐字高亮特效）"
+  echo "字幕: Remotion CaptionOverlay 同期烧录（逐字高亮）"
   echo ""
 }
 

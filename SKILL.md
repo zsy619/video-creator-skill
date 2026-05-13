@@ -95,12 +95,11 @@ metadata:
 - [references/video-creator-remotion-conflicts-2026-05-11.md](references/video-creator-remotion-conflicts-2026-05-11.md) — **C1-C9 冲突审计报告**：video-composer.js Audio组件移除、calculateMetadata添加、entry路径修正、concurrency=4；含 remotion-best-practices 30+ 规则文件审查结果
 - [references/ass-subtitle-spec-2026-05-10.md](references/ass-subtitle-spec-2026-05-10.md) — **最终权威值**：Fontsize=72/PlayResX=1080/PlayResY=1920/MarginV=50/Outline=2/Format 10字段
 - [references/ass-subtitle-gen.md](references/ass-subtitle-gen.md) — **ASS字幕生成核心陷阱**：`re.split(r'[，。；、]+')` 不包含ASCII句点（否则`Claude4.5`被切断）；ASS时间解析`H:MM:SS.cc`需split成3段而非2段
-- [references/cover-smart-resize.md](references/cover-smart-resize.md) — PIL 封面 `smart_resize_text()` 自动缩放函数；实测 STHeiti 130px 字体渲染实际高度 81px（62%效率），长标题自动缩至 36px；以及封面质量门禁节点 E 检查项
+- [references/cover-smart-resize.md](references/cover-smart-resize.md) — 封面图尺寸验证（Remotion 渲染）
 - [references/remotion-sequence-black-screen-fix.md](references/remotion-sequence-black-screen-fix.md) — Sequence内帧计算错误（局部帧vs全局帧）
-- [references/pil-frame-generation-pitfalls.md](references/pil-frame-generation-pitfalls.md) — **PIL帧生成陷阱**：3位hex崩溃、`radius=`参数、连续帧编号、字体兜底、60fps性能基准
 - [references/remotion-subtitles-double-fix.md](references/remotion-subtitles-double-fix.md) — `<Subtitles />` 组件 + ASS 烧录导致双层字幕
 - [references/remotion-caption-overlay-pitfalls.md](references/remotion-caption-overlay-pitfalls.md) — ⚠️ **`createTikTokStyleCaptions` 对句子级字幕静默失效**；`useDelayRender` 在 Remotion 4.x 导致 `delayRender is not a function`；含两种解法（直接渲染 + TikTok 逐字高亮 `interpolate` 方案）
-- [references/ffmpeg-single-pass-mux.md](references/ffmpeg-single-pass-mux.md) — **ffmpeg单次混流正确语法**：ASS过滤器只有视频输入，`-map 1:a` 单独处理音频；竖屏60fps参数模板
+- [references/remotion-package-discovery.md](references/remotion-package-discovery.md) — `@remotion/core` 不存在；正确包名 `remotion`；47个 exports（Text 不存在）；React Error #130 根因；package.json 正确写法；渲染命令
 - [references/edge-tts-cli-usage.md](references/edge-tts-cli-usage.md) — **edge-tts正确CLI用法**：`--write-media`（不是`--output`）；`--rate`用百分比格式；SubtitleGenerator是默认导出（`require()`直接，不可用named import）
 - [references/dynamic-scene-boundaries.md](references/dynamic-scene-boundaries.md) — 动态场景帧边界计算：取代硬编码 `SCENE_BOUNDARIES`，基于 `sceneFractions` 比例自动分配，支持任意场景数量
 
@@ -184,7 +183,7 @@ assert chinese_chars <= max_chars, f'字数超限: {chinese_chars} > {max_chars}
 |------|---------|
 | 禁止分段拼接配音 | 整段连续生成 |
 | 禁止跳过音频后处理 | 去静音 + 1.2x 语速 + AAC 256k |
-| ~~禁止在 Remotion 内嵌音频~~ | ✅ **已更新（2026-05-12）**：Remotion `<Audio>` 组件直接内嵌 MP4，无需 ffmpeg 外部混流（Remotion Native 路径）。ffmpeg 混流仅用于 PIL fallback |
+| 禁止在 Remotion 内嵌音频 | ✅ **Remotion Native（2026-05-13）**：Remotion `<Audio>` 组件直接内嵌 MP4，无需 ffmpeg 混流。字幕在 Remotion 渲染时同期烧录（`CaptionOverlay` + `@remotion/captions`），无需 ffmpeg ASS 滤镜。 |
 
 ### ⚠️ 音频验证（必须执行）
 
@@ -227,41 +226,28 @@ node {SKILL_DIR}/video-creator/scripts/pre-render-check.js <Video.tsx> <fps> <du
 ### 字幕六禁止
 | 禁止 | 正确做法 |
 |------|---------|
-| 禁止字号 ≠ 72px | 必须 Fontsize=72（PlayResY=1920 时，约40px视觉） |
-| 禁止 `\\\\N` 换行 | 必须 `\N` 换行 |
-| 禁止字段数不匹配 | Format 10字段，Dialogue 10字段 |
+| 禁止字号 ≠ 72px | ASS Fontsize=72（PlayResY=1920 时，约40px视觉） |
+| 禁止 `\\\\N` 换行 | ASS 必须 `\N` 换行 |
+| 禁止字段数不匹配 | ASS Format 10字段，Dialogue 10字段 |
 | 禁止先于音频生成字幕 | 必须音频后处理完成后生成 |
-| 禁止双重加速 | 禁止 edge-tts rate=+20% + atempo=1.2 叠加，会导致音频过短；正确做法：edge-tts rate=+0%，ffmpeg atempo=1.2 单独处理 |
+| 禁止双重加速 | 禁止 edge-tts rate=+20% + atempo=1.2 叠加；正确：edge-tts rate=+0%，ffmpeg atempo 1.2 单独处理 |
+| 禁止 ffmpeg ASS 滤镜 | **字幕在 Remotion 内同期烧录**，无需 ffmpeg `-vf "ass=..."` |
 
 ### 字幕生成
 
-> ⚠️ `subtitle-generator.js` 是 **class 类库**，不是 CLI。直接 `node scripts/subtitle-generator.js` 调用不会有任何输出。必须写调用脚本或用 Node.js 内联脚本生成 ASS。详见 [references/subtitle-generator-usage.md](references/subtitle-generator-usage.md)。
+> ⚠️ 字幕在 Remotion 内通过 `CaptionOverlay` + `@remotion/captions` 同期烧录，无需 ASS 格式文件。`captions.json` 使用 `startMs/endMs` 毫秒格式（每条字幕含 `text`、`startMs`、`endMs` 字段）。
 
-**ASS 字幕手工生成（标准流程）**：
-```bash
-node -e "
-const { execSync } = require('child_process');
-// 用 Node.js 内联脚本生成 ASS（见 references/subtitle-generator-usage.md）
-"
-```
-或参考 `references/subtitle-generator-usage.md` 中的完整脚本模板。
-| 禁止 MP4 内嵌 ASS | 必须用 `-vf "ass=..."` 烧录 |
-| 禁止 Outline=1 | 必须 Outline=2（1px太细） |
-| 禁止在 ffmpeg 命令中使用 `force_style` 参数 | ASS样式必须写在文件内部 `[V4+ Styles]` 段；ffmpeg ASS 滤镜把 `:` 解析为分隔符，`force_style="FontSize=72:..."` 会导致语法错误 |
-
-### 执行顺序（不可颠倒）
+### 执行顺序（不可颠倒，Remotion Native 路径）
 ```
 1. edge-tts 整段生成原始音频 → neural_full.mp3
          ↓
 2. ffmpeg 后处理（去静音 + 1.2x + AAC）→ neural_1_2x.m4a
          ↓（确认最终时长）
-3. 生成 ASS 字幕（基于最终时长，Fontsize=72）
+3. 生成字幕 JSON（captions.json，startMs/endMs 毫秒格式）
          ↓
-4. Remotion 渲染无音频视频
-         ↓
-5. ffmpeg 混流（视频 + neural_1_2x.m4a）
-         ↓
-6. ffmpeg 烧录字幕（-vf "ass=subtitles.ass"）
+4. Remotion 渲染（音频内嵌 + 字幕同期烧录）→ 最终 MP4
+         ↓（封面）
+5. npx remotion still → cover.png → ffmpeg crop/pad → cover-wechat.png / cover-xhs.png
 ```
 
 ### ⚠️ Step 0 强制检查清单（禁止跳过）
@@ -397,7 +383,7 @@ echo "✅ session-log.md 已初始化"
 | 13 | 微信公众号封面 | `docs/assets/cover-wechat.png` | **强制必填，900×383（约2.35:1）** |
 | 14 | 小红书封面 | `docs/assets/cover-xhs.png` | **强制必填，1440×2560（9:16）** |
 | 15 | 配音 | `audio/neural_1_2x.m4a` | edge-tts生成，1.2x语速 |
-| 16 | 字幕 | `audio/subtitles.ass` | ASS格式，Fontsize=72（视觉40px）黄色，PlayResX=1080, PlayResY=1920 |
+| 16 | 字幕 | `audio/captions.json` | 字幕时间戳（startMs/endMs 毫秒格式），供 Remotion CaptionOverlay 使用 |
 | 17 | 最终视频 | `video-project/out/final_with_subs.mp4` | 字幕已烧录，52.8秒@59.94fps |
 
 ### Step 0 验证命令
@@ -420,25 +406,54 @@ done
 
 > **经验**：上下文压缩（context compaction）将"声称完成"当作"实际完成"处理。摘要来自 handoff，不是文件系统真相。
 
-**验证清单（每次修订后必须执行）**：
+### 验证清单（每次修订后必须执行）
 ```bash
 # 0. 【关键】移除文件引用前必须先验证文件是否真实存在
 # 摘要声称"X不存在"不等于X不存在——必须ls确认
-for f in references/ONEPASS_WORKFLOW.md rules/SESSION_LOG.md scripts/session-log-append.py; do
+for f in references/REMOTION_NATIVE.md rules/SESSION_LOG.md scripts/session-log-append.py; do
   if [ -f "$SKILL_DIR/$f" ]; then echo "✅ 存在: $f"
   else echo "❌ 不存在: $f（确认后再移除引用）"; fi
 done
 
 # 1. launch.sh all 是否真正执行全链路（不只是跑门禁）
-grep -n "edge-tts\\|ffmpeg\\|remotion render\\|gen_frames_template" {SKILL_DIR}/scripts/launch.sh | grep -v "^#" | head -5
+grep -n "edge-tts\|ffmpeg\|remotion render\|subtitle" {SKILL_DIR}/scripts/launch.sh | grep -v "^#" | head -5
 
 # 2. 关键脚本行号验证
-grep -n "fontSize: 72\\|outline: 2\\|marginV: 50" {SKILL_DIR}/scripts/subtitle-generator.js | head -3
+grep -n "fontSize: 72\|outline: 2\|marginV: 50" {SKILL_DIR}/scripts/subtitle-generator.js | head -3
 
 # 3. 关键文件存在性
-for f in scripts/launch.sh scripts/subtitle-generator.js scripts/gen_frames_template.py scripts/video-quality-gate.js; do
+for f in scripts/launch.sh scripts/subtitle-generator.js scripts/video-quality-gate.js; do
   [ -f "{SKILL_DIR}/$f" ] || echo "❌ 缺失: $f"
 done
+```
+
+### ⚠️ 多文件同步修订铁律（2026-05-13 经验）
+
+> **核心教训**：同时修订多个相关联文件时（如 launch.sh + video-quality-gate.js），错误会在编译/语法检查时集中暴露。建议按以下顺序执行，避免反复回滚。
+
+**修订顺序**：
+1. **先读全部相关文件**（了解真实结构，不只是目标行）
+2. **先修被引用最多的文件**（video-quality-gate.js 被 launch.sh 调用，先修它）
+3. **每修一个文件立即语法检查**（`node --check` / `bash -n`）
+4. **发现语法错误立即修**，不要"攒着一起修"
+5. **最后做全文 grep 验证**
+
+**常见陷阱**：
+- **移除 if 守卫时漏掉内部代码块**：删了 `if (condition) {` 但忘了删对应 `}` 里的内容，导致语法错误
+- **重复声明**：`const pkgFile = ...` 在两次 patch 后出现两次，第二次 patch 替换了中间的整个 block
+- **孤立的 else 分支**：删了 if 块但保留了 else 块，else 没有对应的 if
+
+**验证命令**：
+```bash
+# 每个 .js 文件修改后立即检查语法
+node --check {SKILL_DIR}/scripts/video-quality-gate.js || echo "❌ 语法错误" && exit 1
+
+# 每个 .sh 文件修改后立即检查语法
+bash -n {SKILL_DIR}/scripts/launch.sh || echo "❌ shell 语法错误" && exit 1
+
+# 所有文件修改完成后，grep 验证无残留冲突引用
+grep -rn "subtitles.ass\|PIL.*fallback\|混流" {SKILL_DIR}/scripts/launch.sh {SKILL_DIR}/scripts/video-quality-gate.js | grep -v "^#"
+# 期望：0 行（无任何残留）
 ```
 
 ### ❌ 错误1：技能文档引用不存在的 `@remotion/core`
@@ -498,13 +513,10 @@ import { AbsoluteFill } from '@remotion/core';
 
 **验证命令**：
 ```bash
-# 验证 subtitle-generator.js 实际输出规范值（不要信任摘要，只信任文件系统）
-grep -n "fontSize\|outline\|marginV" {SKILL_DIR}/scripts/subtitle-generator.js | head -10
-# 期望：fontSize: 72, outline: 2, marginV: 50
-
-# 验证 ASS 字幕文件
-grep -i "fontsize\|marginv\|outline" {project}/audio/subtitles.ass
-# 期望：Fontsize: 72, MarginV: 50, Outline: 2
+# 验证 captions.json 格式（Remotion Native 字幕）
+grep "startMs\|endMs" {project}/audio/captions.json | head -5
+# 期望：每条字幕含 startMs、endMs、text 字段，例：
+# {"text":"Hysteria 是开源社区明星项目","startMs":0,"endMs":5425}
 ```
 
 ### ❌ 错误5：`createTikTokStyleCaptions` 对句子级字幕静默失效
@@ -544,17 +556,19 @@ grep -c "^[|]" "${PROJECT_DIR}/docs/session-log.md"
 ## 如何使用
 
 阅读各个规则文件以获取详细说明和代码示例：
-- [references/ONEPASS_WORKFLOW.md](references/ONEPASS_WORKFLOW.md) — **一键生成工作流**：配置驱动，10步完整命令（edge-tts→门禁A→字幕→门禁B→Remotion渲染→门禁C→混流→字幕烧录→门禁D），含完整 bash 脚本。**所有步骤的门禁退出码控制**。
-- [references/video-quality-gate-optimization.md](references/video-quality-gate-optimization.md) — video-quality-gate.js 黑屏检测 execSync 批量优化（12次→1次进程创建）
+- [references/remotion-package-discovery.md](references/remotion-package-discovery.md) — `@remotion/core` 不存在；正确包名 `remotion`；47个 exports（Text 不存在）；React Error #130 根因；package.json 正确写法；渲染命令
+- [references/subtitle-tiktok-highlight.md](references/subtitle-tiktok-highlight.md) — **TikTok 逐字高亮特效完整方案**：`CaptionOverlay` + `interpolate` 自定义逐字高亮；含完整 TSX 实现 + 入场/退场动画
+- [references/video-one-shot-checks.md](references/video-one-shot-checks.md) — **一次生成到位铁律**：渲染前必做的 4 项预检（字数上限 / 英文句点 split 陷阱 / 叠速检测 / CaptionOverlay 方案确认）
 - [references/remotion-esbuild-errors-2026-05-13.md](references/remotion-esbuild-errors-2026-05-13.md) — **Remotion esbuild 语法错误修复**：themes/index.ts 连字符key无引号、JSX多余`}`、组件prop缺失；含自动修复脚本和验证命令
 - [references/skill-audit-methodology.md](references/skill-audit-methodology.md) — **技能深度审计方法论**：识别文档与脚本脱节的 8 类问题模板；2026-05-12 审计发现 8 类缺陷（5个已修复/3个待修复）；含一键验证命令。**摘要永远不可信**，必须 grep 验证文件系统实际值；8类文件检查清单；常见遗漏模式（验证器不同步/实例化覆盖/文档不同步）。
+- [references/remotion-project-hardcoded-content-2026-05-13.md](references/remotion-project-hardcoded-content-2026-05-13.md) — ⚠️ **架构级缺陷**：create-remotion-project.js 场景内容全为 Hysteria 硬编码模板，与实际项目无关；临时方案（绕过脚本手动编写）和长期方案（重构为脚手架生成器）
 - [references/baoyu-config.json](references/baoyu-config.json) - 宝玉技能配置
 - [references/cdn-mapping.json](references/cdn-mapping.json) - CDN映射配置
 - [references/tailwind-config.json](references/tailwind-config.json) - Tailwind配置
 - [rules/UNIFIED_RULES.md](rules/UNIFIED_RULES.md) - ⚠️ **【最高优先级】** 视频创作铁律清单，包含字幕规格、帧数计算、居中布局、封面生成、赛博朋克风格、文件清理等强制规则。**必须首先阅读此文件。**
 - [rules/PATHS.md](rules/PATHS.md) - 规定了 video-creator 技能中项目命名、目录结构和文件命名的规范，确保输出文件统一组织在 workspace/{project-name}/ 下的 docs/ 和 video-project/ 目录中。
 - [rules/REMOTION.md](rules/REMOTION.md) - 详细规定了使用 Remotion 框架创建视频组件的规范，包括组件结构、动画效果（打字机、词高亮、渐入等）、主题配置、字体选择以及视频渲染参数。
-- [rules/VOICE.md](rules/VOICE.md) - 规定了使用微软 Azure Neural TTS（推荐 zh-CN-YunjianNeural）进行自然人声合成的工作流程，强调整段连续生成、音频后处理及通过 ffmpeg 混流避免 Remotion 编码杂音。
+- [rules/VOICE.md](rules/VOICE.md) - 规定了使用微软 Azure Neural TTS（推荐 zh-CN-YunjianNeural）进行自然人声合成的工作流程，强调整段连续生成、音频后处理（AAC 256k）。
 - [rules/HTML.md](rules/HTML.md) - 规定国内CDN资源引用规范，提供落地页、公众号适配页、文章阅读页三种HTML模板。
 - [rules/FONTS.md](rules/FONTS.md) - 视频字幕和正文字体大小规范（主标题130px/副标题52px/内容72-96px）、ASS字幕格式及大字体居中设计原则。ASS字幕规范值：**Fontsize=72 / MarginV=50 / Outline=2**，详见 [rules/SUBTITLES.md](rules/SUBTITLES.md)。
 - [rules/WORKFLOW.md](rules/WORKFLOW.md) - 定义视频创作从内容获取到报告生成的11步完整工作流程。
@@ -593,16 +607,15 @@ bash {SKILL_DIR}/scripts/launch.sh init <项目名>
 # 2. 编辑 video-config.json（平台/时长/主题/封面标题/配音等）
 # 3. 粘贴内容到 docs/article.md
 
-# 4. 一键生成（完整执行 7 步）：
+# 4. 一键生成（Remotion Native 路径）：
 #    Step 0: generate_docs.js（11个文档，含 narration.txt）
-#    Step -1: generate_cover.py（封面图 vertical/wechat/xhs）
 #    Step 1: edge-tts --rate +0%（配音）
 #    Step 2: ffmpeg（去静音 + atempo 1.2x + AAC 256k）
-#    Step 3: subtitle-generator.js（ASS 字幕，maxCharsPerLine=50）
-#    Step 4: create-remotion-project.js（Remotion 项目，含逐字高亮字幕）
+#    Step 3: captions.json 生成（startMs/endMs 毫秒格式，供 CaptionOverlay 使用）
+#    Step 4: create-remotion-project.js（Remotion 项目，含 CaptionOverlay 逐字高亮）
 #    Step 5: npm install
-#    Step 6: pre-render-check.js（渲染前检查）
-#    Step 7: npx remotion render（59.94fps/1080×1920，含字幕特效）
+#    Step 6: npx remotion render（59.94fps/1080×1920，音频+字幕内嵌）
+#    Step 7: npx remotion still（封面图）→ ffmpeg crop/pad（公众号/小红书封面）
 bash {SKILL_DIR}/scripts/launch.sh all
 ```
 
@@ -613,19 +626,17 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - `docs/narration.txt` — 配音文本
 - `docs/video-script.md` — 分镜脚本
 - `audio/neural_1_2x.m4a` — 处理后音频（AAC 256k）
-- `audio/subtitles.ass` — ASS字幕（逐字高亮特效）
-- `video-project/out/final.mp4` — 最终视频（含字幕/配音/59.94fps/H.264）
+- `audio/captions.json` — 字幕时间戳（startMs/endMs 格式，供 Remotion CaptionOverlay 使用）
+- `video-project/out/final_with_subs.mp4` — 最终视频（Remotion Native，含音频+字幕，59.94fps/H.264）
 
 **性能优化（2026-05-12 v3）**：
 - edge-tts + 帧生成并行：两者同时执行（~20s + ~50s → ~50s），节省 ~20s
 - Gate A + 字幕生成并行：两者无数据依赖，同时执行节省 5-10s
 - Gate B（~3s）在帧生成完成后串行执行（无法提前，因为字幕文件需要等字幕生成完成）
-- PIL 帧生成并行化：M1 Mac 8核 `ProcessPoolExecutor`，帧生成加速 4-6x
+- Remotion 帧并行化：`--concurrency=4` 参数控制并行渲染
 - 删除 re-encoding：edge-tts 输出码率已足够，跳过无意义重编码
-- ffmpeg 单次混流：帧序列+音频+字幕一次 ffmpeg 完成（替代先混流再烧录的两步）
-- ffmpeg ultrafast preset：`ultrafast -crf 22` 替代 `fast -crf 20`，混流加速 1.5-2x
 - 整体构建时间：~300-400s → ~50-80s（提升 75-85%）
-- 时间线：`[edge-tts+帧生成(并行50s)] → [GateA+字幕(并行25s)] → [GateB(3s)] → [ffmpeg(20s)] → [GateD(5s)]`
+- 时间线：`[edge-tts+帧生成(并行50s)] → [GateA+字幕(并行25s)] → [GateB(3s)] → [Remotion渲染(20-60s)] → [封面(5s)]`
 - [rules/QUALITY.md](rules/QUALITY.md) - 定义视频质量检查清单，涵盖内容、视觉、文件、技术、音频五大维度的检查标准。
 - [rules/INPUT.md](rules/INPUT.md) - 定义三种内容输入模式：链接输入（baoyu-url-to-markdown抓取）、主题输入（web_search搜索）、详细内容输入（直接解析），并规定各自的处理流程。
 - [rules/THEMES.md](rules/THEMES.md) - 定义20种视频主题风格（科技、创意、生活，自然，专业四大类），包含主色、辅色、背景色、字体、粒子数等视觉参数及平台规格（小红书/视频号/抖音/油管）。
@@ -636,138 +647,76 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - [references/github-fetch-fallback.md](references/github-fetch-fallback.md) - **GitHub 内容获取降级流程**：HTTPS/代理/gh CLI/git:// 全部失败时的诊断顺序和用户报告模板
 - [references/node-execsync-encoding-bug.md](references/node-execsync-encoding-bug.md) - **Node.js execSync { encoding: 'utf8' } 返回值 bug**：encoding:'utf8' 直接返回字符串而非 { stdout } 对象；macOS arm64 Node.js 24 受影响；影响 ffprobe 解析
 
-## ⚠️ 渲染决策：Remotion CLI vs ffmpeg 兜底
+## ⚠️ 渲染路径：Remotion Native（唯一方案）
 
-> **2026-05-11 更新**：ffmpeg 兜底方案从 `loop 1` 单帧循环升级为 **PIL帧序列 + ffmpeg单次混流**，彻底解决单帧封面黑屏问题。
+| ⚠️ **重要更新（2026-05-13）** | 封面渲染帧号必须使用动画**最后一帧减1**（如179而非0），详见 rules/COVER_GENERATE.md Section 帧号选择原则 |
 
-### 渲染路径选择
-
-```
-                    用户请求渲染
-                          │
-            ┌─────────────┴─────────────┐
-            │                           │
-      Remotion CLI 可用？          是否有多场景动态画面？
-            │                           │
-    ┌───────┴───────┐           ┌──────┴──────┐
-    │               │           │             │
-   是              否          是            否
-    │               │           │             │
-    ▼               ▼           ▼             ▼
-Remotion render  ffmpeg兜底   Remotion     ffmpeg兜底
-                  (PIL帧序列+   多场景      (PIL帧序列+
-                   ffmpeg单次)   动画         ffmpeg单次)
-```
-
-**判断条件**：
-- Remotion CLI 可用 = `remotion compositions --entry-point src/index.ts` 能列出 composition（非超时）
-- 多场景动态画面 = 视频脚本包含 ≥2 个不同场景，且需要转场/动画效果
-
-**⚠️ create-remotion-project.js 生成后必须立即运行 fix-remotion-project.js**：
-```bash
-node {SKILL_DIR}/scripts/fix-remotion-project.js <project-dir>
-```
-生成的模板存在三个 Remotion 4.0.459 API 不兼容问题（连字符key、useDelayRender、spring），
-详见 `scripts/fix-remotion-project.js`。
-
-**实际经验**：截至 2026-05-11，在 Mac M-series headless 环境下，Remotion CLI **始终超时**，所有视频项目均通过 ffmpeg 兜底完成。
-
-### ffmpeg 兜底渲染命令（标准输出）
-
-**PIL 帧序列 + ffmpeg 单次混流**（2026-05-11 新方案）：
-
-**Step 7a — 生成帧序列**：
-```bash
-mkdir -p out/frames
-
-# 读取主题配置
-THEME=$(node -e "console.log(require('./video-project/video-config.json').theme || 'cyberpunk')")
-
-python3 {SKILL_DIR}/scripts/gen_frames_template.py . --theme "$THEME"
-
-# 验证帧数：TOTAL_FRAMES = ceil(音频时长 × 60)
-FRAME_COUNT=$(ls out/frames/frame_*.png 2>/dev/null | wc -l | tr -d ' ')
-EXPECTED_FRAMES=$(python3 -c "import math; print(math.ceil($(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a) * 60))")
-[ "$FRAME_COUNT" != "$EXPECTED_FRAMES" ] && echo "帧数不匹配: $FRAME_COUNT vs $EXPECTED_FRAMES" && exit 1
-```
-
-**Step 7b — ffmpeg 单次混流**：
-```bash
-AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a)
-
-ffmpeg -y \
-  -framerate 60 \
-  -i "out/frames/frame_%04d.png" \
-  -i "audio/neural_1_2x.m4a" \
-  -filter_complex "[0:v]ass=audio/subtitles.ass[v]" \
-  -map "[v]" -map 1:a \
-  -t "${AUDIO_DURATION}" \
-  -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p \
-  -c:a aac -b:a 192k \
-  -r 60 -s 1080x1920 \
-  "out/final_with_subs.mp4"
-
-# 清理帧序列（节省空间）
-rm -rf out/frames
-```
-
-**关键规范**：
-- `TOTAL_FRAMES = ceil(音频时长 × 59.94)` — 强制59.94fps，不允许缺帧导致黑屏
-- 帧编号严格连续：`frame_0000.png` → `frame_NNNN.png`
-- 帧序列存储路径：`{project}/video-project/frames/`
-- 音频存储路径：`{project}/video-project/audio/neural_1_2x.m4a`
-- 每个场景内部帧从0开始计算（局部帧），场景边界由 `SCENE_BOUNDARIES` 定义
-- ffmpeg 单次混流：帧序列 + 音频 + 字幕同时处理，**移除了旧两步流程**（video_noaudio.mp4 → final.mp4 → final_with_subs.mp4）
-
-**场景帧分布示例（52秒@59.94fps = 3115帧）**：
-```
-场景1 cover:    帧 0-180   (3秒)   — 封面标题入场
-场景2 concept:  帧 180-900  (12秒)  — 核心理念标语渐入
-场景3 systems:  帧 900-1800 (15秒)  — 三系统架构卡片错开入场
-场景4 features: 帧 1800-2880 (18秒)  — 2×2数据网格
-场景5 code:     帧 2880-3360 (8秒)  — 终端窗口打字机
-场景6 cta:      帧 3360-3600 (4秒)  — CTA行动号召
-```
-
-### gen_frames_template.py（已知问题，调用前必读）
-
-> ⚠️ gen_frames_template.py 有**两个已知 bug**（2026-05-12）：
-> 1. **音频路径双重 video-project**：`main()` 无条件拼接 `video-project`，当 `project_dir` 已是 video-project 形式时会路径错误。**临时解法**：调用时用 `.` 代替绝对路径。
-> 2. **_draw_frame_worker 参数解包错误**：`tasks.append` 只有6个值，但 `_draw_frame_worker` 期望7个（缺少 `bg_color`）。必须修复后才能并行渲染。
->
-> 详见 [references/gen-frames-template-bugs-2026-05-12.md](references/gen-frames-template-bugs-2026-05-12.md)。
->
-> **推荐做法**：对于简单单项目，直接写项目专属 `gen_frames.py`（内联场景逻辑），绕过 gen_frames_template.py 的复杂性。
-
-**致命错误**：帧编号必须严格连续。如果帧文件命名有跳步（如 `frame_0000.png`, `frame_0003.png`, ...），ffmpeg 只会读取第一帧并认为输入结束。修复方法：
-```bash
-# 重新编号为连续序列
-cd "$FRAMES_DIR"
-i=0
-for f in frame_*.png; do
-  new=$(printf "frame_%04d.png" $i)
-  [ "$f" != "$new" ] && mv "$f" "$new"
-  i=$((i + 1))
-done
-```
-
-**PIL 已知陷阱**：3位hex颜色崩溃、`rounded_rectangle(r=)` 参数名错误、字体查找失败。详见 [references/pil-frame-generation-pitfalls.md](references/pil-frame-generation-pitfalls.md)。
-
-**ffmpeg PIL 兜底路径 bug（2026-05-11 发现并修复）**：gen_frames_template.py 的 audio 文件路径应为 `{project}/video-project/audio/neural_1_2x.m4a`，不是 `{project}/audio/neural_1_2x.m4a`。如果 ffprobe 读取失败（返回空字符串），脚本会 fallback 到默认 60s，导致帧数与实际音频不匹配。验证命令：
-```bash
-# 验证 audio 路径正确性
-python3 -c "import subprocess; print(subprocess.run(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0','{project}/video-project/audio/neural_1_2x.m4a'],capture_output=True).stdout.strip())"
-```
-
-#### 旧方案：ffmpeg 静态封面（已废弃，2026-05-11前使用）
+### 渲染流程
 
 ```bash
-# ⚠️ 已废弃，请使用上面的 PIL帧序列+ffmpeg单次混流
-ffmpeg -y -loop 1 \
-  -i "{WORKSPACE_DIR}/docs/assets/cover.png" \
-  -i "{WORKSPACE_DIR}/audio/neural_1_2x.m4a" \
-  -vf "...subtitles=..." \
-  -shortest ...
+# Step 1: Remotion 渲染（含音频内嵌）
+cd video-project
+npx remotion render VerticalVideo out/final.mp4 \
+  --concurrency=4 \
+  --fps=59.94 \
+  --disable-gpu \
+  --log=error
+
+# Step 2: 复制到输出目录
+cp out/final.mp4 "${OUTPUT_DIR}/final_with_subs.mp4"
+echo "✅ 最终视频已输出: final_with_subs.mp4"
+```
+
+### 封面生成（Remotion still）
+
+```bash
+### 渲染后验证（必须执行）
+
+```bash
+# 用 Python 检查文字区域亮度，判断文字是否可见
+python3 -c "
+from PIL import Image
+import numpy as np
+img = Image.open('/tmp/cover_frame.png')
+arr = np.array(img)
+h, w = arr.shape[:2]
+center = arr[h//3:2*h//3, w//3:2*w//3]
+tb = center.max(axis=2)
+bright200 = np.sum(tb > 200)
+print(f'中心区域亮度>200像素: {bright200}')
+if bright200 < 1000:
+    print('❌ 文字可能不可见 — 使用 ImageMagick 增强')
+else:
+    print('✅ 文字清晰可见')
+"
+
+# 如果文字偏暗，用 ImageMagick 增强
+if [亮度不足]; then
+  magick /tmp/cover_frame.png -level 10%,60%,1.5 -brightness-contrast 20x15 /tmp/cover_enhanced.png
+  cp /tmp/cover_enhanced.png docs/assets/cover.png
+fi
+```
+
+### 渲染视频号封面 1080×1920
+npx remotion still VerticalVideo /tmp/cover_frame.png --frame 179 --log=error
+
+# 从同一帧截取公众号封面 900×383（居中裁剪）
+ffmpeg -y -i docs/assets/cover.png \
+  -vf "crop=900:383:(iw-900)/2:(ih-383)/2" \
+  docs/assets/cover-wechat.png
+
+# 从同一帧截取小红书封面 1440×2560
+ffmpeg -y -i docs/assets/cover.png \
+  -vf "scale=1440:2560:force_original_aspect_ratio=decrease,pad=1440:2560:(ow-iw)/2:(oh-ih)/2" \
+  docs/assets/cover-xhs.png
+```
+
+### 渲染验证
+
+```bash
+# 验证最终视频
+ffprobe -v error -show_streams out/final_with_subs.mp4 2>&1 | grep -E "codec_name|width|height|duration|r_frame_rate"
+# 期望：codec_name=h264, width=1080, height=1920, duration≈43.4s, r_frame_rate=60000/1001
 ```
 
 ### Remotion 4.x 已知限制
@@ -839,26 +788,14 @@ import { Text } from 'remotion';
 ```bash
 node {SKILL_DIR}/scripts/fix-remotion-project.js <project-dir>
 ```
-该脚本自动修复：themes/index.ts 连字符key、CaptionOverlay useDelayRender、Scene spring() 动画。运行后必须重新 `npm install` 再 `remotion render`。
-- 根因：`@remotion/renderer` 的 `selectComposition()` 需要 bundler dev server 响应，但 arm64 环境下 dev server 60s 超时
-- 现象：`TimeoutInMilliseconds should be bigger or equal than 7000, but is 300` / `No video config found`
-- **结论**：所有 Mac M-series headless 视频项目必须使用 **ffmpeg 兜底方案（PIL帧序列+ffmpeg单次混流）**
-- 即使 Remotion CLI 失败，仍可从错误输出中提取 composition 信息辅助调试
+  该脚本自动修复：themes/index.ts 连字符key、CaptionOverlay useDelayRender、Scene spring() 动画。运行后必须重新 `npm install` 再 `remotion render`。
 
-### 帧生成脚本（gen_frames.py）
-
-当使用 PIL + ffmpeg 方案时，参考 `scripts/gen_frames_template.py`：
-```
-{skill_dir}/scripts/gen_frames_template.py
-```
-
-包含完整的 6 场景帧生成实现（封面→核心理念→三系统架构→核心特性→快速开始→CTA），支持 4 套主题配色，直接复制修改使用。
-
+**实际验证（2026-05-13）**：在 Mac M-series headless 环境下 `npx remotion render` **成功渲染**，输出 4.4MB / 43.4秒 / 1080×1920 / 59.94fps 视频。结论与旧版文档矛盾，以本条为准。
 ### launch.sh all 说明
 
 `launch.sh all` 执行完整生成流程（不是只跑门禁）：
 - 依次调用 `cmd_audio` → `cmd_subtitle` → `cmd_render`
-- `cmd_render` 先尝试 Remotion CLI，失败时自动切换到 **PIL帧序列 + ffmpeg单次混流**（2026-05-11 新增）
+- `cmd_render` 执行 Remotion CLI 渲染（Remotion Native 唯一路径）
 - `cmd_render` 内部自动执行门禁 C 和门禁 D
 - [rules/INTEGRATION.md](rules/INTEGRATION.md) - 定义 baoyu 技能调用方式（url-to-markdown/cover-image/illustrator等）及自动化脚本模板和依赖安装说明。
 - [rules/SCRIPTS.md](rules/SCRIPTS.md) - 定义视频脚本的 Markdown 输出结构，包含小红书/视频号版本、场景分镜（视觉/文字/动画）、配音及时长、帧边界计算方法。

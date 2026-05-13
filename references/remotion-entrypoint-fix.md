@@ -84,6 +84,99 @@ npx remotion upgrade  # 统一到最新版本（最有效的修复）
 
 ---
 
+## 调试实录：如何发现 `Composition` 是 React 组件（而非工厂函数）
+
+> 本节来自 react-doctor-video 项目，2026-05-13
+
+**问题**：尝试 `Composition.fromRoot()`、`Composition.register()`、`Composition({ id, component })` 等各种写法均失败，最终发现 `useCurrentFrame()` 报错 "can only be called inside a component that was registered as a composition"。
+
+**调试步骤**（在 `node -e` REPL 中逐步验证）：
+
+```bash
+cd video-project
+node -e "const {Composition, registerRoot} = require('remotion'); console.log(typeof Composition);"
+# 输出: function
+
+# 检查 Composition 的实际性质
+node -e "
+const {Composition} = require('remotion');
+const React = require('react');
+// 尝试作为组件创建 element
+const el = React.createElement(Composition, {
+  id: 'test', fps: 30, durationInFrames: 30, height: 100, width: 100,
+  component: () => React.createElement('div', null, 'test')
+});
+console.log('Element type:', el.type.name || el.type.toString().substring(0,80));
+// 输出: Composition（即它是一个 React 组件）
+"
+
+# 关键验证：Composition 可以直接作为 React 组件调用
+node -e "
+const {Composition} = require('remotion');
+const React = require('react');
+// Composition.call() 尝试以函数方式调用 → 抛出 "Invalid hook call"
+const result = Composition({ id: 'test', fps: 30, durationInFrames: 30, height: 100, width: 100, component: () => null });
+"
+# 错误: Invalid hook call (因为 hooks 需要在 React 组件树内调用)
+# 这证明 Composition 是组件，不是工厂函数
+
+# 检查 registerRoot 的签名
+node -e "const {registerRoot} = require('remotion'); console.log(registerRoot.length);"
+// 输出: 1（接收一个参数：React 组件）
+```
+
+**结论**：
+- `Composition` 是 React 组件，必须作为 JSX `<Composition id="..." component={...} />` 使用
+- `registerRoot` 接收一个返回 `<Composition .../>` 的 React 函数组件
+- 错误 "useCurrentFrame() can only be called inside a component that was registered as a composition" 的根因：**直接对含 `useCurrentFrame()` 的内部组件调用 `registerRoot(innerComponent)`**，而没有通过 `<Composition>` 包装
+
+**正确结构（经本次验证）**：
+
+```tsx
+// src/index.tsx
+import React from "react";
+import {registerRoot, Composition} from "remotion";
+import {AbsoluteFill, Sequence, interpolate, useCurrentFrame} from "remotion";
+
+// 业务组件：可以使用 useCurrentFrame()
+function VideoInner(props) {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill style={{background: "#0D0D1A"}}>
+      <Sequence from={0} durationInFrames={180}>
+        <CoverScene frame={frame} />
+      </Sequence>
+      {/* ... 更多场景 ... */}
+    </AbsoluteFill>
+  );
+}
+
+// Remotion Root：必须用 <Composition> 包装
+function Root() {
+  return (
+    <Composition
+      id="VerticalVideo"         // render 命令的 composition ID
+      fps={59.94}
+      height={1920}
+      width={1080}
+      durationInFrames={3024}
+      component={VideoInner}
+    />
+  );
+}
+
+registerRoot(Root);
+```
+
+**渲染命令**：
+```bash
+npx remotion render VerticalVideo out/final.mp4 --log=error
+#                   ↑
+#          与 <Composition id="VerticalVideo"> 匹配
+```
+
+---
+
 ## 2. 旧模式（有问题的模式）
 
 以下模式在 Remotion 4.x 中会失败：

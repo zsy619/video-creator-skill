@@ -4,6 +4,24 @@
 
 ## 常见问题
 
+### Q: npx create-video@latest 挂起不动
+
+**问题**：运行 `npx create-video@latest --template remix --yes` 时挂起不动。
+
+**原因**：`--yes` 和 `--template` 参数冲突，导致 CLI 进入交互式等待。
+
+**正确做法**：不使用 `npx create-video@latest`，改用 `create-remotion-project.js` 生成 Remotion 项目。
+
+```bash
+# ❌ 错误（交互式挂起）
+npx create-video@latest --template remix --yes my-project
+
+# ✅ 正确（使用脚本生成）
+node ~/.hermes/skills/video-creator/scripts/create-remotion-project.js ~/VideoProjects/my-project
+```
+
+**Remotion 项目必须生成在 `video-project/` 目录**（由脚本自动创建），不得手动创建子目录。
+
 ### Q: 视频渲染失败
 
 ```bash

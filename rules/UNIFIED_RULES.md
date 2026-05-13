@@ -14,7 +14,7 @@
 | # | 问题 | 原因 | 教训 |
 |---|------|------|------|
 | 1 | 字幕太小 | 10px/18px 不适合竖屏 | **竖屏字幕必须 ≥72px** |
-| 2 | 封面字体小 | PIL 字体渲染有大小限制 | **封面必须用 baoyu-imagine AI 生成，PIL 仅兜底** |
+| 2 | 封面字体小 | PIL 字体渲染有大小限制 | **封面必须用 Remotion still 渲染** |
 | 3 | 黑屏 | 场景总帧数 < 视频总帧数 | **所有场景帧数之和必须 = 视频总帧数** |
 | 4 | 元素不居中 | CSS 硬编码 top 值 | **使用 Flexbox 居中，禁止硬编码偏移** |
 | 5 | 中间文件残留 | 未清理 | **只保留 final-with-subs.mp4** |
@@ -126,268 +126,62 @@ const SCENES = [
 | 微信公众号封面 | 900×383 | 公众号文章封面（必须单独生成！） |
 | 小红书封面 | 1440×2560 | 小红书 |
 
-#### 5.2 封面生成优先级
+#### 5.2 封面生成方案（Remotion 唯一路径）
 
-1. **baoyu-imagine（AI 生成）** ← 首选，字体大、效果好，AI 自动处理长标题
-2. **PIL（兜底）** ← 仅在 AI 不可用时使用，必须使用 `smart_resize_text()` 自动缩放
+> **⚠️ 2026-05-13 更新**：封面图统一使用 `npx remotion still` 从 Remotion 项目渲染，PIL 已移除。
+>
+> **⚠️ 关键：封面帧号必须使用动画完全进入的那一帧**
+> - 如果视频总帧数为 N，封面帧号 = `N - 2`（即最后一帧减1）
+> - 原因：帧0通常是动画淡入过程（opacity 0→1），文字不可见
+> - 验证方法：预览多个候选帧（0/30/60/N-2），选择文字最清晰的那一帧
 
-#### 5.3 字号规范（安全字号上限）
+```bash
+# 1. 先渲染完整视频，得到总帧数 N
+npx remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=59.94 --duration-in-frames=N --disable-gpu
 
-> ⚠️ **字号是上限，不是固定值**。所有文字必须经过 `smart_resize_text()` 检测，超出画布 90% 宽度时自动缩小。
+# 2. 渲染封面（使用 N-2，即动画完全进入的那一帧）
+npx remotion still VerticalVideo docs/assets/cover.png --frame=N-2 --log=error
 
-| 封面类型 | 画布尺寸 | 主标题安全上限 | 副标题安全上限 | 标签 | URL |
-|---------|---------|--------------|--------------|------|-----|
-| 竖屏 | 1080×1920 | **130px** | 60px | 42px | 24px |
-| 公众号 | 900×383 | **100px** | 48px | 36px | 20px |
-| 小红书 | 1440×2560 | **180px** | 80px | 56px | 32px |
+# 截取公众号封面 900×383（居中裁剪）
+ffmpeg -y -i docs/assets/cover.png \
+  -vf "crop=900:383:(iw-900)/2:(ih-383)/2" \
+  docs/assets/cover-wechat.png
 
-**说明**：130px 的意思是"不超过 130px"，实际使用 `smart_resize_text()` 从此值开始向下缩放。
-
-#### 5.4 `smart_resize_text()` — 标题自动缩放函数
-
-> **核心铁律**：PIL 封面生成时，所有文字（主标题/副标题/标签/URL）必须经过此函数检测。
-> 禁止直接用固定字号渲染而不检测宽度。
-
-```python
-from PIL import Image, ImageDraw, ImageFont
-
-FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
-
-def measure_text(draw, text, font):
-    """测量文字渲染后的 (width, height)"""
-    bbox = draw.textbbox((0, 0), text, font=font, anchor='mm')
-    return bbox[2] - bbox[0], bbox[3] - bbox[1]
-
-def smart_resize_text(text, font_path, start_size, canvas_width, max_ratio=0.90, min_size=24):
-    """
-    自动缩小字号直到文字宽度 < canvas_width * max_ratio。
-
-    参数:
-        text: 要渲染的文字
-        font_path: 字体文件路径
-        start_size: 起始字号（安全上限）
-        canvas_width: 画布宽度（像素）
-        max_ratio: 最大宽度占比（默认 90%）
-        min_size: 最小字号（低于此值报错，不继续缩）
-
-    返回: (font对象, 最终宽度, 最终高度)
-
-    示例:
-        font, w, h = smart_resize_text("很长的主标题", FONT_PATH, 130, 1080)
-        draw.text((540, 300), "很长的主标题", fill='white', font=font, anchor='mm')
-    """
-    size = start_size
-    dummy_img = Image.new('RGB', (1, 1))
-    dummy_draw = ImageDraw.Draw(dummy_img)
-
-    while size >= min_size:
-        font = ImageFont.truetype(font_path, size)
-        w, h = measure_text(dummy_draw, text, font)
-        if w <= 0:
-            break
-        if w <= canvas_width * max_ratio:
-            return font, w, h
-        size -= 4  # 每次缩小 4px
-
-    # 达到最小字号仍超出，报错（不能静默截断）
-    font = ImageFont.truetype(font_path, min_size)
-    w, h = measure_text(dummy_draw, text, font)
-    raise ValueError(
-        f"标题宽度({w}px)即使缩到最小字号({min_size}px)仍超过画布90%({canvas_width * max_ratio:.0f}px)，"
-        f"请缩短标题文字或修改 canvas_width"
-    )
+# 截取小红书封面 1440×2560
+ffmpeg -y -i docs/assets/cover.png \
+  -vf "scale=1440:2560:force_original_aspect_ratio=decrease,pad=1440:2560:(ow-iw)/2:(oh-ih)/2" \
+  docs/assets/cover-xhs.png
 ```
 
-**调用模式**：
+#### 5.3 字号规范（Remotion 渲染）
 
-```python
-# 主标题（从 130px 开始向下缩放，最小 24px）
-font_title, title_w, title_h = smart_resize_text(
-    "AI工作流自动化实战指南",
-    FONT_PATH, 130, 1080
-)
+> Remotion 渲染时字号由 CSS/JSX 控制，参考值：竖屏主标题 72-96px，副标题 28-36px。
 
-# 副标题（从 60px 开始）
-font_sub, sub_w, sub_h = smart_resize_text(
-    "多平台同步管理",
-    FONT_PATH, 60, 1080
-)
+#### 5.4 视频分辨率规范
+
+| 平台 | 分辨率 | 帧率 | 码率 |
+|------|--------|------|------|
+| 视频号/抖音/小红书 | 1080×1920 | 59.94fps | H.264 |
+
+#### 5.5 自校验机制（Remotion 封面）
+
+| 检查项 | 标准 |
+|--------|------|
+| 封面尺寸 | 1080×1920 / 900×383 / 1440×2560 |
+| 文件大小 | > 20KB |
+
+#### 5.6 视频渲染流程
+
+```bash
+# Remotion 渲染
+npx remotion render VerticalVideo out/final.mp4 \
+  --concurrency=4 --fps=59.94 --disable-gpu --log=error
+
+# 字幕烧录
+ffmpeg -y -i out/final.mp4 \
+  -vf "ass=audio/subtitles.ass" -c:a copy \
+  out/final_with_subs.mp4
 ```
-
-#### 5.5 PIL 封面完整代码（使用 smart_resize_text）
-
-```python
-from PIL import Image, ImageDraw, ImageFont
-import os
-
-FONT_PATH = '/System/Library/Fonts/STHeiti Medium.ttc'
-
-# ========== 字号安全上限（不能超过这些值）==========
-TITLE_SIZES = {
-    'vertical': 130,    # 竖屏 1080x1920
-    'wechat':  100,     # 公众号 900x383
-    'xhs':     180,     # 小红书 1440x2560
-}
-SUBTITLE_SIZES = {
-    'vertical': 60,
-    'wechat':  48,
-    'xhs':     80,
-}
-TAG_SIZES = {
-    'vertical': 42,
-    'wechat':  36,
-    'xhs':     56,
-}
-URL_SIZES = {
-    'vertical': 24,
-    'wechat':  20,
-    'xhs':     32,
-}
-CANVAS_SIZES = {
-    'vertical': (1080, 1920),
-    'wechat':  (900, 383),
-    'xhs':     (1440, 2560),
-}
-
-def smart_resize_text(text, font_path, start_size, canvas_width, max_ratio=0.90, min_size=24):
-    size = start_size
-    dummy_img = Image.new('RGB', (1, 1))
-    dummy_draw = ImageDraw.Draw(dummy_img)
-    while size >= min_size:
-        font = ImageFont.truetype(font_path, size)
-        bbox = dummy_draw.textbbox((0, 0), text, font=font, anchor='mm')
-        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        if w <= 0: break
-        if w <= canvas_width * max_ratio:
-            return font, w, h
-        size -= 4
-    font = ImageFont.truetype(font_path, min_size)
-    bbox = dummy_draw.textbbox((0, 0), text, font=font, anchor='mm')
-    w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    raise ValueError(f"标题宽度({w}px)即使缩到最小({min_size}px)仍超画布90%，请缩短标题")
-
-def create_cover(title, subtitle, output_path, canvas_type='vertical'):
-    """
-    生成封面图。使用 smart_resize_text() 自动处理长标题。
-
-    参数:
-        title: 主标题（超过8字会自动缩放）
-        subtitle: 副标题
-        output_path: 输出文件路径
-        canvas_type: 'vertical' | 'wechat' | 'xhs'
-    """
-    w, h = CANVAS_SIZES[canvas_type]
-    img = Image.new('RGB', (w, h), '#0D0221')
-    draw = ImageDraw.Draw(img)
-
-    # 背景网格
-    for i in range(0, h, max(20, h // 30)):
-        draw.line([(0, i), (w, i)], fill='#150828', width=1)
-    for i in range(0, w, max(20, w // 30)):
-        draw.line([(i, 0), (i, h)], fill='#150828', width=1)
-
-    # 四角光晕
-    for cx_pct, cy_pct, r_pct, color in [
-        (0.1, 0.1, 0.35, '#00FFFF'),
-        (0.9, 0.1, 0.25, '#FF00FF'),
-        (0.1, 0.9, 0.25, '#9D00FF'),
-        (0.9, 0.9, 0.2,  '#00FFFF'),
-    ]:
-        cx, cy = int(w * cx_pct), int(h * cy_pct)
-        r = int(min(w, h) * r_pct)
-        rgb = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
-        draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=tuple(int(x * 0.3) for x in rgb))
-
-    # ========== 文字渲染（全部使用 smart_resize_text）==========
-    X = w // 2
-
-    # ---- 文字尺寸计算 ----
-    font_title, title_w, title_h = smart_resize_text(title, FONT_PATH, TITLE_SIZES[canvas_type], w)
-    gap = 40
-    if subtitle:
-        font_sub, sub_w, sub_h = smart_resize_text(subtitle, FONT_PATH, SUBTITLE_SIZES[canvas_type], w)
-    else:
-        font_sub, sub_w, sub_h = None, 0, 0
-
-    # ---- 整体垂直居中 ----
-    # 大标题 + 副标题作为整体，在画布垂直方向居中
-    total_height = title_h + gap + sub_h if subtitle else title_h
-    start_y = (h - total_height) // 2
-    title_y = start_y
-
-    # ---- 主标题（多层霓虹发光）----
-    for glow_size, glow_color in [
-        (int(TITLE_SIZES[canvas_type] * 0.08), '#004444'),
-        (int(TITLE_SIZES[canvas_type] * 0.05), '#006666'),
-        (int(TITLE_SIZES[canvas_type] * 0.03), '#008888'),
-        (int(TITLE_SIZES[canvas_type] * 0.015), '#00CCCC'),
-    ]:
-        for dx, dy in [(0, -glow_size), (0, glow_size), (-glow_size, 0), (glow_size, 0)]:
-            draw.text((X + dx, title_y + dy), title, fill=glow_color, font=font_title, anchor='mm')
-    draw.text((X, title_y), title, fill='#FFFFFF', font=font_title, anchor='mm')
-
-    # ---- 副标题（垂直居中，跟在主标题下方）----
-    if subtitle:
-        sub_y = title_y + title_h + gap
-        draw.text((X, sub_y), subtitle, fill='#00FFFF', font=font_sub, anchor='mm')
-
-    # 3. 自校验：标题高度占比 ≥8%
-    height_ratio = title_h / h * 100
-    assert height_ratio >= 8, f"标题高度占比 {height_ratio:.1f}% < 8%，字号可能过小"
-    assert title_w <= w * 0.90, f"标题宽度 {title_w}px > 画布90% {w * 0.9:.0f}px"
-
-    img.save(output_path, 'PNG')
-    size_kb = os.path.getsize(output_path) / 1024
-    print(f"✅ {output_path} | {w}x{h} | 标题{height_ratio:.1f}%画布 | {size_kb:.0f}KB")
-
-# 使用示例
-if __name__ == '__main__':
-    create_cover(
-        "AI工作流自动化实战指南",
-        "多平台同步管理",
-        "docs/assets/cover.png",
-        canvas_type='vertical'    # 竖屏 1080x1920
-    )
-    create_cover(
-        "AI工作流自动化实战指南",
-        "多平台同步管理",
-        "docs/assets/cover-wechat.png",
-        canvas_type='wechat'      # 公众号 900x383
-    )
-    create_cover(
-        "AI工作流自动化实战指南",
-        "多平台同步管理",
-        "docs/assets/cover-xhs.png",
-        canvas_type='xhs'         # 小红书 1440x2560
-    )
-```
-
-#### 5.6 自校验机制（生成后必须验证）
-
-| 检查项 | 标准 | 失败处理 |
-|--------|------|---------|
-| 主标题宽度 | ≤ 画布宽 × 90% | 报错（由 smart_resize_text 抛出） |
-| 标题高度占比 | ≥ 8%（竖屏/小红书）/ ≥ 10%（公众号） | 报错 |
-| 字体路径 | `/System/Library/Fonts/STHeiti Medium.ttc` 存在 | 报错 |
-| 文件大小 | > 20KB | 重新生成 |
-| 画布尺寸 | 与声明一致 | 报错 |
-
-#### 5.7 AI 生成封面（baoyu-imagine）的标题策略
-
-> baoyu-imagine AI 生成时，必须在 prompt 中明确告知 AI 如何处理长标题。
-
-**AI Prompt 关键指令**：
-
-```
-【标题文字处理规则 — 必须遵守】
-1. 标题必须完整显示，不得截断或省略任何字
-2. 如标题超过 8 个字：自动缩小字体但必须保持清晰可读（不得小于 48px）
-3. 如标题超过 14 个字：可拆分为两行展示（主标题 + 副标题结构）
-4. 字体颜色：白色（#FFFFFF），外发光青色（#00FFFF）效果
-5. 标题位置：画面垂直方向约 18-25% 高度处居中
-```
-
-**macOS 可用字体**：`/System/Library/Fonts/STHeiti Medium.ttc` ✅（仅 PIL 兜底使用）
 
 ### 6. 赛博朋克风格规范（默认风格）
 
@@ -464,7 +258,7 @@ Step 4: 删除所有中间文件
 4. **禁止**Remotion Audio 组件（headless 环境不工作，音频通过 ffmpeg 外部注入）
 5. **禁止**在 Remotion 内嵌音频轨道（Remotion 渲染输出无音频 → ffmpeg 混流）
 6. **禁止**使用 `-c:a copy`（Remotion 内嵌音频轨道实际为静音 AAC）
-7. **禁止**封面使用 PIL 作为首选（必须用 baoyu-imagine）
+7. **禁止**封面使用 PIL（必须用 Remotion still 渲染）
 8. **禁止**在 Remotion 中集成字幕（用 ffmpeg 烧录）
 
 ---
@@ -477,23 +271,18 @@ Step 4: 删除所有中间文件
 - [ ] 无黑屏（最后帧 = 延续场景）
 - [ ] 只有 final-with-subs.mp4 一个视频文件
 - [ ] 封面图存在且尺寸正确（1080×1920）
-- [ ] 封面由 AI 生成（非 PIL 兜底）
+- [ ] 封面由 Remotion still 渲染
 
 ---
 
 ## 📝 经验总结
 
-### 为什么封面必须用 AI 生成？
+### 为什么封面必须用 Remotion still 渲染？
 
-PIL 字体渲染存在限制：
-- 字体实际渲染大小可能小于指定字号
-- 字体间距和行高计算不准确
-- 生成的封面字体偏小，不够醒目
-
-baoyu-imagine（Seedream）生成效果：
-- 字体大小由 AI 自动优化
-- 视觉效果更专业
-- 霓虹发光效果更自然
+Remotion still 渲染保证：
+- 与视频视觉风格完全一致（同一套 CSS/主题）
+- 字体渲染质量高（HTML/CSS 渲染引擎）
+- 无需额外工具或 API
 
 ### 为什么字幕要在 ffmpeg 烧录？
 
