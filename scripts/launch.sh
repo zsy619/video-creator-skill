@@ -80,7 +80,7 @@ cmd_init() {
   "name": "{project-name}",
   "platform": "微信视频号",
   "duration": 52,
-  "fps": 60,
+  "fps": 59.94,
   "width": 1080,
   "height": 1920,
   "theme": "cyberpunk",
@@ -237,6 +237,15 @@ cmd_render() {
     err "Remotion 项目生成失败"
     exit 1
   fi
+  ok "Remotion 项目生成完成"
+
+  # ── 修复 Remotion 项目（themes key 双引号、Scene 组件名）──────────────
+  if [ -f "${SCRIPT_DIR}/fix-remotion-project.js" ]; then
+    echo ""
+    echo "=== 修复 Remotion 项目 ==="
+    node "${SCRIPT_DIR}/fix-remotion-project.js" "${proj_dir}" || true
+    ok "项目修复检查完成"
+  fi
 
   # ── npm install ────────────────────────────────────────────────────────────
   echo ""
@@ -258,14 +267,14 @@ cmd_render() {
   AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
     -of csv=p=0 "${proj_dir}/audio/neural_1_2x.m4a" 2>/dev/null || echo "38")
   local TOTAL_FRAMES
-  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
+  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 59.94))")
 
-  log "音频时长: ${AUDIO_DURATION}s → ${TOTAL_FRAMES} 帧 @60fps"
+  log "音频时长: ${AUDIO_DURATION}s → ${TOTAL_FRAMES} 帧 @59.94fps"
 
   npx remotion render VerticalVideo \
     "${VP_DIR}/out/final.mp4" \
     --concurrency=4 \
-    --fps=60 \
+    --fps=59.94 \
     --duration-in-frames=${TOTAL_FRAMES} \
     --disable-gpu \
     2>&1 | tail -10
@@ -333,7 +342,7 @@ cmd_all() {
   local CHAR_COUNT
   CHAR_COUNT=$(wc -c < "$narration_file" | tr -d ' ')
   local MAX_CHARS
-  MAX_CHARS=$(python3 -c "import math; print(math.floor(${TARGET_DURATION} * 6.45))")
+  MAX_CHARS=$(python3 -c "import math; print(math.floor(${TARGET_DURATION} * 3.37))")
   if [ "$CHAR_COUNT" -gt "$MAX_CHARS" ]; then
     warn "⚠️ narration.txt ${CHAR_COUNT}字 > 上限 ${MAX_CHARS}字，可能会超出目标时长"
     warn "   建议精简到 ${MAX_CHARS}字以内"
@@ -444,7 +453,7 @@ cmd_all() {
   # ── Gate B（字幕质量）───────────────────────────────────────────────
   echo ""
   echo "=== 门禁 B: 字幕 ==="
-  # --target-duration 传给 pre-subtitle-check 的文本长度门禁（字数上限 = TARGET_DURATION × 6.45）
+  # --target-duration 传给 pre-subtitle-check 的文本长度门禁（字数上限 = TARGET_DURATION × 3.37）
   if ! node "${GATE}" "${proj_dir}" "subtitle" --target-duration="${TARGET_DURATION}" 2>&1 | tail -5; then
     err "❌ 门禁 B 未通过，终止"
     exit 1
@@ -461,6 +470,14 @@ cmd_all() {
   fi
   ok "✅ Remotion 项目生成完成"
 
+  # ── Step 4b: 修复 Remotion 项目（themes key 双引号等）───────────────
+  if [ -f "${SCRIPT_DIR}/fix-remotion-project.js" ]; then
+    echo ""
+    echo "=== Step 4b: 修复 Remotion 项目 ==="
+    node "${SCRIPT_DIR}/fix-remotion-project.js" "${proj_dir}" || true
+    ok "✅ 项目修复检查完成"
+  fi
+
   # ── Step 5: npm install ─────────────────────────────────────────────────
   echo ""
   echo "=== Step 5: npm install ==="
@@ -475,7 +492,7 @@ cmd_all() {
   # ── Step 6: pre-render-check ───────────────────────────────────────────
   echo ""
   echo "=== Step 6: 渲染前检查 ==="
-  # --target-duration 传给 pre-subtitle-check 的文本长度门禁（字数上限 = TARGET_DURATION × 6.45）
+  # --target-duration 传给 pre-subtitle-check 的文本长度门禁（字数上限 = TARGET_DURATION × 3.37）
   # 注意：pre-render-check 支持目录自动检测（无需手动指定 fps/duration）
   if node "${PRE_RENDER}" "${proj_dir}" --target-duration="${TARGET_DURATION}" 2>&1 | tail -10; then
     ok "✅ 渲染前检查通过"
@@ -485,14 +502,14 @@ cmd_all() {
 
   # ── Step 7: Remotion 渲染 ──────────────────────────────────────────────
   local TOTAL_FRAMES
-  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
+  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 59.94))")
   echo ""
-  echo "=== Step 7: Remotion 渲染（60fps / 1080×1920 / ${TOTAL_FRAMES}帧）==="
+  echo "=== Step 7: Remotion 渲染（59.94fps / 1080×1920 / ${TOTAL_FRAMES}帧）==="
 
   cd "${VP_DIR}" && npx remotion render VerticalVideo \
     out/final.mp4 \
     --concurrency=4 \
-    --fps=60 \
+    --fps=59.94 \
     --duration-in-frames=${TOTAL_FRAMES} \
     --disable-gpu \
     > /tmp/remotion.$$.out 2>&1
@@ -522,14 +539,14 @@ cmd_all() {
     echo ""
     echo "=== ffmpeg 混流（PIL fallback，不含字幕）==="
     ffmpeg -y \
-      -framerate 60 \
+      -framerate 59.94 \
       -i "${VP_DIR}/frames/frame_%04d.png" \
       -i "${proj_dir}/audio/neural_1_2x.m4a" \
       -map 0:v -map 1:a \
       -t "${AUDIO_DURATION}" \
       -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p \
       -c:a aac -b:a 256k \
-      -r 60 -s 1080x1920 \
+      -r 59.94 -s 1080x1920 \
       "${VP_DIR}/out/final_no_subs.mp4" 2>/dev/null
 
     rm -rf "${VP_DIR}/frames"
@@ -556,7 +573,7 @@ cmd_all() {
   echo "═══════════════════════════════════════"
   echo ""
   echo "最终文件: ${VP_DIR}/out/${FINAL_FILE}"
-  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 60fps | AAC 256k"
+  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 59.94fps | AAC 256k"
   echo "封面: docs/assets/cover.png (vertical) / cover-wechat.png / cover-xhs.png"
   echo "字幕: audio/subtitles.ass（含逐字高亮特效）"
   echo ""

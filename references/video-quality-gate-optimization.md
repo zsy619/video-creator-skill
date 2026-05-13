@@ -98,12 +98,14 @@ const bitrate = getBitrate(audioFile);   // execSync ffprobe
 
 ```javascript
 // 优化后：4处调用 = 4次 ffprobe 进程（每次1个进程）
+// ⚠️ Node.js 24: encoding:'utf8' 直接返回字符串，不是 { stdout } 对象
 function getAudioMeta(filePath) {
-  const r = execSync(
+  const raw = execSync(
     `ffprobe -v error -show_entries format=duration:stream=bit_rate -of csv=p=0 "${filePath}" 2>/dev/null`,
     { encoding: 'utf8' }
   );
-  const lines = r.stdout.trim().split('\n').filter(l => l.trim());
+  const output = typeof raw === 'string' ? raw : (raw.stdout || '');
+  const lines = output.trim().split('\n').filter(l => l.trim());
   const duration = parseFloat(lines.find(l => !l.includes(',')) || '0') || null;
   const bitrateLine = lines.find(l => l.includes(','));
   const bitrate = bitrateLine ? parseInt(bitrateLine.split(',')[0] || '0') || 0 : 0;

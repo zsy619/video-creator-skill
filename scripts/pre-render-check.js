@@ -22,7 +22,7 @@ let TSX_FILE = process.argv[2];
 const FPS_ARG = process.argv[3];
 const EXPECTED_DURATION_ARG = process.argv[4];
 
-let FPS = FPS_ARG ? parseInt(FPS_ARG) : 60;
+let FPS = FPS_ARG ? parseFloat(FPS_ARG) : 59.94;
 let EXPECTED_DURATION = EXPECTED_DURATION_ARG ? parseFloat(EXPECTED_DURATION_ARG) : 60;
 
 // 自动检测：如果传入的是目录而非文件，自动查找 tsx 并推断 fps/duration

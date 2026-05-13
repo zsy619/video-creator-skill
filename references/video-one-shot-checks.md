@@ -1,6 +1,6 @@
 # 视频一次生成到位：字幕与音频铁律
 
-> **最后更新**：2026-05-12
+> **最后更新**：2026-05-13
 > **适用范围**：每次 video-creator 任务开始前必读
 > **目标**：避免渲染→发现字幕/音频问题→修复→重新渲染的返工循环
 
@@ -15,7 +15,7 @@ python3 -c "
 text = open('audio/voice_text.txt').read()
 chars = len(text)
 target_dur = 53   # 目标秒数（根据项目调整）
-max_chars = int(target_dur * 6.45)
+max_chars = int(target_dur * 3.37)
 print(f'字数: {chars} / 上限: {max_chars}')
 assert chars <= max_chars, f'字数超限: {chars} > {max_chars}，请精简'
 print('✅ 字数检查通过')
@@ -71,7 +71,7 @@ grep -q "createTikTokStyleCaptions" video-project/src/components/CaptionOverlay.
    │                           │                           │
    ▼                           ▼                           ▼
 字数验证 ← 新规！        re.split pattern 验证      CaptionOverlay 方案确认
-英文句点检查 ← 新规！    Claude4.5 完整性验证       帧数 = ceil(音频时长×60)
+英文句点检查 ← 新规！    Claude4.5 完整性验证       帧数 = ceil(音频时长×59.94)
 叠速检查 ← 新规！        total_duration 精确值
 ```
 

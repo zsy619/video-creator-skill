@@ -123,7 +123,7 @@ function generateVideoScript(articleContent, config) {
 /**
  * 从 video-script.md 提取配音文本
  * @param {string} scriptContent
- * @param {number} maxChars — ⌊duration × 6.45⌋
+ * @param {number} maxChars — ⌊duration × 3.37⌋（实测安全上限）
  * @returns {string} narration.txt
  */
 function extractNarration(scriptContent, maxChars) {
@@ -164,16 +164,75 @@ function extractNarration(scriptContent, maxChars) {
  */
 function generateCopy(articleContent, config) {
   const title = extractTitle(articleContent);
-  const stripped = stripMarkdown(articleContent).slice(0, 300);
+  const stripped = stripMarkdown(articleContent);
+  const theme = config.theme || "cyberpunk";
 
-  return `# 小红书文案\n\n`;
+  const hashtags = [
+    "#科技工具", "#开源项目", "#网络加速", "#GitHub",
+    "#数码科技", "#效率神器", "#种草推荐", "#好物分享",
+  ].slice(0, 6).join(" ");
+
+  const teaser = stripped.slice(0, 150).trim();
+
+  return `# 小红书文案
+
+## 标题候选
+
+### 方案A
+我宣布！这可能是最优雅的开源代理方案 🚀
+
+### 方案B
+告别卡顿！这个开源工具让网络加速变得如此简单 ⚡
+
+### 方案C
+GitHub热榜！这个项目让网络延迟直接消失 🔥
+
+## 正文
+
+${teaser}...
+
+👉 点击下方视频了解详情
+👉 关注我，获取更多科技工具推荐
+
+## 标签
+${hashtags}
+
+## 发布建议
+- 发布时间：晚上8-10点（流量高峰）
+- 封面文字要大，30字以内
+- 前3秒要有吸引力（痛点或结果）
+`;
 }
 
 /**
  * 生成公众号文案
  */
 function generateWechatCopy(articleContent, config) {
-  return `# 公众号文案\n\n`;
+  const title = extractTitle(articleContent);
+  const stripped = stripMarkdown(articleContent);
+  const platform = config.platform || "微信公众号";
+
+  return `# ${platform}图文文案
+
+## 标题
+${title}
+
+## 摘要（必填，200字以内）
+本文介绍一款革命性的开源网络代理工具，帮助你告别卡顿，享受流畅的网络体验。
+
+## 正文
+
+${stripped.slice(0, 500)}
+
+阅读原文，了解完整内容和使用教程。
+
+## 封面图建议
+尺寸：900×383px（横向）
+风格：深色科技风，标题醒目
+
+## 标签（最多选3个）
+#开源项目 #网络工具 #效率提升 #科技数码 #工具推荐
+`;
 }
 
 /**
@@ -182,16 +241,119 @@ function generateWechatCopy(articleContent, config) {
 function generatePostingGuide(config) {
   const platform = config.platform || "视频号";
   const duration = config.duration || 52;
-  const tags = (config.tags || []).join("、") || "AI工具、科技数码";
+  const theme = config.theme || "科技";
+  const tags = (config.tags || ["AI工具", "科技数码"]).join("、");
 
-  return `# ${platform} 发布指南\n\n`;
+  return `# ${platform} 多平台发布指南
+
+## 平台配置
+
+| 平台 | 封面尺寸 | 视频尺寸 | 建议时长 | 标签 |
+|------|----------|----------|----------|------|
+| 微信视频号 | 1080×1920 | 1080×1920 | ${duration}秒 | ${tags} |
+| 抖音 | 1080×1920 | 1080×1920 | ≤60秒 | #科技 #工具 |
+| 小红书 | 1440×2560 | 1080×1920 | ${duration}秒 | ${tags} |
+| YouTube | 1280×720 | 1920×1080 | ≥60秒 | ${tags} |
+
+## 发布步骤
+
+### 微信视频号
+1. 打开微信视频号 App
+2. 点击右上角「+」发布视频
+3. 填写标题（30字以内）和描述
+4. 添加话题标签：${tags}
+5. 选择「完整视频」发布
+
+### 抖音
+1. 打开抖音 App，点击「+」
+2. 上传视频文件（不要直接拍摄）
+3. 文案模板：「${theme}工具推荐｜第${duration}秒有惊喜」
+4. 添加话题：#科技 #工具推荐 #效率神器
+5. @抖音小助手 获取流量扶持
+
+### 小红书
+1. 打开小红书 App
+2. 点击「+」→「相册」选择视频
+3. 封面选视频内帧（不要选白屏/黑帧）
+4. 标题模板：「救命！这个${theme}工具也太好用了」
+5. 正文：开头要有获得感，中段介绍功能，结尾引导互动
+
+## 标题模板
+
+| 平台 | 模板 | 示例 |
+|------|------|------|
+| 视频号 | 【工具名】使用教程｜一看就会 | 【Hysteria】使用教程｜一看就会 |
+| 抖音 | 这个工具绝了！秒变${theme}达人 | 这个工具绝了！秒变科技达人 |
+| 小红书 | ${theme}工具分享｜打工人必备 | 科技工具分享｜打工人必备 |
+
+## 评论区引导
+- 置顶：「有问题评论区问我」
+- 二条：「你们最想要什么工具的教程？」
+`;
 }
 
 /**
  * 生成会话日志
  */
 function generateSessionLog(config, docNames) {
-  return `# 会话日志\n\n`;
+  const now = new Date();
+  const date = now.toLocaleDateString("zh-CN");
+  const time = now.toLocaleTimeString("zh-CN");
+  const project = config.name || "video-project";
+  const duration = config.duration || 52;
+  const theme = config.theme || "cyberpunk";
+  const platform = config.platform || "微信视频号";
+
+  return `# 会话日志
+
+> **项目**: ${project}
+> **平台**: ${platform}
+> **目标时长**: ${duration}秒
+> **主题风格**: ${theme}
+> **日期**: ${date} ${time}
+
+## 会话阶段记录
+
+### 初始化
+- [ ] 确认项目需求
+- [ ] 创建 video-config.json
+- [ ] 确认平台和主题风格
+
+### 内容获取
+- [ ] 原始文章已保存至 docs/article.md
+- [ ] 文章内容已分析
+
+### 文档生成
+- [ ] 分镜脚本已生成
+- [ ] 配音文本已生成（字数上限：⌊${duration} × 3.37⌋ = ${Math.floor(duration * 3.37)}字）
+- [ ] 营销文案已生成
+- [ ] 发布指南已生成
+
+### 音频生成
+- [ ] edge-tts 配音（zh-CN-YunjianNeural，rate=+0%）
+- [ ] atempo 1.2x 加速
+- [ ] ffprobe 时长验证
+
+### 字幕生成
+- [ ] ASS字幕已生成（Fontsize=72）
+- [ ] 逐字高亮特效已配置
+
+### 视频渲染
+- [ ] Remotion 项目已生成
+- [ ] 项目修复检查已执行
+- [ ] npm install 已完成
+- [ ] pre-render-check.js 检查通过
+- [ ] Remotion 渲染完成（59.94fps）
+- [ ] ffmpeg 混流完成
+
+### 最终输出
+- [ ] 视频文件：video-project/out/final_with_subs.mp4
+- [ ] 封面图：docs/assets/cover.png
+- [ ] 文档齐全
+
+---
+*本日志由 generate_docs.js 自动生成*
+`;
 }
 
 /**
@@ -226,7 +388,7 @@ function generateDocs(projectDir) {
   }
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
   const duration = config.duration || 52;
-  const maxNarrationChars = Math.floor(duration * 6.45);
+  const maxNarrationChars = Math.floor(duration * 3.37);
 
   // 读取原始文章
   let articleContent = "";

@@ -209,13 +209,13 @@ function main() {
         totalFrames = config.totalFrames || null;
       } else {
         const dur = parseFloat(fs.readFileSync(cfgFile, 'utf8').trim());
-        totalFrames = dur ? Math.ceil(dur * 60) : null;
+        totalFrames = dur ? Math.ceil(dur * 59.94) : null;
       }
       if (totalFrames && duration) {
-        const expectedFrames = Math.ceil(duration * 60);
+        const expectedFrames = Math.ceil(duration * 59.94);
         const diff = Math.abs(totalFrames - expectedFrames);
         if (diff > 30) {
-          log(`⚠️ 警告: 视频帧数(${totalFrames})与音频时长×60fps(${expectedFrames})差异较大`, YELLOW);
+          log(`⚠️ 警告: 视频帧数(${totalFrames})与音频时长×59.94fps(${expectedFrames})差异较大`, YELLOW);
           log(`   请确保音频后处理已完成（atempo加速），再生成字幕`, YELLOW);
         } else {
           log(`✅ 视频帧数与音频时长匹配`, GREEN);

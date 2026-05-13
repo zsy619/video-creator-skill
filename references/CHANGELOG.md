@@ -5,6 +5,67 @@
 
 ---
 
+## 2026-05-13 — 语速实测修正 + Remotion Native 成功案例
+
+### 核心发现：edge-tts 实际语速 vs 规范值
+
+**问题**：技能规范长期使用 6.45 字/秒（`⌊目标时长 × 6.45⌋`），源自高密度短句测试。实际项目旁白含大量英文、符号、长复合句，朗读速度显著更慢。
+
+**实测数据（2026-05-13）**：
+- `rate +0%` + `atempo 1.2x` → **3.73 中文字符/秒**
+- 294字 → 78.9秒
+- 184字 → 52.8秒（目标达成）
+
+**修正值**：
+| 目标时长 | 旧安全字数 | **新安全字数** | 依据 |
+|---------|-----------|--------------|------|
+| 52秒 | 330字 | **175字** | 52 × 3.37 = 175 |
+| 60秒 | 390字 | **202字** | 60 × 3.37 = 202 |
+
+**公式**：`⌊目标时长 × 3.37⌋`（3.37 = 3.73 × 0.9，留 10% 余量）
+
+**受影响文件**：SKILL.md（多处表格+公式）、 rules/VOICE.md、references/tts-length-limit.md
+
+### 核心发现：Remotion Native 在 Mac M1 headless 可用
+
+**旧结论**：Mac M-series headless 必须用 ffmpeg 兜底（PIL帧序列）。
+
+**新发现（2026-05-13）**：
+- Remotion 4.0.459 在 Mac M1 headless（Node v24）下**成功渲染**
+- 3169帧@60fps，约 52.8 秒，68MB，H.264+AAC
+- 修复了 3 个 esbuild bundling 错误后渲染正常通过
+- **ffmpeg 混流不再是必须路径**
+
+**成功渲染命令**：
+```bash
+npx remotion render VerticalVideo out/final.mp4 \
+  --concurrency=4 --fps=60 --disable-gpu
+```
+
+**需修复的 esbuild 错误**：
+1. `themes/index.ts` 连字符 key：`tech-modern:` → `"tech-modern":`（29个 key 全部需引号）
+2. `Scene4_Features.tsx` JSX语法错误：`color="#00FF88"}` → `color="#00FF88"`
+3. `ProtocolBadge` 缺少 `delay` prop：补全缺失参数
+
+### 修复内容
+
+#### P1 — 语速实测修正
+
+| 文件 | 修复 |
+|------|------|
+| `SKILL.md` | 表格数值 330→175（52秒），公式 `×6.45` → `×3.37`，增加 6.45/3.37 差异说明 |
+| `rules/VOICE.md` | 同上 |
+| `references/tts-length-limit.md` | 表格更新，补充实测数据 |
+
+#### P2 — Remotion Native 成功路径记录
+
+| 文件 | 修复 |
+|------|------|
+| `rules/TROUBLESHOOTING.md` | 新增"Remotion Native 渲染成功案例"章节 |
+| `references/REMOTION_NATIVE.md` | 补充 `tech-modern` 引号问题、JSX语法错误、ProtocolBadge prop 问题 |
+
+---
+
 ## 2026-05-10 — 大规模修订（v5.x 统一版）
 
 ### 问题诊断

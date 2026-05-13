@@ -1,142 +1,108 @@
 #!/usr/bin/env node
 /**
  * create-remotion-project.js
- * 根据 video-config.json 生成完整的 Remotion Native 项目
+ * 生成完整的 Remotion Native 项目
  *
- * 生成内容：
- *   - src/Root.tsx              Composition + calculateMetadata（动态时长）
- *   - src/Video.tsx             主组件：<Audio> + 6×<Sequence> + <CaptionOverlay>
- *   - src/components/CaptionOverlay.tsx  @remotion/captions 渲染 ASS 字幕
- *   - src/scenes/Scene*.tsx     6个场景组件
- *   - src/themes/index.ts       30主题配置
- *   - public/audio/             音频和字幕 JSON
- *   - package.json              remotion + @remotion/captions + zod@4.3.6
- *   - remotion.config.ts        60fps / 1080×1920 / concurrency=4
+ * 工作流程：launch.sh all → Step 4 调用本脚本
+ *   launch.sh init     → 生成项目结构
+ *   launch.sh audio    → edge-tts 配音
+ *   launch.sh subtitle → ASS 字幕
+ *   launch.sh render   → Remotion 渲染 + ffmpeg 混流
  *
- * 关键约束：
- *   - 音频内嵌 Remotion（无需 ffmpeg 混流）
- *   - 字幕通过 @remotion/captions 直接烧录到帧（无需 ffmpeg 烧录）
- *   - calculateMetadata 通过 @remotion/media 获取音频时长
- *   - 严禁 import fs（webpack 无法解析 Node.js 模块）
+ * 修复记录（Hysteria 项目经验）：
+ *   1. themes/index.ts: 所有 key 必须加双引号（esbuild 要求 JSON key 是字符串）
+ *   2. CaptionOverlay.tsx: 不使用 useDelayRender（Remotion 4.x 不存在此 API）
+ *   3. Scene 组件：必须使用 AbsoluteFill 居中布局，内容必须垂直水平居中
+ *   4. 帧数匹配：FPS=59.94 而非 60，避免 52.824s 音频被拉伸
  */
 
 const fs = require("fs");
 const path = require("path");
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 30 主题配置（从 THEMES.md 迁移）
+// 30 主题配置（key 带双引号，esbuild 兼容）
 // ─────────────────────────────────────────────────────────────────────────────
 const THEMES = {
-  "tech-modern":     { primary: "#2563EB", secondary: "#7C3AED", accent: "#10B981", bg: "#0F172A", font: "Inter",    particleCount: 80 },
+  "tech-modern":     { primary: "#2563EB", secondary: "#7C3AED", accent: "#10B981", bg: "#0F172A", font: "Inter",            particleCount: 80 },
   "cyberpunk":       { primary: "#00FFFF", secondary: "#FF00FF", accent: "#FFFF00", bg: "#0D0221", font: "JetBrains Mono", particleCount: 100 },
-  "neon-future":     { primary: "#00FF88", secondary: "#FF0088", accent: "#8800FF", bg: "#000022", font: "Orbitron",  particleCount: 120 },
-  "minimal-tech":    { primary: "#1E293B", secondary: "#475569", accent: "#F8FAFC", bg: "#020617", font: "Inter",    particleCount: 40 },
-  "particle-tech":   { primary: "#00FFCC", secondary: "#FFCC00", accent: "#CC00FF", bg: "#0F0F23", font: "Inter",    particleCount: 150 },
-  "gradient-wave":   { primary: "#06B6D4", secondary: "#8B5CF6", accent: "#EC4899", bg: "#020617", font: "Poppins",  particleCount: 60 },
-  "glass-morphism":  { primary: "rgba(255,255,255,0.8)", secondary: "rgba(0,255,204,0.6)", accent: "rgba(0,153,255,0.4)", bg: "rgba(10,10,15,0.9)", font: "Poppins", particleCount: 50 },
-  "holographic":    { primary: "#00FFCC", secondary: "#0099FF", accent: "#CC00FF", bg: "#000000", font: "Orbitron",  particleCount: 90 },
-  "data-stream":    { primary: "#00FF00", secondary: "#00CCFF", accent: "#FF00FF", bg: "#001122", font: "JetBrains Mono", particleCount: 110 },
-  "quantum-tech":   { primary: "#FF00CC", secondary: "#00FFCC", accent: "#CCFF00", bg: "#110011", font: "Orbitron",  particleCount: 130 },
-  "vibrant-gradient": { primary: "#F97316", secondary: "#EAB308", accent: "#22C55E", bg: "#1C1917", font: "Poppins",  particleCount: 70 },
-  "aurora-gradient": { primary: "#06B6D4", secondary: "#8B5CF6", accent: "#EC4899", bg: "#020617", font: "Poppins",  particleCount: 85 },
-  "forest-nature":  { primary: "#059669", secondary: "#10B981", accent: "#F59E0B", bg: "#064E3B", font: "Inter",    particleCount: 60 },
-  "deep-ocean":     { primary: "#0891B2", secondary: "#4F46E5", accent: "#06B6D4", bg: "#030712", font: "Inter",    particleCount: 90 },
-  "arctic-ice":     { primary: "#38BDF8", secondary: "#818CF8", accent: "#34D399", bg: "#0C1222", font: "Inter",    particleCount: 80 },
-  "dark-minimal":   { primary: "#1E293B", secondary: "#475569", accent: "#F8FAFC", bg: "#020617", font: "Inter",    particleCount: 30 },
-  "neon-city":      { primary: "#F43F5E", secondary: "#8B5CF6", accent: "#FBBF24", bg: "#18181B", font: "JetBrains Mono", particleCount: 100 },
-  "fintech":        { primary: "#059669", secondary: "#10B981", accent: "#FBBF24", bg: "#052E16", font: "Inter",    particleCount: 70 },
-  "pure-medical":   { primary: "#0EA5E9", secondary: "#14B8A6", accent: "#FFFFFF", bg: "#F0F9FF", font: "Inter",    particleCount: 50 },
-  "autumn-vintage": { primary: "#DC2626", secondary: "#F59E0B", accent: "#2563EB", bg: "#1C1917", font: "Playfair Display", particleCount: 55 },
-  "game-elite":     { primary: "#8B5CF6", secondary: "#EC4899", accent: "#F97316", bg: "#0F0F23", font: "Orbitron",  particleCount: 110 },
-  "education-blue": { primary: "#3B82F6", secondary: "#06B6D4", accent: "#10B981", bg: "#0F172A", font: "Inter",    particleCount: 65 },
-  "food-warm":      { primary: "#F97316", secondary: "#EAB308", accent: "#DC2626", bg: "#1C1917", font: "Poppins",   particleCount: 60 },
-  "travel-adventure": { primary: "#059669", secondary: "#10B981", accent: "#F59E0B", bg: "#064E3B", font: "Inter",   particleCount: 70 },
-  "music-beat":     { primary: "#EC4899", secondary: "#8B5CF6", accent: "#F97316", bg: "#18181B", font: "Poppins",  particleCount: 90 },
-  "news-official":  { primary: "#1E40AF", secondary: "#3B82F6", accent: "#FFFFFF", bg: "#0F172A", font: "Inter",    particleCount: 50 },
-  "pet-cute":       { primary: "#F472B6", secondary: "#FB923C", accent: "#34D399", bg: "#1C1917", font: "Poppins",  particleCount: 80 },
-  "auto-tech":      { primary: "#1F2937", secondary: "#374151", accent: "#F9FAFB", bg: "#030712", font: "Inter",    particleCount: 70 },
-  "startup-energy": { primary: "#10B981", secondary: "#059669", accent: "#F97316", bg: "#022C22", font: "Inter",    particleCount: 80 },
-  "luxury-elegant": { primary: "#B8860B", secondary: "#D97706", accent: "#FFFFFF", bg: "#1C1917", font: "Playfair Display", particleCount: 45 },
+  "neon-future":     { primary: "#00FF88", secondary: "#FF0088", accent: "#8800FF", bg: "#000022", font: "Orbitron",       particleCount: 120 },
+  "minimal-tech":     { primary: "#1E293B", secondary: "#475569", accent: "#F8FAFC", bg: "#020617", font: "Inter",         particleCount: 40 },
+  "particle-tech":    { primary: "#00FFCC", secondary: "#FFCC00", accent: "#CC00FF", bg: "#0F0F23", font: "Inter",         particleCount: 150 },
+  "gradient-wave":    { primary: "#06B6D4", secondary: "#8B5CF6", accent: "#EC4899", bg: "#020617", font: "Poppins",        particleCount: 60 },
+  "glass-morphism":   { primary: "rgba(255,255,255,0.8)", secondary: "rgba(0,255,204,0.6)", accent: "rgba(0,153,255,0.4)", bg: "rgba(10,10,15,0.9)", font: "Poppins", particleCount: 50 },
+  "holographic":      { primary: "#00FFCC", secondary: "#0099FF", accent: "#CC00FF", bg: "#000000", font: "Orbitron",       particleCount: 90 },
+  "data-stream":      { primary: "#00FF00", secondary: "#00CCFF", accent: "#FF00FF", bg: "#001122", font: "JetBrains Mono", particleCount: 110 },
+  "quantum-tech":      { primary: "#FF00CC", secondary: "#00FFCC", accent: "#CCFF00", bg: "#110011", font: "Orbitron",       particleCount: 130 },
+  "vibrant-gradient": { primary: "#F97316", secondary: "#EAB308", accent: "#22C55E", bg: "#1C1917", font: "Poppins",        particleCount: 70 },
+  "aurora-gradient":   { primary: "#06B6D4", secondary: "#8B5CF6", accent: "#EC4899", bg: "#020617", font: "Poppins",        particleCount: 85 },
+  "forest-nature":     { primary: "#059669", secondary: "#10B981", accent: "#F59E0B", bg: "#064E3B", font: "Inter",         particleCount: 60 },
+  "deep-ocean":        { primary: "#0891B2", secondary: "#4F46E5", accent: "#06B6D4", bg: "#030712", font: "Inter",         particleCount: 90 },
+  "arctic-ice":        { primary: "#38BDF8", secondary: "#818CF8", accent: "#34D399", bg: "#0C1222", font: "Inter",         particleCount: 80 },
+  "dark-minimal":      { primary: "#1E293B", secondary: "#475569", accent: "#F8FAFC", bg: "#020617", font: "Inter",         particleCount: 30 },
+  "neon-city":         { primary: "#F43F5E", secondary: "#8B5CF6", accent: "#FBBF24", bg: "#18181B", font: "JetBrains Mono", particleCount: 100 },
+  "fintech":           { primary: "#059669", secondary: "#10B981", accent: "#FBBF24", bg: "#052E16", font: "Inter",         particleCount: 70 },
+  "pure-medical":      { primary: "#0EA5E9", secondary: "#14B8A6", accent: "#FFFFFF", bg: "#F0F9FF", font: "Inter",         particleCount: 50 },
+  "autumn-vintage":    { primary: "#DC2626", secondary: "#F59E0B", accent: "#2563EB", bg: "#1C1917", font: "Playfair Display", particleCount: 55 },
+  "game-elite":        { primary: "#8B5CF6", secondary: "#EC4899", accent: "#F97316", bg: "#0F0F23", font: "Orbitron",      particleCount: 110 },
+  "education-blue":    { primary: "#3B82F6", secondary: "#06B6D4", accent: "#10B981", bg: "#0F172A", font: "Inter",         particleCount: 65 },
+  "food-warm":         { primary: "#F97316", secondary: "#EAB308", accent: "#DC2626", bg: "#1C1917", font: "Poppins",       particleCount: 60 },
+  "travel-adventure":  { primary: "#059669", secondary: "#10B981", accent: "#F59E0B", bg: "#064E3B", font: "Inter",         particleCount: 70 },
+  "music-beat":        { primary: "#EC4899", secondary: "#8B5CF6", accent: "#F97316", bg: "#18181B", font: "Poppins",       particleCount: 90 },
+  "news-official":      { primary: "#1E40AF", secondary: "#3B82F6", accent: "#FFFFFF", bg: "#0F172A", font: "Inter",         particleCount: 50 },
+  "pet-cute":          { primary: "#F472B6", secondary: "#FB923C", accent: "#34D399", bg: "#1C1917", font: "Poppins",       particleCount: 80 },
+  "auto-tech":         { primary: "#1F2937", secondary: "#374151", accent: "#F9FAFB", bg: "#030712", font: "Inter",         particleCount: 70 },
+  "startup-energy":    { primary: "#10B981", secondary: "#059669", accent: "#F97316", bg: "#022C22", font: "Inter",         particleCount: 80 },
+  "luxury-elegant":    { primary: "#B8860B", secondary: "#D97706", accent: "#FFFFFF", bg: "#1C1917", font: "Playfair Display", particleCount: 45 },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 场景脚本数据（从 docs/video-script.md 读取，或使用默认值）
-// ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_SCENES = [
-  { id: 1, name: "Cover",      duration: 3,  title: "主标题",         subtitle: "副标题" },
-  { id: 2, name: "PainPoint",  duration: 10, title: "痛点场景",       subtitle: "描述问题" },
-  { id: 3, name: "Solution",   duration: 12, title: "解决方案",       subtitle: "介绍产品" },
-  { id: 4, name: "Features",   duration: 15, title: "核心功能",       subtitle: "功能列表" },
-  { id: 5, name: "Start",      duration: 8,  title: "快速上手",       subtitle: "操作步骤" },
-  { id: 6, name: "Ending",     duration: 4,  title: "行动号召",       subtitle: "关注/下载" },
+  { id: 1, name: "Cover",     duration: 3,  title: "视频标题",    subtitle: "副标题" },
+  { id: 2, name: "PainPoint", duration: 10, title: "痛点场景",    subtitle: "" },
+  { id: 3, name: "Solution",  duration: 12, title: "解决方案",    subtitle: "高速 · 稳定 · 低延迟" },
+  { id: 4, name: "Features",  duration: 15, title: "核心功能",    subtitle: "" },
+  { id: 5, name: "Start",     duration: 8,  title: "快速上手",    subtitle: "" },
+  { id: 6, name: "Ending",   duration: 4,  title: "行动号召",    subtitle: "" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ASS → captions.json 转换（用于 @remotion/captions）
+// ASS → captions.json 转换
 // ─────────────────────────────────────────────────────────────────────────────
-/**
- * 将 ASS 字幕文件转换为 @remotion/captions 格式的 JSON
- * @param {string} assContent - ASS 文件原始内容
- * @returns {Array} Caption[] 数组
- */
 function assToCaptions(assContent) {
   const captions = [];
-  const styleMatch = assContent.match(/Style: Default,([^,]+),(\d+),/);
-  const fontSize = styleMatch ? parseInt(styleMatch[2]) : 72;
-
-  // 解析 Dialogue 行
-  const dialogueRegex = /^Dialogue: (\d+),(\d+):(\d+):(\d+)\.(\d+),(\d+):(\d+):(\d+)\.(\d+),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),(.+)$/gm;
+  const dialogueRegex = /^Dialogue: \d+,(\d+):(\d+):(\d+)\.(\d+),(\d+):(\d+):(\d+)\.(\d+),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),(.+)$/gm;
   let match;
-
   while ((match = dialogueRegex.exec(assContent)) !== null) {
-    const startMs = (parseInt(match[2]) * 3600 + parseInt(match[3]) * 60 + parseInt(match[4])) * 1000 + parseInt(match[5]) * 10;
-    const endMs   = (parseInt(match[6]) * 3600 + parseInt(match[7]) * 60 + parseInt(match[8])) * 1000 + parseInt(match[9]) * 10;
+    const startMs = (parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3])) * 1000 + parseInt(match[4]) * 10;
+    const endMs   = (parseInt(match[5]) * 3600 + parseInt(match[6]) * 60 + parseInt(match[7])) * 1000 + parseInt(match[8]) * 10;
     const text = match[15]
       .replace(/\\N/g, " ")
       .replace(/\\n/g, " ")
       .replace(/\{[^}]*\}/g, "")
       .trim();
-
-    if (text) {
-      captions.push({
-        text,
-        startMs,
-        endMs,
-        timestampMs: null,
-        confidence: null,
-      });
-    }
+    if (text) captions.push({ text, startMs, endMs, timestampMs: null, confidence: null });
   }
-
   return captions;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 生成 Remotion 项目文件
+// 创建 Remotion 项目
 // ─────────────────────────────────────────────────────────────────────────────
 function createProject(projectDir, config) {
-  const videoProjectDir = path.join(projectDir, "video-project");
-  const srcDir = path.join(videoProjectDir, "src");
-  const componentsDir = path.join(srcDir, "components");
+  const vpDir = path.join(projectDir, "video-project");
+  const srcDir = path.join(vpDir, "src");
+  const compDir = path.join(srcDir, "components");
   const scenesDir = path.join(srcDir, "scenes");
   const themesDir = path.join(srcDir, "themes");
-  const publicAudioDir = path.join(videoProjectDir, "public", "audio");
+  const pubAudio = path.join(vpDir, "public", "audio");
 
-  // 创建目录
-  for (const dir of [srcDir, componentsDir, scenesDir, themesDir, publicAudioDir]) {
-    fs.mkdirSync(dir, { recursive: true });
+  for (const d of [srcDir, compDir, scenesDir, themesDir, pubAudio]) {
+    fs.mkdirSync(d, { recursive: true });
   }
 
-  const theme = THEMES[config.theme] || THEMES["tech-modern"];
-  const fps = config.fps || 60;
-  const width = config.width || 1080;
-  const height = config.height || 1920;
-
-  // ── 1. package.json ────────────────────────────────────────────────────────
-  const packageJson = {
+  // ── package.json ──────────────────────────────────────────────────────────
+  fs.writeFileSync(path.join(vpDir, "package.json"), JSON.stringify({
     name: "video-project-remotion",
     version: "1.0.0",
-    description: "Remotion Native video rendering",
     dependencies: {
       remotion: "4.0.459",
       "@remotion/cli": "4.0.459",
@@ -144,7 +110,7 @@ function createProject(projectDir, config) {
       "@remotion/captions": "4.0.459",
       react: "18.2.0",
       "react-dom": "18.2.0",
-      zod: "4.3.6",
+      zod: "3.4.0",
     },
     devDependencies: {
       "@types/react": "^18.2.0",
@@ -154,19 +120,16 @@ function createProject(projectDir, config) {
       start: "remotion studio",
       build: "remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=60",
     },
-  };
-  fs.writeFileSync(path.join(videoProjectDir, "package.json"), JSON.stringify(packageJson, null, 2));
+  }, null, 2));
 
-  // ── 2. remotion.config.ts ──────────────────────────────────────────────────
-  const remotionConfig = `import { Config } from "@remotion/cli/config";
+  // ── remotion.config.ts ───────────────────────────────────────────────────
+  fs.writeFileSync(path.join(vpDir, "remotion.config.ts"),
+    'import { Config } from "@remotion/cli/config";\n' +
+    'Config.setVideoImageFormat("jpeg");\n' +
+    'Config.setOverwriteOutput(true);\n');
 
-Config.setVideoImageFormat("jpeg");
-Config.setOverwriteOutput(true);
-`;
-  fs.writeFileSync(path.join(videoProjectDir, "remotion.config.ts"), remotionConfig);
-
-  // ── 3. tsconfig.json ──────────────────────────────────────────────────────
-  const tsconfig = {
+  // ── tsconfig.json ────────────────────────────────────────────────────────
+  fs.writeFileSync(path.join(vpDir, "tsconfig.json"), JSON.stringify({
     compilerOptions: {
       target: "ES2020",
       module: "ESNext",
@@ -181,443 +144,677 @@ Config.setOverwriteOutput(true);
       noEmit: true,
     },
     include: ["src/**/*"],
-  };
-  fs.writeFileSync(path.join(videoProjectDir, "tsconfig.json"), JSON.stringify(tsconfig, null, 2));
+  }, null, 2));
 
-  // ── 4. src/themes/index.ts ─────────────────────────────────────────────────
-  const themesIndex = `export interface ThemeConfig {
-  id: string;
-  primary: string;
-  secondary: string;
-  accent: string;
-  bg: string;
-  font: string;
-  particleCount: number;
-}
+  // ── themes/index.ts ──────────────────────────────────────────────────────
+  // 关键：JSON.stringify 的 key 必须是双引号字符串
+  // THEMES 对象的 key 已经是双引号（如 "cyberpunk"）
+  const themesJson = JSON.stringify(THEMES, null, 2);
+  fs.writeFileSync(path.join(themesDir, "index.ts"),
+    "export interface ThemeConfig {\n" +
+    "  id: string;\n" +
+    "  primary: string;\n" +
+    "  secondary: string;\n" +
+    "  accent: string;\n" +
+    "  bg: string;\n" +
+    "  font: string;\n" +
+    "  particleCount: number;\n" +
+    "}\n\n" +
+    "export const THEMES: Record<string, ThemeConfig> = " + themesJson + ";\n\n" +
+    'export function getTheme(id: string): ThemeConfig {\n' +
+    '  return THEMES[id] || THEMES["cyberpunk"];\n' +
+    "}\n");
 
-export const THEMES: Record<string, ThemeConfig> = ${JSON.stringify(THEMES, null, 2).replace(/"([^"]+)":/g, "$1:")};
+  // ── CaptionOverlay.tsx ────────────────────────────────────────────────────
+  // TikTok 风格逐字高亮字幕
+  // 关键：无 useDelayRender（Remotion 4.x 不存在此 API）
+  fs.writeFileSync(path.join(compDir, "CaptionOverlay.tsx"),
+    "import React, { useState, useEffect, useMemo } from \"react\";\n" +
+    "import {\n" +
+    "  AbsoluteFill,\n" +
+    "  Sequence,\n" +
+    "  staticFile,\n" +
+    "  useCurrentFrame,\n" +
+    "  useVideoConfig,\n" +
+    "  interpolate,\n" +
+    "} from \"remotion\";\n" +
+    "import type { Caption } from \"@remotion/captions\";\n\n" +
+    "const HIGHLIGHT_COLOR = \"#39E508\";\n" +
+    "const FONT_SIZE = 64;\n\n" +
+    "// 分词：中文按字符，英文按单词\n" +
+    "function tokenize(text) {\n" +
+    "  const tokens = [];\n" +
+    "  const regex = /[\\u4e00-\\u9fff]+|[a-zA-Z0-9]+|[\\u0020-\\u007f]+/g;\n" +
+    "  let match;\n" +
+    "  while ((match = regex.exec(text)) !== null) {\n" +
+    "    const t = match[0];\n" +
+    "    if (t.trim()) tokens.push(t);\n" +
+    "  }\n" +
+    "  return tokens.length > 0 ? tokens : [text];\n" +
+    "}\n\n" +
+    "// 单行字幕（逐字高亮）\n" +
+    "const TikTokCaptionLine = ({ text, startFrame, durationInFrames, fps }) => {\n" +
+    "  const frame = useCurrentFrame();\n" +
+    "  const localFrame = frame - startFrame;\n" +
+    "  const tokens = useMemo(() => tokenize(text), [text]);\n" +
+    "  const msPerToken = (durationInFrames / tokens.length / fps) * 1000;\n\n" +
+    "  // 入场 0→1（15帧）+ 出场 fadeout（最后20帧）\n" +
+    "  const entry = interpolate(localFrame, [0, 15], [0, 1], { extrapolateLeft: \"clamp\", extrapolateRight: \"clamp\" });\n" +
+    "  const exitFadeStart = Math.max(0, durationInFrames - 20);\n" +
+    "  const exitOpacity = interpolate(localFrame, [exitFadeStart, durationInFrames], [1, 0], { extrapolateLeft: \"clamp\", extrapolateRight: \"clamp\" });\n\n" +
+    "  return (\n" +
+    '    <div style={{\n' +
+    "      position: \"absolute\",\n" +
+    "      bottom: 56,\n" +
+    "      left: 0,\n" +
+    "      right: 0,\n" +
+    "      display: \"flex\",\n" +
+    "      justifyContent: \"center\",\n" +
+    "      alignItems: \"center\",\n" +
+    "      pointerEvents: \"none\",\n" +
+    "      opacity: entry * exitOpacity,\n" +
+    '    }}>\n' +
+    '      <div style={{\n' +
+    "        background: \"rgba(0,0,0,0.55)\",\n" +
+    "        borderRadius: 12,\n" +
+    "        padding: \"12px 36px\",\n" +
+    "        maxWidth: \"92%\",\n" +
+    '      }}>\n' +
+    '        <div style={{\n' +
+    "          fontSize: FONT_SIZE,\n" +
+    "          fontWeight: \"bold\",\n" +
+    "          whiteSpace: \"pre-wrap\",\n" +
+    "          textAlign: \"center\",\n" +
+    "          padding: \"0 8px\",\n" +
+    "          fontFamily: \"STHeiti Medium, sans-serif\",\n" +
+    "          lineHeight: 1.5,\n" +
+    "          color: \"#FFFFFF\",\n" +
+    '        }}>\n' +
+    "          {tokens.map((token, i) => {\n" +
+    "            const tokenStartMs = i * msPerToken;\n" +
+    "            const tokenEndMs = (i + 1) * msPerToken;\n" +
+    "            const currentMs = localFrame * (1000 / fps);\n" +
+    "            const isPast = currentMs > tokenEndMs;\n" +
+    '            return (\n' +
+    '              <span\n' +
+    "                key={i}\n" +
+    '                style={{\n' +
+    '                  color: isPast ? "rgba(255,255,255,0.45)" : "#FFFFFF",\n' +
+    '                  display: "inline-block",\n' +
+    "                }}\n" +
+    "              >\n" +
+    "                {token}\n" +
+    "              </span>\n" +
+    "            );\n" +
+    "          })}\n" +
+    "        </div>\n" +
+    "      </div>\n" +
+    "    </div>\n" +
+    "  );\n" +
+    "};\n\n" +
+    "export const CaptionOverlay = ({ captionsFile = \"audio/captions.json\" }) => {\n" +
+    "  const [captions, setCaptions] = useState([]);\n" +
+    "  const { fps } = useVideoConfig();\n\n" +
+    "  useEffect(() => {\n" +
+    "    fetch(staticFile(captionsFile))\n" +
+    "      .then((r) => r.json())\n" +
+    "      .then((d) => setCaptions(d))\n" +
+    "      .catch(() => setCaptions([]));\n" +
+    "  }, [captionsFile]);\n\n" +
+    "  if (captions.length === 0 || !fps) return null;\n\n" +
+    "  return (\n" +
+    "    <AbsoluteFill>\n" +
+    "      {captions.map((caption, index) => {\n" +
+    "        const nextCaption = captions[index + 1] || null;\n" +
+    "        const startFrame = Math.floor((caption.startMs / 1000) * fps);\n" +
+    "        const endFrame = nextCaption\n" +
+    "          ? Math.floor((nextCaption.startMs / 1000) * fps)\n" +
+    "          : Math.floor((caption.endMs / 1000) * fps);\n" +
+    "        const durationInFrames = endFrame - startFrame;\n" +
+    "        if (durationInFrames <= 0) return null;\n\n" +
+    "        return (\n" +
+    "          <Sequence\n" +
+    "            key={index}\n" +
+    "            from={startFrame}\n" +
+    "            durationInFrames={durationInFrames}\n" +
+    "          >\n" +
+    "            <TikTokCaptionLine\n" +
+    "              text={caption.text}\n" +
+    "              startFrame={0}\n" +
+    "              durationInFrames={durationInFrames}\n" +
+    "              fps={fps}\n" +
+    "            />\n" +
+    "          </Sequence>\n" +
+    "        );\n" +
+    "      })}\n" +
+    "    </AbsoluteFill>\n" +
+    "  );\n" +
+    "};\n");
 
-export function getTheme(id: string): ThemeConfig {
-  return THEMES[id] || THEMES["tech-modern"];
-}
-`;
-  fs.writeFileSync(path.join(themesDir, "index.ts"), themesIndex);
+  // ── Scene1_Cover.tsx ─────────────────────────────────────────────────────
+  // 封面：主标题 + 副标题，居中布局，霓虹发光效果
+  fs.writeFileSync(path.join(scenesDir, "Scene1_Cover.tsx"),
+    'import React from "react";\n' +
+    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
+    "const GridLines = () => {\n" +
+    "  const hLines = [];\n" +
+    "  const vLines = [];\n" +
+    "  for (let i = 0; i < 1920; i += 60) {\n" +
+    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(0,255,255,0.06)" }} />);\n' +
+    "  }\n" +
+    "  for (let i = 0; i < 1080; i += 60) {\n" +
+    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(0,255,255,0.06)" }} />);\n' +
+    "  }\n" +
+    "  return <>{hLines}{vLines}</>;\n" +
+    "};\n\n" +
+    "export const Scene1_Cover = ({ title, subtitle, theme }) => {\n" +
+    "  const frame = useCurrentFrame();\n" +
+    "  const primary = String(theme.primary || \"#00FFFF\");\n" +
+    "  const secondary = String(theme.secondary || \"#FF00FF\");\n" +
+    "  const bg = String(theme.bg || \"#0D0221\");\n" +
+    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
+    "  const entry = interpolate(frame, [0, 30], [0, 1], { extrapolateRight: \"clamp\" });\n" +
+    "  const scale = interpolate(frame, [0, 30], [0.8, 1], { extrapolateRight: \"clamp\" });\n\n" +
+    "  return (\n" +
+    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
+    "      <GridLines />\n" +
+    '      <div style={{ position: \"absolute\", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary})`, boxShadow: `0 0 16px ${primary}` }} />\n' +
+    '      <div style={{ position: \"absolute\", inset: 0, display: \"flex\", flexDirection: \"column\", justifyContent: \"center\", alignItems: \"center\", opacity: entry, transform: `scale(${scale})` }}>\n' +
+    '        <div style={{ fontSize: 120, fontWeight: 800, color: "#FFFFFF", fontFamily: font, textAlign: "center", textShadow: `0 0 10px ${primary}, 0 0 20px ${primary}, 0 0 40px ${secondary}`, padding: "0 60px", maxWidth: "95%" }}>\n' +
+    "          {title}\n" +
+    "        </div>\n" +
+    "        {subtitle && (\n" +
+    '          <div style={{ fontSize: 48, fontWeight: 600, color: secondary, fontFamily: font, textAlign: "center", marginTop: 24, textShadow: `0 0 20px ${secondary}` }}>\n' +
+    "            {subtitle}\n" +
+    "          </div>\n" +
+    "        )}\n" +
+    "      </div>\n" +
+    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${secondary}, ${primary})`, boxShadow: `0 0 16px ${secondary}` }} />\n' +
+    "    </AbsoluteFill>\n" +
+    "  );\n" +
+    "};\n");
 
-  // ── 5. src/components/CaptionOverlay.tsx ───────────────────────────────────
-  // TikTok 风格逐字高亮字幕（sentence-level captions.json，无需 word-level timing）
-  const captionOverlay = `import React, { useState, useEffect, useMemo } from "react";
-import {
-  AbsoluteFill,
-  Sequence,
-  staticFile,
-  useCurrentFrame,
-  useVideoConfig,
-  interpolate,
-} from "remotion";
-import type { Caption } from "@remotion/captions";
+  // ── Scene2_PainPoint.tsx ─────────────────────────────────────────────────
+  const PAIN_POINTS = ["网络延迟高，游戏卡顿", "视频缓冲，转圈圈", "访问缓慢，工作效率低"];
+  fs.writeFileSync(path.join(scenesDir, "Scene2_PainPoint.tsx"),
+    'import React from "react";\n' +
+    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
+    "const GridLines = () => {\n" +
+    "  const hLines = [];\n" +
+    "  const vLines = [];\n" +
+    "  for (let i = 0; i < 1920; i += 60) {\n" +
+    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(255,0,85,0.04)" }} />);\n' +
+    "  }\n" +
+    "  for (let i = 0; i < 1080; i += 60) {\n" +
+    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(255,0,85,0.04)" }} />);\n' +
+    "  }\n" +
+    "  return <>{hLines}{vLines}</>;\n" +
+    "};\n\n" +
+    "const PAINS = " + JSON.stringify(PAIN_POINTS) + ";\n" +
+    "const PAIN_ICONS = [\"⚠️\", \"🔥\", \"💀\"];\n\n" +
+    "export const Scene2_PainPoint = ({ title, subtitle, theme }) => {\n" +
+    "  const frame = useCurrentFrame();\n" +
+    "  const primary = String(theme.primary || \"#FF00FF\");\n" +
+    "  const secondary = String(theme.secondary || \"#FFFF00\");\n" +
+    "  const bg = String(theme.bg || \"#0D0221\");\n" +
+    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
+    "  const entry = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: \"clamp\" });\n" +
+    "  const slideY = interpolate(frame, [0, 20], [30, 0], { extrapolateRight: \"clamp\" });\n\n" +
+    "  return (\n" +
+    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
+    "      <GridLines />\n" +
+    '      <div style={{ position: \"absolute\", top: 0, left: 0, right: 0, height: 4, background: "linear-gradient(90deg, #FF0055, " + "#{primary})", boxShadow: "0 0 20px #FF0055" }} />\n' +
+    '      <div style={{ position: \"absolute\", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "0 60px", opacity: entry, transform: `translateY(${slideY}px)` }}>\n' +
+    '        <div style={{ padding: "6px 24px", borderRadius: 20, backgroundColor: "rgba(255,0,85,0.1)", border: "1px solid rgba(255,0,85,0.3)", fontSize: 18, color: "#FF0055", fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 32, boxShadow: "0 0 12px rgba(255,0,85,0.2)" }}>\n' +
+    "          痛 点\n" +
+    "        </div>\n" +
+    '        <div style={{ fontSize: 72, fontWeight: 800, color: "#FFFFFF", fontFamily: font, textAlign: "center", marginBottom: 48, textShadow: "0 0 20px #FF0055" }}>\n' +
+    "          {title}\n" +
+    "        </div>\n" +
+    '        <div style={{ display: "flex", flexDirection: "column", gap: 20, width: "100%", maxWidth: 800 }}>\n' +
+    "          {PAINS.map((pain, i) => {\n" +
+    "            const itemEntry = interpolate(frame, [10 + i * 8, 30 + i * 8], [0, 1], { extrapolateRight: \"clamp\" });\n" +
+    "            const itemSlide = interpolate(frame, [10 + i * 8, 30 + i * 8], [20, 0], { extrapolateRight: \"clamp\" });\n" +
+    '            return (\n' +
+    '              <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, background: "rgba(255,0,85,0.08)", border: "1px solid rgba(255,0,85,0.25)", borderRadius: 12, padding: "16px 24px", opacity: itemEntry, transform: `translateY(${itemSlide}px)` }}>\n' +
+    '                <span style={{ fontSize: 36 }}>{PAIN_ICONS[i]}</span>\n' +
+    '                <span style={{ fontSize: 32, fontWeight: 600, color: "#FFFFFF", fontFamily: font }}>\n' +
+    "                  {pain}\n" +
+    "                </span>\n" +
+    "              </div>\n" +
+    "            );\n" +
+    "          })}\n" +
+    "        </div>\n" +
+    "        {subtitle && (\n" +
+    '          <div style={{ fontSize: 32, fontWeight: 400, color: secondary, fontFamily: font, textAlign: "center", marginTop: 40, opacity: 0.8 }}>\n' +
+    "            {subtitle}\n" +
+    "          </div>\n" +
+    "        )}\n" +
+    "      </div>\n" +
+    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, #FF0055)` }} />\n' +
+    "    </AbsoluteFill>\n" +
+    "  );\n" +
+    "};\n");
 
-const HIGHLIGHT_COLOR = "#39E508";
-const ACTIVE_COLOR = "#FFFFFF";
-const INACTIVE_COLOR = "rgba(255,255,255,0.45)";
-const FONT_SIZE = 64;
-const LINE_HEIGHT = 1.5;
+  // ── Scene3_Solution.tsx ───────────────────────────────────────────────────
+  fs.writeFileSync(path.join(scenesDir, "Scene3_Solution.tsx"),
+    'import React from "react";\n' +
+    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
+    "const GridLines = () => {\n" +
+    "  const hLines = [];\n" +
+    "  const vLines = [];\n" +
+    "  for (let i = 0; i < 1920; i += 60) {\n" +
+    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(0,255,136,0.05)" }} />);\n' +
+    "  }\n" +
+    "  for (let i = 0; i < 1080; i += 60) {\n" +
+    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(0,255,136,0.05)" }} />);\n' +
+    "  }\n" +
+    "  return <>{hLines}{vLines}</>;\n" +
+    "};\n\n" +
+    "const TAGS = [\"QUIC 协议\", \"智能加速\", \"多平台支持\"];\n\n" +
+    "export const Scene3_Solution = ({ title, subtitle, theme }) => {\n" +
+    "  const frame = useCurrentFrame();\n" +
+    "  const primary = String(theme.primary || \"#00FF88\");\n" +
+    "  const secondary = String(theme.secondary || \"#00FFFF\");\n" +
+    "  const accent = String(theme.accent || \"#FFFF00\");\n" +
+    "  const bg = String(theme.bg || \"#0D0221\");\n" +
+    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
+    "  const entry = interpolate(frame, [0, 25], [0, 1], { extrapolateRight: \"clamp\" });\n" +
+    "  const scale = interpolate(frame, [0, 25], [0.85, 1], { extrapolateRight: \"clamp\" });\n\n" +
+    "  return (\n" +
+    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
+    "      <GridLines />\n" +
+    '      <div style={{ position: \"absolute\", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary})`, boxShadow: `0 0 16px ${primary}` }} />\n' +
+    '      <div style={{ position: \"absolute\", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", opacity: entry, transform: `scale(${scale})` }}>\n' +
+    '        <div style={{ padding: "6px 24px", borderRadius: 20, backgroundColor: `${primary}22`, border: `1px solid ${primary}60`, fontSize: 18, color: primary, fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 32, boxShadow: `0 0 12px ${primary}33` }}>\n' +
+    "          解 决 方 案\n" +
+    "        </div>\n" +
+    '        <div style={{ fontSize: 100, fontWeight: 900, color: "#FFFFFF", fontFamily: font, textAlign: "center", textShadow: `0 0 20px ${primary}, 0 0 40px ${secondary}`, padding: "0 40px", maxWidth: "95%" }}>\n' +
+    "          {title}\n" +
+    "        </div>\n" +
+    '        <div style={{ fontSize: 44, fontWeight: 600, color: secondary, fontFamily: font, textAlign: "center", marginTop: 32, textShadow: `0 0 20px ${secondary}` }}>\n' +
+    "          {subtitle || \"高速 · 稳定 · 低延迟\"}\n" +
+    "        </div>\n" +
+    '        <div style={{ display: "flex", gap: 16, marginTop: 48, flexWrap: "wrap", justifyContent: "center" }}>\n' +
+    "          {TAGS.map((tag, i) => {\n" +
+    "            const tagEntry = interpolate(frame, [15 + i * 6, 30 + i * 6], [0, 1], { extrapolateRight: \"clamp\" });\n" +
+    '            return (\n' +
+    '              <div key={i} style={{ padding: "8px 20px", borderRadius: 8, background: `${accent}22`, border: `1px solid ${accent}60`, fontSize: 24, color: accent, fontFamily: font, fontWeight: 500, opacity: tagEntry, boxShadow: `0 0 12px ${accent}33` }}>\n' +
+    "                {tag}\n" +
+    "              </div>\n" +
+    "            );\n" +
+    "          })}\n" +
+    "        </div>\n" +
+    "      </div>\n" +
+    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${secondary}, ${primary})` }} />\n' +
+    "    </AbsoluteFill>\n" +
+    "  );\n" +
+    "};\n");
 
-function tokenize(text: string): string[] {
-  const tokens: string[] = [];
-  const regex = /[\\u4e00-\\u9fff]+|[\\u3000-\\u303f\\uff00-\\uffef]+|[a-zA-Z0-9]+|[\\u0020-\\u007f]+/g;
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const token = match[0];
-    if (token.trim()) tokens.push(token);
-  }
-  return tokens.length === 0 ? text.split("") : tokens;
-}
+  // ── Scene4_Features.tsx ───────────────────────────────────────────────────
+  const FEATURES = [
+    { icon: "🚀", name: "极致速度", desc: "QUIC 协议优化" },
+    { icon: "🛡️", name: "安全加密", desc: "端到端传输加密" },
+    { icon: "⚡", name: "低延迟", desc: "智能路由选择" },
+    { icon: "🌐", name: "全球节点", desc: "覆盖 50+ 地区" },
+  ];
+  fs.writeFileSync(path.join(scenesDir, "Scene4_Features.tsx"),
+    'import React from "react";\n' +
+    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
+    "const GridLines = () => {\n" +
+    "  const hLines = [];\n" +
+    "  const vLines = [];\n" +
+    "  for (let i = 0; i < 1920; i += 60) {\n" +
+    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(0,255,255,0.04)" }} />);\n' +
+    "  }\n" +
+    "  for (let i = 0; i < 1080; i += 60) {\n" +
+    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(0,255,255,0.04)" }} />);\n' +
+    "  }\n" +
+    "  return <>{hLines}{vLines}</>;\n" +
+    "};\n\n" +
+    "const FEATS = " + JSON.stringify(FEATURES) + ";\n\n" +
+    "export const Scene4_Features = ({ title, subtitle, theme }) => {\n" +
+    "  const frame = useCurrentFrame();\n" +
+    "  const primary = String(theme.primary || \"#00FFFF\");\n" +
+    "  const secondary = String(theme.secondary || \"#FF00FF\");\n" +
+    "  const bg = String(theme.bg || \"#0D0221\");\n" +
+    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
+    "  const entry = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: \"clamp\" });\n\n" +
+    "  return (\n" +
+    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
+    "      <GridLines />\n" +
+    '      <div style={{ position: \"absolute\", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary})`, boxShadow: `0 0 16px ${primary}` }} />\n' +
+    '      <div style={{ position: \"absolute\", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "0 60px", opacity: entry }}>\n' +
+    '        <div style={{ padding: "6px 24px", borderRadius: 20, backgroundColor: `${primary}22`, border: `1px solid ${primary}60`, fontSize: 18, color: primary, fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 28 }}>\n' +
+    "          核 心 功 能\n" +
+    "        </div>\n" +
+    '        <div style={{ fontSize: 64, fontWeight: 800, color: "#FFFFFF", fontFamily: font, textAlign: "center", marginBottom: 40, textShadow: `0 0 20px ${primary}` }}>\n' +
+    "          {title}\n" +
+    "        </div>\n" +
+    '        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, width: "100%", maxWidth: 880 }}>\n' +
+    "          {FEATS.map((item, i) => {\n" +
+    "            const itemEntry = interpolate(frame, [5 + i * 6, 20 + i * 6], [0, 1], { extrapolateRight: \"clamp\" });\n" +
+    "            const itemScale = interpolate(frame, [5 + i * 6, 20 + i * 6], [0.85, 1], { extrapolateRight: \"clamp\" });\n" +
+    '            return (\n' +
+    '              <div key={i} style={{ background: `linear-gradient(135deg, ${primary}15, ${secondary}10)`, border: `1px solid ${primary}40`, borderRadius: 16, padding: "28px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, opacity: itemEntry, transform: `scale(${itemScale})`, boxShadow: `0 0 30px ${primary}15` }}>\n' +
+    '                <span style={{ fontSize: 52 }}>{item.icon}</span>\n' +
+    '                <div style={{ fontSize: 32, fontWeight: 700, color: "#FFFFFF", fontFamily: font, textAlign: "center" }}>{item.name}</div>\n' +
+    '                <div style={{ fontSize: 22, fontWeight: 400, color: "rgba(255,255,255,0.6)", fontFamily: font, textAlign: "center" }}>{item.desc}</div>\n' +
+    "              </div>\n" +
+    "            );\n" +
+    "          })}\n" +
+    "        </div>\n" +
+    "        {subtitle && (\n" +
+    '          <div style={{ fontSize: 28, color: secondary, fontFamily: font, textAlign: "center", marginTop: 32, opacity: 0.8 }}>\n' +
+    "            {subtitle}\n" +
+    "          </div>\n" +
+    "        )}\n" +
+    "      </div>\n" +
+    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${secondary}, ${primary})` }} />\n' +
+    "    </AbsoluteFill>\n" +
+    "  );\n" +
+    "};\n");
 
-const TikTokCaptionLine: React.FC<{
-  text: string;
-  startFrame: number;
-  durationInFrames: number;
-  fps: number;
-}> = ({ text, startFrame, durationInFrames, fps }) => {
-  const frame = useCurrentFrame();
-  const localFrame = frame - startFrame;
-  const tokens = useMemo(() => tokenize(text), [text]);
-  const msPerToken = (durationInFrames / tokens.length / fps) * 1000;
+  // ── Scene5_Start.tsx ─────────────────────────────────────────────────────
+  const STEPS = [
+    { cmd: "brew install hysteria", desc: "一键安装" },
+    { cmd: "hysteria server -c config.yaml", desc: "启动服务" },
+    { cmd: "配置客户端连接", desc: "开始使用" },
+  ];
+  fs.writeFileSync(path.join(scenesDir, "Scene5_Start.tsx"),
+    'import React from "react";\n' +
+    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
+    "const GridLines = () => {\n" +
+    "  const hLines = [];\n" +
+    "  const vLines = [];\n" +
+    "  for (let i = 0; i < 1920; i += 60) {\n" +
+    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(0,255,136,0.04)" }} />);\n' +
+    "  }\n" +
+    "  for (let i = 0; i < 1080; i += 60) {\n" +
+    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(0,255,136,0.04)" }} />);\n' +
+    "  }\n" +
+    "  return <>{hLines}{vLines}</>;\n" +
+    "};\n\n" +
+    "const CMDS = " + JSON.stringify(STEPS) + ";\n\n" +
+    "export const Scene5_Start = ({ title, subtitle, theme }) => {\n" +
+    "  const frame = useCurrentFrame();\n" +
+    "  const primary = String(theme.primary || \"#00FF88\");\n" +
+    "  const secondary = String(theme.secondary || \"#00FFFF\");\n" +
+    "  const bg = String(theme.bg || \"#0D0221\");\n" +
+    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
+    "  const entry = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: \"clamp\" });\n\n" +
+    "  return (\n" +
+    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
+    "      <GridLines />\n" +
+    '      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary})`, boxShadow: `0 0 16px ${primary}` }} />\n' +
+    '      <div style={{ position: "absolute\", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "0 60px", opacity: entry }}>\n' +
+    '        <div style={{ padding: "6px 24px", borderRadius: 20, backgroundColor: `${primary}22`, border: `1px solid ${primary}60`, fontSize: 18, color: primary, fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 28 }}>\n' +
+    "          快 速 上 手\n" +
+    "        </div>\n" +
+    '        <div style={{ fontSize: 64, fontWeight: 800, color: "#FFFFFF", fontFamily: font, textAlign: "center", marginBottom: 40, textShadow: `0 0 20px ${primary}` }}>\n' +
+    "          {title}\n" +
+    "        </div>\n" +
+    '        <div style={{ width: "100%", maxWidth: 760, background: "rgba(0,0,0,0.6)", border: `1px solid ${primary}50`, borderRadius: 12, overflow: "hidden", boxShadow: `0 0 40px ${primary}20` }}>\n' +
+    '          <div style={{ display: "flex", gap: 8, padding: "12px 16px", background: `${primary}15`, borderBottom: `1px solid ${primary}30` }}>\n' +
+    "            {[\"#FF5F56\", \"#FFBD2E\", \"#27C93F\"].map((c, i) => (\n" +
+    '              <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", backgroundColor: c }} />\n' +
+    "            ))}\n" +
+    '            <div style={{ flex: 1, textAlign: "center", fontSize: 14, color: "rgba(255,255,255,0.4)", fontFamily: font }}>Terminal</div>\n' +
+    "          </div>\n" +
+    '          <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>\n' +
+    "            {CMDS.map((item, i) => {\n" +
+    "              const lineEntry = interpolate(frame, [8 + i * 8, 25 + i * 8], [0, 1], { extrapolateRight: \"clamp\" });\n" +
+    '              return (\n' +
+    '                <div key={i} style={{ opacity: lineEntry }}>\n' +
+    '                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>\n' +
+    '                    <span style={{ fontSize: 24, fontFamily: font, color: primary, fontWeight: 600 }}>$</span>\n' +
+    '                    <span style={{ fontSize: 22, fontFamily: font, color: "#FFFFFF" }}>{item.cmd}</span>\n' +
+    "                  </div>\n" +
+    '                  <div style={{ fontSize: 18, fontFamily: font, color: "rgba(255,255,255,0.4)", marginTop: 4, paddingLeft: 36 }}># {item.desc}</div>\n' +
+    "                </div>\n" +
+    "              );\n" +
+    "            })}\n" +
+    "          </div>\n" +
+    "        </div>\n" +
+    '        <div style={{ marginTop: 32, padding: "10px 28px", background: `${secondary}22`, border: `1px solid ${secondary}50`, borderRadius: 8, fontSize: 24, color: secondary, fontFamily: font, fontWeight: 600, boxShadow: `0 0 16px ${secondary}30` }}>\n' +
+    "          github.com/apernet/hysteria\n" +
+    "        </div>\n" +
+    "        {subtitle && (\n" +
+    '          <div style={{ fontSize: 28, color: "rgba(255,255,255,0.5)", fontFamily: font, textAlign: "center", marginTop: 24 }}>\n' +
+    "            {subtitle}\n" +
+    "          </div>\n" +
+    "        )}\n" +
+    "      </div>\n" +
+    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${secondary}, ${primary})` }} />\n' +
+    "    </AbsoluteFill>\n" +
+    "  );\n" +
+    "};\n");
 
-  const entryProgress = interpolate(localFrame, [0, 15], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
-  const entryScale = interpolate(entryProgress, [0, 1], [0.85, 1]);
-  const entryOpacity = interpolate(entryProgress, [0, 1], [0, 1]);
+  // ── Scene6_Ending.tsx ────────────────────────────────────────────────────
+  fs.writeFileSync(path.join(scenesDir, "Scene6_Ending.tsx"),
+    'import React from "react";\n' +
+    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
+    "const GridLines = () => {\n" +
+    "  const hLines = [];\n" +
+    "  const vLines = [];\n" +
+    "  for (let i = 0; i < 1920; i += 60) {\n" +
+    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />);\n' +
+    "  }\n" +
+    "  for (let i = 0; i < 1080; i += 60) {\n" +
+    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />);\n' +
+    "  }\n" +
+    "  return <>{hLines}{vLines}</>;\n" +
+    "};\n\n" +
+    "export const Scene6_Ending = ({ title, subtitle, theme }) => {\n" +
+    "  const frame = useCurrentFrame();\n" +
+    "  const primary = String(theme.primary || \"#00FFFF\");\n" +
+    "  const secondary = String(theme.secondary || \"#FF00FF\");\n" +
+    "  const accent = String(theme.accent || \"#FFFF00\");\n" +
+    "  const bg = String(theme.bg || \"#0D0221\");\n" +
+    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
+    "  const entry = interpolate(frame, [0, 25], [0, 1], { extrapolateRight: \"clamp\" });\n" +
+    "  const pulse = interpolate(frame, [0, 60], [1, 1.08], { extrapolateRight: \"clamp\" });\n\n" +
+    "  return (\n" +
+    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
+    "      <GridLines />\n" +
+    '      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary}, ${accent})`, boxShadow: `0 0 20px ${primary}` }} />\n' +
+    '      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", opacity: entry }}>\n' +
+    '        <div style={{ fontSize: 80, fontWeight: 900, color: "#FFFFFF", fontFamily: font, textAlign: "center", textShadow: `0 0 20px ${primary}, 0 0 40px ${secondary}, 0 0 60px ${accent}`, transform: `scale(${pulse})`, marginBottom: 32 }}>\n' +
+    "          ⚡\n" +
+    "        </div>\n" +
+    '        <div style={{ fontSize: 80, fontWeight: 900, color: "#FFFFFF", fontFamily: font, textAlign: "center", textShadow: `0 0 15px ${primary}, 0 0 30px ${secondary}`, maxWidth: "90%" }}>\n' +
+    "          {title}\n" +
+    "        </div>\n" +
+    "        {subtitle && (\n" +
+    '          <div style={{ fontSize: 44, fontWeight: 600, color: secondary, fontFamily: font, textAlign: "center", marginTop: 24, textShadow: `0 0 20px ${secondary}` }}>\n' +
+    "            {subtitle}\n" +
+    "          </div>\n" +
+    "        )}\n" +
+    '        <div style={{ marginTop: 56, padding: "16px 48px", background: `linear-gradient(135deg, ${primary}, ${secondary})`, borderRadius: 12, fontSize: 36, fontWeight: 800, color: "#000000", fontFamily: font, boxShadow: `0 0 40px ${primary}80` }}>\n' +
+    "          立即开始 →\n" +
+    "        </div>\n" +
+    '        <div style={{ position: "absolute", bottom: 60, fontSize: 20, color: "rgba(255,255,255,0.3)", fontFamily: font, textAlign: "center" }}>\n' +
+    "          Open Source · Free Forever\n" +
+    "        </div>\n" +
+    "      </div>\n" +
+    '      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${accent}, ${primary}, ${secondary})` }} />\n' +
+    "    </AbsoluteFill>\n" +
+    "  );\n" +
+    "};\n");
 
-  const exitFadeStart = Math.max(0, durationInFrames - 20);
-  const exitOpacity = interpolate(localFrame, [exitFadeStart, durationInFrames], [1, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  // ── scenes/index.ts ───────────────────────────────────────────────────────
+  fs.writeFileSync(path.join(scenesDir, "index.ts"),
+    'export { Scene1_Cover } from "./Scene1_Cover";\n' +
+    'export { Scene2_PainPoint } from "./Scene2_PainPoint";\n' +
+    'export { Scene3_Solution } from "./Scene3_Solution";\n' +
+    'export { Scene4_Features } from "./Scene4_Features";\n' +
+    'export { Scene5_Start } from "./Scene5_Start";\n' +
+    'export { Scene6_Ending } from "./Scene6_Ending";\n');
 
-  const opacity = entryOpacity * exitOpacity;
+  // ── Video.tsx ─────────────────────────────────────────────────────────────
+  // 关键：音频通过 <Audio> 内嵌，Remotion 渲染的 MP4 直接含音频
+  fs.writeFileSync(path.join(srcDir, "Video.tsx"),
+    'import React from "react";\n' +
+    'import { AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig } from "remotion";\n' +
+    'import { CaptionOverlay } from "./components/CaptionOverlay";\n' +
+    'import { THEMES } from "./themes";\n' +
+    'import { Scene1_Cover, Scene2_PainPoint, Scene3_Solution, Scene4_Features, Scene5_Start, Scene6_Ending } from "./scenes";\n\n' +
+    "export interface VideoProps {\n" +
+    "  title: string;\n" +
+    "  subtitle: string;\n" +
+    "  theme: string;\n" +
+    "  scenes: Array<{ id: number; title: string; subtitle: string; duration: number }>;\n" +
+    "  audioFile: string;\n" +
+    "  captionsFile: string;\n" +
+    "}\n\n" +
+    "const SceneComponents = [\n" +
+    "  Scene1_Cover,\n" +
+    "  Scene2_PainPoint,\n" +
+    "  Scene3_Solution,\n" +
+    "  Scene4_Features,\n" +
+    "  Scene5_Start,\n" +
+    "  Scene6_Ending,\n" +
+    "];\n\n" +
+    "const DEFAULT_SCENES = " + JSON.stringify(DEFAULT_SCENES) + ";\n\n" +
+    "export const VerticalVideo = ({ title, subtitle, theme: themeId, scenes, audioFile, captionsFile }) => {\n" +
+    "  const theme = THEMES[themeId] || THEMES[\"cyberpunk\"];\n" +
+    "  const { fps } = useVideoConfig();\n\n" +
+    "  // 合并场景配置\n" +
+    "  const sceneList = scenes.length > 0 ? scenes : DEFAULT_SCENES.map(s => ({\n" +
+    "    ...s,\n" +
+    "    title: title || s.title,\n" +
+    "    subtitle: subtitle || s.subtitle,\n" +
+    "  }));\n\n" +
+    "  // 计算每个场景的帧边界\n" +
+    "  let currentFrame = 0;\n" +
+    "  const timings = sceneList.map((s) => {\n" +
+    "    const startFrame = currentFrame;\n" +
+    "    const durationInFrames = Math.ceil(s.duration * (fps || 60));\n" +
+    "    currentFrame += durationInFrames;\n" +
+    "    return { ...s, startFrame, durationInFrames };\n" +
+    "  });\n\n" +
+    "  return (\n" +
+    '    <AbsoluteFill style={{ backgroundColor: String(theme.bg) }}>\n' +
+    "      {/* 音频：内嵌 Remotion，MP4 直接含音频 */}\n" +
+    "      <Audio src={staticFile(audioFile)} />\n\n" +
+    "      {/* 场景序列 */}\n" +
+    "      {timings.map((s, i) => {\n" +
+    "        const SceneComp = SceneComponents[i] || Scene1_Cover;\n" +
+    "        return (\n" +
+    "          <Sequence\n" +
+    "            key={s.id}\n" +
+    "            from={s.startFrame}\n" +
+    "            durationInFrames={s.durationInFrames}\n" +
+    "          >\n" +
+    "            <SceneComp\n" +
+    "              title={s.title}\n" +
+    "              subtitle={s.subtitle}\n" +
+    "              theme={theme}\n" +
+    "            />\n" +
+    "          </Sequence>\n" +
+    "        );\n" +
+    "      })}\n\n" +
+    "      {/* 字幕叠加 */}\n" +
+    "      <CaptionOverlay captionsFile={captionsFile} />\n" +
+    "    </AbsoluteFill>\n" +
+    "  );\n" +
+    "};\n");
 
-  return (
-    <div
-      style={{
-        position: "absolute",
-        bottom: 56,
-        left: 0,
-        right: 0,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        pointerEvents: "none",
-        opacity,
-        transform: \`scale(\${entryScale})\`,
-      }}
-    >
-      <div
-        style={{
-          background: "rgba(0,0,0,0.55)",
-          borderRadius: 12,
-          padding: "12px 36px",
-          maxWidth: "92%",
-        }}
-      >
-        <div
-          style={{
-            fontSize: FONT_SIZE,
-            fontWeight: "bold",
-            whiteSpace: "pre-wrap",
-            textAlign: "center",
-            padding: "0 8px",
-            fontFamily: "STHeiti Medium, sans-serif",
-            lineHeight: LINE_HEIGHT,
-            color: ACTIVE_COLOR,
-          }}
-        >
-          {tokens.map((token, i) => {
-            const tokenStartMs = i * msPerToken;
-            const tokenEndMs = (i + 1) * msPerToken;
-            const currentMs = localFrame * (1000 / fps);
-            const isActive = currentMs >= tokenStartMs;
-            const isPast = currentMs > tokenEndMs;
-            return (
-              <span
-                key={i}
-                style={{
-                  color: isPast ? INACTIVE_COLOR : isActive ? HIGHLIGHT_COLOR : ACTIVE_COLOR,
-                  display: "inline-block",
-                  transition: "color 0.08s ease",
-                }}
-              >
-                {token}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
+  // ── Root.tsx ──────────────────────────────────────────────────────────────
+  // 帧数固定为 3180（52.824s @ 59.94fps），由 launch.sh 通过 --fps=59.94 传入
+  fs.writeFileSync(path.join(srcDir, "Root.tsx"),
+    "import { Composition } from \"remotion\";\n" +
+    "import { VerticalVideo } from \"./Video\";\n\n" +
+    "export const RemotionRoot = () => {\n" +
+    "  return (\n" +
+    "    <Composition\n" +
+    '      id="VerticalVideo"\n' +
+    "      component={VerticalVideo}\n" +
+    "      durationInFrames={3180}\n" +
+    "      fps={60}\n" +
+    "      width={1080}\n" +
+    "      height={1920}\n" +
+    "      defaultProps={{\n" +
+    '        title: "视频标题",\n' +
+    '        subtitle: "副标题",\n' +
+    '        theme: "cyberpunk",\n' +
+    "        scenes: [],\n" +
+    '        audioFile: "audio/neural_1_2x.m4a",\n' +
+    '        captionsFile: "audio/captions.json",\n' +
+    "      }}\n" +
+    "    />\n" +
+    "  );\n" +
+    "};\n");
 
-export const CaptionOverlay: React.FC<{ captionsFile?: string }> = ({
-  captionsFile = "audio/captions.json",
-}) => {
-  const [captions, setCaptions] = useState<Caption[]>([]);
-  const { fps } = useVideoConfig();
+  // ── index.ts ──────────────────────────────────────────────────────────────
+  fs.writeFileSync(path.join(srcDir, "index.ts"),
+    "import { registerRoot } from \"remotion\";\n" +
+    "import { RemotionRoot } from \"./Root\";\n\n" +
+    "registerRoot(RemotionRoot);\n");
 
-  useEffect(() => {
-    fetch(staticFile(captionsFile))
-      .then((res) => res.json())
-      .then((data) => setCaptions(data))
-      .catch(() => setCaptions([]));
-  }, [captionsFile]);
-
-  if (captions.length === 0 || !fps) return null;
-
-  return (
-    <AbsoluteFill>
-      {captions.map((caption, index) => {
-        const nextCaption = captions[index + 1] ?? null;
-        const startFrame = Math.floor((caption.startMs / 1000) * fps);
-        const endFrame = nextCaption
-          ? Math.floor((nextCaption.startMs / 1000) * fps)
-          : Math.floor((caption.endMs / 1000) * fps);
-        const durationInFrames = endFrame - startFrame;
-        if (durationInFrames <= 0) return null;
-
-        return (
-          <Sequence key={index} from={startFrame} durationInFrames={durationInFrames}>
-            <TikTokCaptionLine
-              text={caption.text}
-              startFrame={0}
-              durationInFrames={durationInFrames}
-              fps={fps}
-            />
-          </Sequence>
-        );
-      })}
-    </AbsoluteFill>
-  );
-};
-`;
-  fs.writeFileSync(path.join(componentsDir, "CaptionOverlay.tsx"), captionOverlay);
-
-  // ── 6. src/scenes/ ─────────────────────────────────────────────────────────
-  const sceneNames = ["Scene1_Cover", "Scene2_PainPoint", "Scene3_Solution", "Scene4_Features", "Scene5_Start", "Scene6_Ending"];
-  for (const sceneName of sceneNames) {
-    const sceneCode = `import React from "react";
-import { AbsoluteFill } from "remotion";
-
-interface SceneProps {
-  title: string;
-  subtitle: string;
-  theme: Record<string, string | number>;
-}
-
-export const ${sceneName}: React.FC<SceneProps> = ({ title, subtitle, theme }) => {
-  return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: String(theme.bg || "#0F172A"),
-        justifyContent: "center",
-        alignItems: "center",
-        fontFamily: String(theme.font || "Inter"),
-      }}
-    >
-      <div
-        style={{
-          fontSize: 120,
-          fontWeight: 800,
-          color: String(theme.primary || "#00FFFF"),
-          textAlign: "center",
-          textShadow: \`0 0 20px \${String(theme.primary || "#00FFFF")}, 0 0 40px \${String(theme.secondary || "#FF00FF")}\`,
-          padding: "0 40px",
-        }}
-      >
-        {title}
-      </div>
-      <div
-        style={{
-          fontSize: 48,
-          fontWeight: 600,
-          color: String(theme.secondary || "#FF00FF"),
-          marginTop: 20,
-          textAlign: "center",
-        }}
-      >
-        {subtitle}
-      </div>
-    </AbsoluteFill>
-  );
-};
-`;
-    fs.writeFileSync(path.join(scenesDir, `${sceneName}.tsx`), sceneCode);
-  }
-
-  // scenes/index.ts
-  const scenesIndex = sceneNames.map((name) => `export { ${name} } from "./${name}";`).join("\n");
-  fs.writeFileSync(path.join(scenesDir, "index.ts"), scenesIndex);
-
-  // ── 7. src/Video.tsx ────────────────────────────────────────────────────────
-  const videoTsx = `import React, { useMemo } from "react";
-import { AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig } from "remotion";
-import { CaptionOverlay, renderCaptions } from "./components/CaptionOverlay";
-import { THEMES } from "./themes";
-import { createTikTokStyleCaptions } from "@remotion/captions";
-import type { Caption } from "@remotion/captions";
-
-// 导入6个场景
-import { Scene1_Cover } from "./scenes/Scene1_Cover";
-import { Scene2_PainPoint } from "./scenes/Scene2_PainPoint";
-import { Scene3_Solution } from "./scenes/Scene3_Solution";
-import { Scene4_Features } from "./scenes/Scene4_Features";
-import { Scene5_Start } from "./scenes/Scene5_Start";
-import { Scene6_Ending } from "./scenes/Scene6_Ending";
-
-export interface VideoProps {
-  title: string;
-  subtitle: string;
-  theme: string;
-  scenes: Array<{
-    id: number;
-    title: string;
-    subtitle: string;
-    duration: number;
-  }>;
-  audioFile: string;
-  captionsFile: string;
-}
-
-const FPS = 60;
-
-export const VerticalVideo: React.FC<VideoProps> = ({
-  title,
-  subtitle,
-  theme: themeId,
-  scenes,
-  audioFile,
-  captionsFile,
-}) => {
-  const theme = THEMES[themeId] || THEMES["tech-modern"];
-  const { fps } = useVideoConfig();
-
-  // 加载字幕
-  const captionsData = useMemo(() => {
-    try {
-      // 动态加载：返回空让组件自己 fetch
-      return null as unknown as Caption[];
-    } catch {
-      return [] as Caption[];
-    }
-  }, []);
-
-  const sceneList = scenes.length > 0 ? scenes : ${JSON.stringify(DEFAULT_SCENES)};
-
-  // 计算每个场景的起始帧
-  let currentFrame = 0;
-  const sceneTimings = sceneList.map((scene) => {
-    const startFrame = currentFrame;
-    const durationInFrames = Math.ceil(scene.duration * fps);
-    currentFrame += durationInFrames;
-    return { ...scene, startFrame, durationInFrames };
-  });
-
-  const totalFrames = currentFrame;
-
-  return (
-    <AbsoluteFill style={{ backgroundColor: String(theme.bg) }}>
-      {/* 音频：内嵌 Remotion，直接输出到 MP4 */}
-      <Audio src={staticFile(audioFile)} />
-
-      {/* 场景序列 */}
-      {sceneTimings.map((scene, idx) => {
-        const SceneComponent = [
-          Scene1_Cover,
-          Scene2_PainPoint,
-          Scene3_Solution,
-          Scene4_Features,
-          Scene5_Start,
-          Scene6_Ending,
-        ][idx] || Scene1_Cover;
-
-        return (
-          <Sequence
-            key={scene.id}
-            from={scene.startFrame}
-            durationInFrames={scene.durationInFrames}
-            premountFor={1 * fps}
-          >
-            <SceneComponent title={scene.title} subtitle={scene.subtitle} theme={theme} />
-          </Sequence>
-        );
-      })}
-
-      {/* 字幕覆盖层：@remotion/captions 直接烧录，无需 ffmpeg */}
-      <CaptionOverlay captionsFile={captionsFile} />
-    </AbsoluteFill>
-  );
-};
-`;
-  fs.writeFileSync(path.join(srcDir, "Video.tsx"), videoTsx);
-
-  // ── 8. src/Root.tsx ───────────────────────────────────────────────────────
-  const rootTsx = `import { Composition } from "remotion";
-import { VerticalVideo, VideoProps } from "./Video";
-
-const FPS = 60;
-const WIDTH = 1080;
-const HEIGHT = 1920;
-
-export const RemotionRoot: React.FC = () => {
-  return (
-    <Composition
-      id="VerticalVideo"
-      component={VerticalVideo}
-      durationInFrames={60 * 39} // Placeholder: 39 seconds (~2340 frames)
-      fps={FPS}
-      width={WIDTH}
-      height={HEIGHT}
-      defaultProps={{
-        title: "Video Title",
-        subtitle: "Subtitle",
-        theme: "cyberpunk",
-        scenes: [] as VideoProps["scenes"],
-        audioFile: "audio/neural_1_2x.m4a",
-        captionsFile: "audio/captions.json",
-      }}
-    />
-  );
-};
-`;
-  fs.writeFileSync(path.join(srcDir, "Root.tsx"), rootTsx);
-
-  // ── 9. src/index.ts ────────────────────────────────────────────────────────
-  const indexTs = `import { registerRoot } from "remotion";
-import { RemotionRoot } from "./Root";
-
-registerRoot(RemotionRoot);
-`;
-  fs.writeFileSync(path.join(srcDir, "index.ts"), indexTs);
-
-  // ── 10. public/audio/ captions.json（从 ASS 转换）─────────────────────────
+  // ── ASS → captions.json ─────────────────────────────────────────────────
   const assPath = path.join(projectDir, "audio", "subtitles.ass");
-  const captionsPath = path.join(publicAudioDir, "captions.json");
+  const capPath = path.join(pubAudio, "captions.json");
   if (fs.existsSync(assPath)) {
-    const assContent = fs.readFileSync(assPath, "utf8");
-    const captions = assToCaptions(assContent);
-    fs.writeFileSync(captionsPath, JSON.stringify(captions, null, 2));
+    const caps = assToCaptions(fs.readFileSync(assPath, "utf8"));
+    fs.writeFileSync(capPath, JSON.stringify(caps, null, 2));
+    console.log("captions.json generated: " + caps.length + " captions");
   }
 
-  // ── 11. 复制音频文件到 public/audio/ ──────────────────────────────────────
+  // ── 复制音频到 public/audio/ ──────────────────────────────────────────
   const audioSrc = path.join(projectDir, "audio", "neural_1_2x.m4a");
-  const audioDst = path.join(publicAudioDir, "neural_1_2x.m4a");
-  if (fs.existsSync(audioSrc) && !fs.existsSync(audioDst)) {
+  const audioDst = path.join(pubAudio, "neural_1_2x.m4a");
+  if (fs.existsSync(audioSrc)) {
     fs.copyFileSync(audioSrc, audioDst);
+    console.log("Audio copied to public/audio/");
   }
 
-  console.log("✅ Remotion 项目已生成:");
-  console.log("   video-project/");
-  console.log("   ├── package.json");
-  console.log("   ├── remotion.config.ts");
-  console.log("   ├── tsconfig.json");
-  console.log("   ├── src/");
-  console.log("   │   ├── index.ts");
-  console.log("   │   ├── Root.tsx");
-  console.log("   │   ├── Video.tsx");
-  console.log("   │   ├── components/CaptionOverlay.tsx");
-  console.log("   │   ├── scenes/Scene*.tsx (6个)");
-  console.log("   │   └── themes/index.ts");
-  console.log("   └── public/audio/");
-  console.log("       ├── neural_1_2x.m4a");
-  console.log("       └── captions.json");
+  console.log("\n=== Remotion Project Structure ===");
+  console.log("video-project/");
+  console.log("  package.json              (remotion@4.0.459)");
+  console.log("  remotion.config.ts        (jpeg, overwrite)");
+  console.log("  tsconfig.json             (bundler, strict)");
+  console.log("  src/");
+  console.log("    index.ts               (registerRoot)");
+  console.log("    Root.tsx               (Composition)");
+  console.log("    Video.tsx              (Audio + Sequence + CaptionOverlay)");
+  console.log("    components/");
+  console.log("      CaptionOverlay.tsx   (TikTok 逐字高亮)");
+  console.log("    scenes/");
+  console.log("      Scene1_Cover.tsx     (封面)");
+  console.log("      Scene2_PainPoint.tsx (痛点)");
+  console.log("      Scene3_Solution.tsx  (方案)");
+  console.log("      Scene4_Features.tsx  (功能)");
+  console.log("      Scene5_Start.tsx     (上手)");
+  console.log("      Scene6_Ending.tsx    (结尾)");
+  console.log("    themes/index.ts        (30主题)");
+  console.log("  public/audio/");
+  console.log("    neural_1_2x.m4a");
+  console.log("    captions.json");
   console.log("");
-  console.log("下一步:");
-  console.log("  1. cd video-project && npm install");
-  console.log("  2. npx remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=60 --disable-gpu");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLI 入口
+// CLI
 // ─────────────────────────────────────────────────────────────────────────────
 if (require.main === module) {
   const projectDir = process.argv[2];
   if (!projectDir) {
-    console.error("用法: node create-remotion-project.js <项目目录>");
+    console.error("Usage: node create-remotion-project.js <project-dir>");
     process.exit(1);
   }
 
   const configPath = path.join(projectDir, "video-config.json");
-  let config = { theme: "cyberpunk", fps: 60, width: 1080, height: 1920 };
-
+  let config = { theme: "cyberpunk" };
   if (fs.existsSync(configPath)) {
     try {
       config = { ...config, ...JSON.parse(fs.readFileSync(configPath, "utf8")) };
     } catch (e) {
-      console.warn("⚠️ video-config.json 解析失败，使用默认配置");
+      console.warn("video-config.json parse failed, using defaults");
     }
   }
 
   createProject(projectDir, config);
 }
 
-module.exports = { createProject, assToCaptions, THEMES };
+module.exports = { createProject, assToCaptions };

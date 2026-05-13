@@ -25,7 +25,7 @@ metadata:
       - "Remotion Native渲染"
       - "@remotion/captions"
       - "音频内嵌视频"
-      - "60fps视频"
+      - "59.94fps视频"
     "clawdbot":
         "emoji": "🎬"
         "requires":
@@ -90,7 +90,7 @@ metadata:
 - [references/remotion-package-discovery.md](references/remotion-package-discovery.md) — `@remotion/core` 不存在；正确包名 `remotion`；47个 exports（Text 不存在）；React Error #130 根因；package.json 正确写法；渲染+混流命令
 - [references/subtitle-tiktok-highlight.md](references/subtitle-tiktok-highlight.md) — **⚠️ TikTok 逐字高亮特效完整方案**：`createTikTokStyleCaptions` 需要 word-level timing，ASS 只有 sentence-level，**必须用 interpolate 自定义 CaptionOverlay**；含完整 TSX 实现 + 入场/退场动画 + 荧光绿高亮
 - [references/video-one-shot-checks.md](references/video-one-shot-checks.md) — **⚠️ 一次生成到位铁律**：渲染前必做的 4 项预检（字数上限 / 英文句点 split 陷阱 / 叠速检测 / CaptionOverlay 方案确认）；"一次到位"用户偏好，工作流起点执行而非返工补救
-- [references/REMOTION_NATIVE.md](references/REMOTION_NATIVE.md) — **Remotion Native 渲染规范**：音频内嵌 + 字幕烧录 + 60fps/1080×1920/MP4 直出；三同步机制；create-remotion-project.js 用法
+- [references/REMOTION_NATIVE.md](references/REMOTION_NATIVE.md) — **Remotion Native 渲染规范**：音频内嵌 + 字幕烧录 + 59.94fps/1080×1920/MP4 直出；三同步机制；create-remotion-project.js 用法
 - [音频验证协议](references/audio-validation-protocol.md) — 音频有效性验证完整协议（4个验证节点）
 - [references/video-creator-remotion-conflicts-2026-05-11.md](references/video-creator-remotion-conflicts-2026-05-11.md) — **C1-C9 冲突审计报告**：video-composer.js Audio组件移除、calculateMetadata添加、entry路径修正、concurrency=4；含 remotion-best-practices 30+ 规则文件审查结果
 - [references/ass-subtitle-spec-2026-05-10.md](references/ass-subtitle-spec-2026-05-10.md) — **最终权威值**：Fontsize=72/PlayResX=1080/PlayResY=1920/MarginV=50/Outline=2/Format 10字段
@@ -119,22 +119,53 @@ metadata:
 
 | 目标时长 | 文本字数上限 | 实测字数/秒 | 说明 |
 |---------|-------------|------------|------|
-| 45秒 | **≤293字** | 6.45字/秒 | edge-tts +20% 实测 |
-| 52秒 | **≤330字** | 6.45字/秒 | 标准视频长度 |
-| 60秒 | **≤390字** | 6.45字/秒 | 留少量余量 |
-| 90秒 | **≤585字** | 6.45字/秒 | 长视频 |
+| 45秒 | **≤151字** | 3.73字/秒 | edge-tts rate=+0% + atempo 1.2x 实测 |
+| 52秒 | **≤175字** | 3.73字/秒 | 标准视频长度，安全上限（留10%余量） |
+| 60秒 | **≤202字** | 3.73字/秒 | 长视频，安全上限 |
+| 90秒 | **≤303字** | 3.73字/秒 | 超长视频 |
 
-**计算公式（已废弃旧版）**：`⌊目标时长 ÷ 1.2 × 4⌋` ❌ 严重偏低（52秒仅173字）
+**正确计算公式**：`字数上限 = ⌊目标时长 × 3.37⌋`（取整，3.37 = 3.73×0.9）
 
-**正确计算公式**：`字数上限 = ⌊目标时长 × 6.45⌋`（取整）
+> ⚠️ **实测依据（2026-05-13）**：实际视频旁白（含英文/符号/长复合句）中 `zh-CN-YunjianNeural --rate +0%` + `atempo 1.2x` 实测 **3.73 中文字符/秒**。安全上限取 3.37（留 10% 余量）。6.45 基准来自高密度短句测试，与实际视频旁白差异显著，**实际项目必须用 3.37 安全上限**。
 
-> ⚠️ **实测依据**（2026-05-12）：`zh-CN-YunjianNeural --rate +20%` 实测 6.45 字/秒（330字 → 52.3秒）。与旧公式差异：旧公式假设 4 字/秒，实际 edge-tts +20% 速率约 6.45 字/秒。
+**计算公式（已废弃旧版）**：`⌊目标时长 ÷ 1.2 × 4⌋` ❌ 严重偏低（52秒仅173字）。`⌊目标时长 × 6.45⌋` ❌ 偏乐观（短句基准）。**正确**：`⌊目标时长 × 3.37⌋`（3.37 = 3.73实测 × 0.9安全系数）。
+
+**正确计算公式**：`字数上限 = ⌊目标时长 × 3.37⌋`（取整，基于实测）
+
+> ⚠️ **实测依据（2026-05-13）**：`zh-CN-YunjianNeural --rate +0%` + `atempo 1.2x` 在实际视频旁白（300+字长复合句，含英文/符号）中实测 **3.73 中文字符/秒**（294字→78.9s；184字→52.8s）。安全上限取 3.37（留 10% 余量）。
+
+**⚠️ 重要更新（2026-05-13 实测修正）**：`rate +0%` 在实际项目旁白（长复合句，含大量英文/符号）中实测 **3.73~3.80 中文字符/秒**。6.45 基准来自高密度短句测试，与实际视频旁白差异显著。
+
+**推荐工作流**：以 **52秒 / 185~195中文** 为安全区间，留 10% 余量。生成后用 ffprobe 验证实际时长，超长则精简文本，不使用 atempo 压缩补救。
+
+**检查命令（生成前必执行）**：
+```bash
+python3 -c "
+text = open('docs/narration.txt').read()
+chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+target_dur = 52
+# 实测安全上限：3.73 字/秒，留 10% 余量 → 3.37
+max_chars = int(target_dur * 3.37)
+print(f'中文字数: {chinese_chars} / 安全上限: {max_chars}')
+assert chinese_chars <= max_chars, f'字数超限: {chinese_chars} > {max_chars}'
+"
 
 **检查命令**：
 ```bash
 # 生成音频前执行文本长度检查
 node {SKILL_DIR}/scripts/pre-subtitle-check.js <project-dir> --target-duration 60
 ```
+
+**精确字数检查（推荐）**：
+```bash
+python3 -c "
+text = open('docs/narration.txt').read()
+chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+target_dur = 52
+max_chars = int(target_dur * 3.37)
+print(f'中文字数: {chinese_chars} / 上限: {max_chars}')
+assert chinese_chars <= max_chars, f'字数超限: {chinese_chars} > {max_chars}'
+"
 
 ### ⚠️ 一次生成到位：返工预防优先
 
@@ -143,7 +174,7 @@ node {SKILL_DIR}/scripts/pre-subtitle-check.js <project-dir> --target-duration 6
 > **工作流起点**：渲染前先执行 `video-one-shot-checks.md` 中的 4 项预检。问题在起点修复，不是终点补救。
 
 **预检顺序（不可跳过）**：
-1. 配音文本字数上限验证（目标秒数 × 6.45）
+1. 配音文本字数上限验证（目标秒数 × 3.37）
 2. 英文句点分割陷阱检查（`Claude4.5` 等含 ASCII 句点的词不得被 split 切断）
 3. 音频叠速检查（`edge-tts +20%` + `atempo 1.2x` 禁止叠加）
 4. CaptionOverlay 方案确认（`interpolate` 替代 `createTikTokStyleCaptions`）
@@ -367,7 +398,7 @@ echo "✅ session-log.md 已初始化"
 | 14 | 小红书封面 | `docs/assets/cover-xhs.png` | **强制必填，1440×2560（9:16）** |
 | 15 | 配音 | `audio/neural_1_2x.m4a` | edge-tts生成，1.2x语速 |
 | 16 | 字幕 | `audio/subtitles.ass` | ASS格式，Fontsize=72（视觉40px）黄色，PlayResX=1080, PlayResY=1920 |
-| 17 | 最终视频 | `video-project/out/final_with_subs.mp4` | 字幕已烧录，59秒@60fps |
+| 17 | 最终视频 | `video-project/out/final_with_subs.mp4` | 字幕已烧录，52.8秒@59.94fps |
 
 ### Step 0 验证命令
 
@@ -515,6 +546,7 @@ grep -c "^[|]" "${PROJECT_DIR}/docs/session-log.md"
 阅读各个规则文件以获取详细说明和代码示例：
 - [references/ONEPASS_WORKFLOW.md](references/ONEPASS_WORKFLOW.md) — **一键生成工作流**：配置驱动，10步完整命令（edge-tts→门禁A→字幕→门禁B→Remotion渲染→门禁C→混流→字幕烧录→门禁D），含完整 bash 脚本。**所有步骤的门禁退出码控制**。
 - [references/video-quality-gate-optimization.md](references/video-quality-gate-optimization.md) — video-quality-gate.js 黑屏检测 execSync 批量优化（12次→1次进程创建）
+- [references/remotion-esbuild-errors-2026-05-13.md](references/remotion-esbuild-errors-2026-05-13.md) — **Remotion esbuild 语法错误修复**：themes/index.ts 连字符key无引号、JSX多余`}`、组件prop缺失；含自动修复脚本和验证命令
 - [references/skill-audit-methodology.md](references/skill-audit-methodology.md) — **技能深度审计方法论**：识别文档与脚本脱节的 8 类问题模板；2026-05-12 审计发现 8 类缺陷（5个已修复/3个待修复）；含一键验证命令。**摘要永远不可信**，必须 grep 验证文件系统实际值；8类文件检查清单；常见遗漏模式（验证器不同步/实例化覆盖/文档不同步）。
 - [references/baoyu-config.json](references/baoyu-config.json) - 宝玉技能配置
 - [references/cdn-mapping.json](references/cdn-mapping.json) - CDN映射配置
@@ -570,7 +602,7 @@ bash {SKILL_DIR}/scripts/launch.sh init <项目名>
 #    Step 4: create-remotion-project.js（Remotion 项目，含逐字高亮字幕）
 #    Step 5: npm install
 #    Step 6: pre-render-check.js（渲染前检查）
-#    Step 7: npx remotion render（60fps/1080×1920，含字幕特效）
+#    Step 7: npx remotion render（59.94fps/1080×1920，含字幕特效）
 bash {SKILL_DIR}/scripts/launch.sh all
 ```
 
@@ -582,7 +614,7 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - `docs/video-script.md` — 分镜脚本
 - `audio/neural_1_2x.m4a` — 处理后音频（AAC 256k）
 - `audio/subtitles.ass` — ASS字幕（逐字高亮特效）
-- `video-project/out/final.mp4` — 最终视频（含字幕/配音/60fps/H.264）
+- `video-project/out/final.mp4` — 最终视频（含字幕/配音/59.94fps/H.264）
 
 **性能优化（2026-05-12 v3）**：
 - edge-tts + 帧生成并行：两者同时执行（~20s + ~50s → ~50s），节省 ~20s
@@ -601,6 +633,8 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - [rules/PLATFORM.md](rules/PLATFORM.md) - 定义视频号、小红书、抖音/快手的平台规格（分辨率、帧率、时长、文件大小、编码）及 Remotion 竖屏配置参数。
 - [rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md) - 提供视频渲染失败、baoyu获取内容、字体异常、音频回音/拼接、Remotion编码杂音、Chrome下载失败、create-video CLI交互bug等常见问题的解决方案。
 - [references/cloudflare-blocking-medium.md](references/cloudflare-blocking-medium.md) - **Medium.com Cloudflare 阻断**：所有自动化抓取均被阻止，article-to-video 任务需用户手动提供文章内容
+- [references/github-fetch-fallback.md](references/github-fetch-fallback.md) - **GitHub 内容获取降级流程**：HTTPS/代理/gh CLI/git:// 全部失败时的诊断顺序和用户报告模板
+- [references/node-execsync-encoding-bug.md](references/node-execsync-encoding-bug.md) - **Node.js execSync { encoding: 'utf8' } 返回值 bug**：encoding:'utf8' 直接返回字符串而非 { stdout } 对象；macOS arm64 Node.js 24 受影响；影响 ffprobe 解析
 
 ## ⚠️ 渲染决策：Remotion CLI vs ffmpeg 兜底
 
@@ -678,14 +712,14 @@ rm -rf out/frames
 ```
 
 **关键规范**：
-- `TOTAL_FRAMES = ceil(音频时长 × 60)` — 强制60fps，不允许缺帧导致黑屏
+- `TOTAL_FRAMES = ceil(音频时长 × 59.94)` — 强制59.94fps，不允许缺帧导致黑屏
 - 帧编号严格连续：`frame_0000.png` → `frame_NNNN.png`
 - 帧序列存储路径：`{project}/video-project/frames/`
 - 音频存储路径：`{project}/video-project/audio/neural_1_2x.m4a`
 - 每个场景内部帧从0开始计算（局部帧），场景边界由 `SCENE_BOUNDARIES` 定义
 - ffmpeg 单次混流：帧序列 + 音频 + 字幕同时处理，**移除了旧两步流程**（video_noaudio.mp4 → final.mp4 → final_with_subs.mp4）
 
-**场景帧分布示例（60秒@60fps = 3600帧）**：
+**场景帧分布示例（52秒@59.94fps = 3115帧）**：
 ```
 场景1 cover:    帧 0-180   (3秒)   — 封面标题入场
 场景2 concept:  帧 180-900  (12秒)  — 核心理念标语渐入

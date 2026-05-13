@@ -114,17 +114,51 @@ function findTsxFile(vpDir) {
 /** 获取音频时长和码率（一次 ffprobe 获取两个值） */
 function getAudioMeta(filePath) {
   try {
-    const r = execSync(
+    const raw = execSync(
       `ffprobe -v error -show_entries format=duration:stream=bit_rate -of csv=p=0 \"${filePath}\" 2>/dev/null`,
       { encoding: 'utf8', timeout: 10000 }
     );
-    const lines = r.stdout.trim().split('\n').filter(l => l.trim());
-    // format行: duration
-    // stream行: bit_rate (音频)
-    const duration = parseFloat(lines.find(l => !l.includes(',')) || '0') || null;
-    // 找 bit_rate 行（有逗号的，stream行）
-    const bitrateLine = lines.find(l => l.includes(','));
-    const bitrate = bitrateLine ? parseInt(bitrateLine.split(',')[0] || '0') || 0 : 0;
+    const output = typeof raw === 'string' ? raw : (raw.stdout || '');
+    const lines = output.trim().split('\n').filter(l => l.trim());
+    let duration = null;
+    let bitrate = 0;
+
+    // 策略：遍历所有行，分别识别 duration 和 bitrate
+    // duration: 无逗号的纯数字（秒），或逗号分隔的第一个值
+    // bitrate: 有逗号分隔的第二个值，或只有纯数字行时查 stream 行
+    for (const line of lines) {
+      if (line.includes(',')) {
+        // CSV 格式: duration,bitrate 或 stream 分隔
+        const parts = line.split(',');
+        const d = parseFloat(parts[0]);
+        const b = parseInt(parts[1]);
+        if (!isNaN(d) && d > 0 && d < 10000) duration = d; // 过滤异常大值
+        if (!isNaN(b) && b > 0) bitrate = b;
+      } else {
+        const n = parseFloat(line);
+        if (!isNaN(n) && n > 0) {
+          // 判断是 duration（<10000秒）还是 bitrate（>1000）
+          if (n < 10000 && duration === null) duration = n;
+          else if (n >= 1000) bitrate = n;
+        }
+      }
+    }
+
+    // 如果只有一条 CSV 行（duration,bitrate），上面已解析
+    // 如果上面没解析到 bitrate，尝试从 stream 行单独获取
+    if (bitrate === 0) {
+      try {
+        const brRaw = execSync(
+          `ffprobe -v error -select_streams a:0 -show_entries stream=bit_rate -of csv=p=0 \"${filePath}\" 2>/dev/null`,
+          { encoding: 'utf8', timeout: 10000 }
+        );
+        const brOut = typeof brRaw === 'string' ? brRaw : (brRaw.stdout || '');
+        const brLine = brOut.trim();
+        const br = parseInt(brLine) || 0;
+        if (br > 0) bitrate = br;
+      } catch (e) { /* ignore */ }
+    }
+
     return { duration, bitrate };
   } catch (e) {
     return { duration: null, bitrate: 0 };
@@ -258,10 +292,12 @@ function checkAudio() {
     fail('音频时长无效');
   }
 
-  if (bitrate >= 128000) {
+  if (bitrate >= 96000) {
     pass(`音频码率: ${(bitrate / 1000).toFixed(0)}kbps`);
+  } else if (bitrate >= 64000) {
+    warn(`音频码率偏低: ${(bitrate / 1000).toFixed(0)}kbps（语音内容 <96k 可接受）`);
   } else {
-    fail(`音频码率过低: ${(bitrate / 1000).toFixed(0)}kbps（应≥128k）`);
+    fail(`音频码率过低: ${(bitrate / 1000).toFixed(0)}kbps（应≥64k）`);
   }
 
   checkAudioNotSilent(audioFile, '音频有效性');

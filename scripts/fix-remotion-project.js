@@ -18,15 +18,26 @@ const path = require("path");
 
 function fixThemesIndex(tsPath) {
   let content = fs.readFileSync(tsPath, "utf8");
-  // 匹配连字符 key 未加引号的情况: "tech-modern: { → "tech-modern": {
-  const fixed = content.replace(/([\n\r\t ])([a-z][a-z0-9]*-[a-z0-9-]+):(\s*\{)/g, (match, ws, key, rest) => {
-    return `${ws}"${key}"${rest}`;
-  });
+  // 匹配连字符 key 未加引号的情况: tech-modern: { → "tech-modern": {
+  // 需要同时处理行首和非行首两种情况
+  let fixed = content.replace(
+    /([\n\r\t ])([a-z][a-z0-9]*-[a-z0-9-]+):(\s*\{)/g,
+    (match, ws, key, rest) => {
+      return `${ws}"${key}"${rest}`;
+    }
+  );
+  // 匹配行首的连字符 key 未加引号: ^tech-modern: {
+  fixed = fixed.replace(
+    /^([a-z][a-z0-9]*-[a-z0-9-]+):(\s*\{)/gm,
+    (match, key, rest) => {
+      return `"${key}"${rest}`;
+    }
+  );
   if (fixed !== content) {
     fs.writeFileSync(tsPath, fixed, "utf8");
-    console.log(`✅ themes/index.ts 已修复连字符 key 引号`);
+    console.log("✅ themes/index.ts 已修复连字符 key 引号");
   } else {
-    console.log(`ℹ️ themes/index.ts 无需修复`);
+    console.log("ℹ️ themes/index.ts 无需修复（key 已带双引号）");
   }
 }
 
@@ -129,7 +140,7 @@ if (require.main === module) {
 
   console.log("\n✅ 修复完成。下一步:");
   console.log("  cd video-project && npm install");
-  console.log("  npx remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=60 --disable-gpu");
+  console.log("  npx remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=59.94 --disable-gpu");
 }
 
 module.exports = { fixThemesIndex, fixCaptionOverlay, fixSceneScales };
