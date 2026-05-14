@@ -66,6 +66,45 @@ else:
     print(f"✅ 字数合适({chinese_chars}/{max_chars})")
 ```
 
+**实测数据(本 session)**:
+| 项目 | 自动字数 | 重写后 | 问题类型 |
+|------|---------|--------|---------|
+| claude-hud | 74字 | 154字 | 严重偏少 |
+| tegaki | 74字 | 141字 | 严重偏少 |
+| OpenViking | 74字 | 157字 | 严重偏少 |
+| openscreen | 91字 | 152字 | 偏少 |
+| open-swe | 50字 | 153字 | 严重偏少 |
+| impeccable | 79字 | 167字 | 偏少 |
+| deepagents | 183字 | 163字 | 偏多超限 |
+| timesfm | 176字 | 128字 | 超限精简 |
+| claude-howto | 177字 | 121字 | 超限精简 |
+
+**结论**: 本 session 9个项目，100% 需手动重写。根因是 article.md 内容不足或格式不匹配 generate_docs.js 的提取逻辑。
+
+**标准工作流**:
+
+Step 1: 执行 generate_docs.js
+Step 2: 立即运行字数验证
+```python
+python3 << 'PYEOF'
+PROJECT_DIR = '/Volumes/OpenClawDrive/.hermes/workspace/<项目>-video'
+with open(f'{PROJECT_DIR}/docs/narration.txt', 'r') as f:
+    text = f.read()
+chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+target_dur = 52
+max_chars = int(target_dur * 3.37)
+print(f'中文字数: {chinese_chars} / 上限: {max_chars}')
+if chinese_chars < 100 or chinese_chars > max_chars:
+    print('❌ 需要手动重写')
+else:
+    print('✅ 字数合适')
+PYEOF
+```
+Step 3: 手动重写时，口语化+每句完整+100-175字范围内
+Step 4: 再次验证，通过后再继续
+
 ## 修复记录
 
 - 2026-05-14: 首次记录这两个问题
+- 2026-05-14 (晚): 更新实测数据，8个项目全部返工，100% 失败率
+- 2026-05-14 (深夜): 更新第9个项目(claude-howto)，最终确认9/9全部手动重写

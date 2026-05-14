@@ -145,15 +145,17 @@ function extractNarration(scriptContent, maxChars) {
   }
 
   let narration = narrationLines.join("。");
-  // 在自然断点处截断
-  if (narration.length > maxChars) {
-    const truncated = narration.slice(0, maxChars);
-    const breakPoint = Math.max(
-      truncated.lastIndexOf("。"),
-      truncated.lastIndexOf("，"),
-      truncated.lastIndexOf("；")
-    );
-    narration = breakPoint > maxChars * 0.7 ? truncated.slice(0, breakPoint + 1) : truncated;
+  // 截断逻辑：统计中文字符数（与验证逻辑一致），在自然断点处截断
+  const chineseChars = (narration.match(/[\u4e00-\u9fa5]/g) || []).length;
+  if (chineseChars > maxChars) {
+    let acc = 0, breakIdx = narration.length;
+    for (let i = 0; i < narration.length; i++) {
+      if (/[\u4e00-\u9fa5]/.test(narration[i])) acc++;
+      if (acc > maxChars && /[。！？]/.test(narration[i])) {
+        breakIdx = i + 1; break;
+      }
+    }
+    narration = narration.slice(0, breakIdx) || narration.slice(0, Math.floor(maxChars * 1.5));
   }
 
   return narration + "。";
