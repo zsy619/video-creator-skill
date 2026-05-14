@@ -71,7 +71,7 @@ grep -q "createTikTokStyleCaptions" video-project/src/components/CaptionOverlay.
    │                           │                           │
    ▼                           ▼                           ▼
 字数验证 ← 新规！        re.split pattern 验证      CaptionOverlay 方案确认
-英文句点检查 ← 新规！    Claude4.5 完整性验证       帧数 = ceil(音频时长×59.94)
+英文句点检查 ← 新规！    Claude4.5 完整性验证       帧数 = ceil(音频时长×60)
 叠速检查 ← 新规！        total_duration 精确值
 ```
 

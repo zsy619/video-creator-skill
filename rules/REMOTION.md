@@ -980,23 +980,19 @@ useEffect(() => {
 
 ```tsx
 // ✅ 正确：headless 环境不使用 Audio 组件
-// 音频通过 ffmpeg 混流注入最终视频
-
-// ❌ 错误：headless 环境禁止在 Remotion 内嵌音频
+// ✅ 正确：Remotion Native — 音频通过 <Audio> 直接内嵌，字幕通过 CaptionOverlay 同期烧录
 // <Audio src={staticFile('audio/neural_1_2x.m4a')} />
+// <CaptionOverlay captionsFile="audio/captions.json" />
 ```
 
 ### 音量控制
 
-> **⚠️ headless 环境禁止使用 Audio 组件**。以下示例仅适用于 Remotion Studio 预览环境，渲染时必须移除。
+> **Remotion Native**（2026-05-13 起）：音频通过 `<Audio>` 组件直接内嵌，字幕通过 `CaptionOverlay` 同期烧录。
 
 ```tsx
-// ✅ 正确：headless 环境不使用 Audio 组件
-// 音频通过 ffmpeg 混流注入最终视频
-
-// ❌ 错误：headless 环境禁止 Remotion Audio 组件
-// import { Audio } from 'remotion';
-// <Audio src={staticFile('audio.mp3')} volume={0.8} /> ← 禁止！
+// ✅ 正确：Remotion Native — 音频通过 <Audio> 直接内嵌，字幕通过 CaptionOverlay 同期烧录
+// import { Audio, staticFile } from 'remotion';
+// <Audio src={staticFile('audio.mp3')} volume={0.8} />
 ```
 
 ### 播放速度控制

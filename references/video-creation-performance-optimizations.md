@@ -150,7 +150,7 @@ EXPECTED_FRAMES=$(python3 -c "import math; print(math.ceil($(ffprobe -v error -s
 [ "$FRAME_COUNT" != "$EXPECTED_FRAMES" ] && echo "帧数不匹配: $FRAME_COUNT vs $EXPECTED_FRAMES"
 
 # 视频验证
-ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate -of json out/final_with_subs.mp4
+ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate -of json out/final.mp4
 ```
 
 ## P1/P2 级优化（探索方向）

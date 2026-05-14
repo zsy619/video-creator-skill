@@ -80,7 +80,7 @@ cmd_init() {
   "name": "{project-name}",
   "platform": "微信视频号",
   "duration": 52,
-  "fps": 59.94,
+  "fps": 60,
   "width": 1080,
   "height": 1920,
   "theme": "cyberpunk",
@@ -259,7 +259,7 @@ cmd_render() {
 
   # ── Remotion 渲染 ─────────────────────────────────────────────────────────
   echo ""
-  echo "=== Remotion 渲染（59.94fps / 1080×1920 / MP4）==="
+  echo "=== Remotion 渲染（60fps / 1080×1920 / MP4）==="
 
   mkdir -p "${VP_DIR}/out"
 
@@ -268,14 +268,14 @@ cmd_render() {
   AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
     -of csv=p=0 "${proj_dir}/audio/neural_1_2x.m4a" 2>/dev/null || echo "38")
   local TOTAL_FRAMES
-  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 59.94))")
+  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
 
-  log "音频时长: ${AUDIO_DURATION}s → ${TOTAL_FRAMES} 帧 @59.94fps"
+  log "音频时长: ${AUDIO_DURATION}s → ${TOTAL_FRAMES} 帧 @60fps"
 
   npx remotion render VerticalVideo \
-    "${VP_DIR}/out/final_with_subs.mp4" \
+    "${VP_DIR}/out/final.mp4" \
     --concurrency=4 \
-    --fps=59.94 \
+    --fps=60 \
     --duration-in-frames=${TOTAL_FRAMES} \
     --disable-gpu \
     2>&1 | tail -10
@@ -285,11 +285,11 @@ cmd_render() {
     return 1
   fi
 
-  ok "Remotion 渲染完成: ${VP_DIR}/out/final_with_subs.mp4"
+  ok "Remotion 渲染完成: ${VP_DIR}/out/final.mp4"
   echo ""
-  echo "最终文件: ${VP_DIR}/out/final_with_subs.mp4"
+  echo "最终文件: ${VP_DIR}/out/final.mp4"
   echo "渲染方式: Remotion Native（音频内嵌 / 字幕烧录 / MP4直出）"
-  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 59.94fps"
+  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 60fps"
 }
 
 # ── 子命令: all ────────────────────────────────────────────────────────────────
@@ -350,30 +350,25 @@ cmd_all() {
     ok "字数检查: ${CHAR_COUNT}字 / ${MAX_CHARS}字上限"
   fi
 
-  # ── Step -1: 预生成封面图（占位，仅作早期预览）─────────────────────────
-  # ⚠️ 注意：此时 Remotion 项目尚未创建，只能用 PIL 生成占位封面
-  # 正式封面须在 Step 7 之后用 npx remotion still 重新生成
+  # ── Step -1: PIL 生成封面图（早期预览）─────────────────────────────
+  # 统一使用 PIL generate_cover.py，三平台各自独立生成
   echo ""
-  echo "=== Step -1: 预生成封面图（占位）==="
+  echo "=== Step -1: 封面图生成 ==="
   local COVER_TITLE
   COVER_TITLE=$(node -e "console.log(require('${config_file}').cover?.title || require('${config_file}').title || '视频标题')")
   local COVER_SUBTITLE
   COVER_SUBTITLE=$(node -e "console.log(require('${config_file}').cover?.subtitle || require('${config_file}').subtitle || '')")
   local cover_out="${proj_dir}/docs/assets"
 
-  python3 "${GEN_COVER}" \
-    "$COVER_TITLE" \
-    "$COVER_SUBTITLE" \
-    "$cover_out" \
-    vertical wechat xhs \
-    > /tmp/cover.$$.out 2>&1
-
-  if [ $? -eq 0 ]; then
-    ok "预封面生成完成（占位，仅 PIL 质量）"
-  else
-    warn "⚠️ PIL封面生成失败（Remotion 项目尚未创建，无法生成高质量封面）"
-    cat /tmp/cover.$$.out | tail -3
-  fi
+  for canvas in vertical wechat xhs; do
+    python3 "${GEN_COVER}" \
+      "$COVER_TITLE" \
+      "$COVER_SUBTITLE" \
+      "$cover_out" \
+      "$canvas" \
+      >> /tmp/cover.$$.out 2>&1
+    [ $? -eq 0 ] && ok "✅ $canvas 封面生成完成" || warn "⚠️ $canvas 封面生成失败"
+  done
   rm -f /tmp/cover.$$.out
 
   # ── Step 1: edge-tts 配音 ───────────────────────────────────────────────
@@ -429,31 +424,35 @@ cmd_all() {
   ok "✅ 门禁 A 通过"
 
   # ── Step 3: captions.json 生成（startMs/endMs 毫秒格式）──────────────
+  # 比例分配算法：总时长 = ffprobe 实测音频时长，按句子数等比划分时间槽
   echo ""
   echo "=== Step 3: 生成字幕时间戳（captions.json）==="
   python3 -c "
 import json, re, sys
 
+AUDIO_DURATION = float('${AUDIO_DURATION}')
 text = open('${narration_file}', encoding='utf-8').read()
 # 按中文标点和换行分割句子
 sentences = re.split(r'[。！？；\n]+', text.strip())
 sentences = [s.strip() for s in sentences if s.strip()]
 
-# 语速估算：3.73 字/秒
-chars_per_sec = 3.73
-captions = []
-current_ms = 0
-for s in sentences:
-    char_count = sum(1 for c in s if '\u4e00' <= c <= '\u9fff') + sum(1 for c in s if c.isalnum() and not '\u4e00' <= c <= '\u9fff')
-    duration_sec = char_count / chars_per_sec
-    start_ms = int(current_ms)
-    end_ms = int(current_ms + duration_sec * 1000)
-    captions.append({'text': s, 'startMs': start_ms, 'endMs': end_ms})
-    current_ms += duration_sec * 1000
+total_sentences = len(sentences)
+if total_sentences == 0:
+    print('CAPTION_ERR: no sentences')
+    sys.exit(1)
 
-with open('${proj_dir}/audio/captions.json', 'w', encoding='utf-8') as f:
+captions = []
+for i, s in enumerate(sentences):
+    # 比例分配：每句占 (总时长 / 句子数)
+    slot_sec = AUDIO_DURATION / total_sentences
+    start_ms = int(i * slot_sec * 1000)
+    end_ms = int((i + 1) * slot_sec * 1000)
+    captions.append({'text': s, 'startMs': start_ms, 'endMs': end_ms})
+
+# captions.json 写入 Remotion 项目 public/audio/
+with open('${VP_DIR}/public/audio/captions.json', 'w', encoding='utf-8') as f:
     json.dump(captions, f, ensure_ascii=False, indent=2)
-print(f'CAPTION_OK:{len(captions)} captions')
+print(f'CAPTION_OK:{len(captions)} captions ({AUDIO_DURATION:.3f}s total)')
 " > /tmp/caption_gen.$$.out 2>&1
 
   if [ $? -ne 0 ] || ! grep -q "CAPTION_OK" /tmp/caption_gen.$$.out 2>/dev/null; then
@@ -462,7 +461,7 @@ print(f'CAPTION_OK:{len(captions)} captions')
     exit 1
   fi
   CAPTION_COUNT=$(grep "CAPTION_OK" /tmp/caption_gen.$$.out | cut -d: -f2)
-  ok "✅ captions.json 生成完成: audio/captions.json（${CAPTION_COUNT} 条）"
+  ok "✅ captions.json 生成完成: video-project/public/audio/captions.json（${CAPTION_COUNT} 条）"
   rm -f /tmp/caption_gen.$$.out
 
   # ── Gate B（字数检查）───────────────────────────────────────────────
@@ -516,15 +515,18 @@ print(f'CAPTION_OK:{len(captions)} captions')
   fi
 
   # ── Step 7: Remotion 渲染 ──────────────────────────────────────────────
+  local AUDIO_DURATION
+  AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
+    -of csv=p=0 "${proj_dir}/audio/neural_1_2x.m4a" 2>/dev/null || echo "0")
   local TOTAL_FRAMES
-  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 59.94))")
+  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
   echo ""
-  echo "=== Step 7: Remotion 渲染（59.94fps / 1080×1920 / ${TOTAL_FRAMES}帧）==="
+  echo "=== Step 7: Remotion 渲染（60fps / 1080×1920 / ${TOTAL_FRAMES}帧）==="
 
   cd "${VP_DIR}" && npx remotion render VerticalVideo \
     out/final.mp4 \
     --concurrency=4 \
-    --fps=59.94 \
+    --fps=60 \
     --duration-in-frames=${TOTAL_FRAMES} \
     --disable-gpu \
     > /tmp/remotion.$$.out 2>&1
@@ -540,47 +542,23 @@ print(f'CAPTION_OK:{len(captions)} captions')
   ok "✅ Remotion 渲染完成"
   rm -f /tmp/remotion.$$.out
 
-  # ── Step 8: 用 Remotion still 生成正式封面（3个尺寸）───────────────
-  # ⚠️ 必须在渲染完成后执行，此时 Remotion 项目已创建
-  # 帧号使用最后一帧减1（动画完全进入的那一帧），不得使用帧0
+  # ── Step 8: PIL 生成三平台正式封面 ────────────────────────────────
+  # 统一使用 generate_cover.py PIL 脚本，三平台独立生成，不再级联裁剪
   echo ""
-  echo "=== Step 8: Remotion still 生成正式封面 ==="
-  local COVER_FRAME=$((TOTAL_FRAMES - 2))
-  log "封面帧号: ${COVER_FRAME}（总帧数 ${TOTAL_FRAMES} - 2）"
-
+  echo "=== Step 8: PIL 生成三平台正式封面 ==="
   mkdir -p "${proj_dir}/docs/assets"
 
-  npx remotion still VerticalVideo \
-    "${proj_dir}/docs/assets/cover.png" \
-    --frame=${COVER_FRAME} \
-    --log=error \
-    > /dev/null 2>&1
-
-  if [ $? -eq 0 ] && [ -f "${proj_dir}/docs/assets/cover.png" ]; then
-    ok "✅ 正式封面生成: docs/assets/cover.png (1080×1920)"
-  else
-    warn "⚠️ Remotion still 封面生成失败，跳过正式封面"
-  fi
-
-  # 截取公众号封面 900x383
-  if [ -f "${proj_dir}/docs/assets/cover.png" ]; then
-    magick "${proj_dir}/docs/assets/cover.png" \
-      -level 12%,65%,1.3 \
-      -brightness-contrast 20x15 \
-      -sharpen 1x0.5 \
-      -resize 900x383^ \
-      -gravity center \
-      -extent 900x383 \
-      "${proj_dir}/docs/assets/cover-wechat.png" 2>/dev/null && ok "✅ 公众号封面: cover-wechat.png (900×383)"
-
-    # 截取小红书封面 1440x2560
-    magick "${proj_dir}/docs/assets/cover.png" \
-      -level 12%,65%,1.3 \
-      -brightness-contrast 20x15 \
-      -sharpen 1x0.5 \
-      -resize 1440x2560 \
-      "${proj_dir}/docs/assets/cover-xhs.png" 2>/dev/null && ok "✅ 小红书封面: cover-xhs.png (1440×2560)"
-  fi
+  # 三平台封面各自独立生成
+  for canvas in vertical wechat xhs; do
+    python3 "${GEN_COVER}" \
+      "$COVER_TITLE" \
+      "$COVER_SUBTITLE" \
+      "${proj_dir}/docs/assets" \
+      "$canvas" \
+      >> /tmp/cover_step8.$$.out 2>&1
+    [ $? -eq 0 ] && ok "✅ $canvas 封面生成完成" || warn "⚠️ $canvas 封面生成失败"
+  done
+  rm -f /tmp/cover_step8.$$.out
 
   # ── Gate D ───────────────────────────────────────────────────────────
   echo ""
@@ -596,8 +574,8 @@ print(f'CAPTION_OK:{len(captions)} captions')
   ok "✅ 一键生成完成！"
   echo "═══════════════════════════════════════"
   echo ""
-  echo "最终文件: ${VP_DIR}/out/final_with_subs.mp4"
-  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 59.94fps | H.264+AAC"
+  echo "最终文件: ${VP_DIR}/out/final.mp4"
+  echo "尺寸: 1080×1920 | 时长: ${AUDIO_DURATION}s | 60fps | H.264+AAC"
   echo "封面: docs/assets/cover.png (vertical) / cover-wechat.png / cover-xhs.png"
   echo "字幕: Remotion CaptionOverlay 同期烧录（逐字高亮）"
   echo ""

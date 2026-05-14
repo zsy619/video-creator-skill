@@ -56,7 +56,7 @@ ffmpeg -y -i video.mp4 -i audio.m4a \
 grep "Style:" subtitles.ass
 
 # 检查字幕是否烧录成功（截取一帧）
-ffmpeg -y -ss 0:00:05 -i final_with_subs.mp4 -frames:v 1 /tmp/check.png
+ffmpeg -y -ss 0:00:05 -i final.mp4 -frames:v 1 /tmp/check.png
 
 # 如果中文字符在截图中正常显示，说明烧录成功
 ```

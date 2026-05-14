@@ -61,7 +61,7 @@ def _find_cjk_font():
     import subprocess
 
     search_dirs = [
-        '/Users/zhushuyan/Library/Fonts',   # 用户安装的中文字体优先
+        os.path.expanduser('~/Library/Fonts'),   # 用户安装的中文字体优先
         '/System/Library/Fonts',
         '/Library/Fonts',
     ]

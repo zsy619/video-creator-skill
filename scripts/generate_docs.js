@@ -343,11 +343,11 @@ function generateSessionLog(config, docNames) {
 - [ ] 项目修复检查已执行
 - [ ] npm install 已完成
 - [ ] pre-render-check.js 检查通过
-- [ ] Remotion 渲染完成（59.94fps）
+- [ ] Remotion 渲染完成（60fps）
 - [ ] ffmpeg 混流完成
 
 ### 最终输出
-- [ ] 视频文件：video-project/out/final_with_subs.mp4
+- [ ] 视频文件：video-project/out/final.mp4
 - [ ] 封面图：docs/assets/cover.png
 - [ ] 文档齐全
 

@@ -494,9 +494,7 @@ function checkRender() {
 function checkFinal() {
   section('节点 D: 最终视频检查');
 
-  const videoFile = path.join(PROJECT_DIR, 'video-project', 'out', 'final_with_subs.mp4');
-  const altFile = path.join(PROJECT_DIR, 'video-project', 'out', 'final.mp4');
-  const finalFile = fs.existsSync(videoFile) ? videoFile : (fs.existsSync(altFile) ? altFile : null);
+  const finalFile = path.join(PROJECT_DIR, 'video-project', 'out', 'final.mp4');
 
   if (finalFile) {
     pass(`最终视频: ${path.basename(finalFile)}`);
@@ -529,7 +527,7 @@ function checkFinal() {
       if (parseFloat(fps) >= 59.9 && parseFloat(fps) <= 60.1) {
         pass(`帧率: ${fps} fps ✓`);
       } else {
-        warn(`帧率: ${fps} fps（期望 59.94fps）`);
+        warn(`帧率: ${fps} fps（期望 60fps）`);
       }
     }
   }

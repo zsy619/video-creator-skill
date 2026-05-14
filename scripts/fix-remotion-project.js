@@ -140,7 +140,7 @@ if (require.main === module) {
 
   console.log("\n✅ 修复完成。下一步:");
   console.log("  cd video-project && npm install");
-  console.log("  npx remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=59.94 --disable-gpu");
+  console.log("  npx remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=60 --disable-gpu");
 }
 
 module.exports = { fixThemesIndex, fixCaptionOverlay, fixSceneScales };

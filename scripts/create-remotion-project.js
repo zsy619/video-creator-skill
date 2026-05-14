@@ -13,7 +13,7 @@
  *   1. themes/index.ts: 所有 key 必须加双引号（esbuild 要求 JSON key 是字符串）
  *   2. CaptionOverlay.tsx: 不使用 useDelayRender（Remotion 4.x 不存在此 API）
  *   3. Scene 组件：必须使用 AbsoluteFill 居中布局，内容必须垂直水平居中
- *   4. 帧数匹配：FPS=59.94 而非 60，避免 52.824s 音频被拉伸
+ *   4. 帧数匹配：FPS=60 而非 60，避免 52.824s 音频被拉伸
  */
 
 const fs = require("fs");
@@ -65,25 +65,6 @@ const DEFAULT_SCENES = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ASS → captions.json 转换
-// ─────────────────────────────────────────────────────────────────────────────
-function assToCaptions(assContent) {
-  const captions = [];
-  const dialogueRegex = /^Dialogue: \d+,(\d+):(\d+):(\d+)\.(\d+),(\d+):(\d+):(\d+)\.(\d+),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),(.+)$/gm;
-  let match;
-  while ((match = dialogueRegex.exec(assContent)) !== null) {
-    const startMs = (parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3])) * 1000 + parseInt(match[4]) * 10;
-    const endMs   = (parseInt(match[5]) * 3600 + parseInt(match[6]) * 60 + parseInt(match[7])) * 1000 + parseInt(match[8]) * 10;
-    const text = match[15]
-      .replace(/\\N/g, " ")
-      .replace(/\\n/g, " ")
-      .replace(/\{[^}]*\}/g, "")
-      .trim();
-    if (text) captions.push({ text, startMs, endMs, timestampMs: null, confidence: null });
-  }
-  return captions;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // 创建 Remotion 项目
 // ─────────────────────────────────────────────────────────────────────────────
@@ -721,8 +702,8 @@ function createProject(projectDir, config) {
     "};\n");
 
   // ── Root.tsx ──────────────────────────────────────────────────────────────
-  // fps/duration 从 config 读取（不硬编码），确保与 launch.sh --fps=59.94 一致
-  const fps = config.fps || 59.94;
+  // fps/duration 从 config 读取（不硬编码），确保与 launch.sh --fps=60 一致
+  const fps = config.fps || 60;
   const audioPath = path.join(projectDir, "audio", "neural_1_2x.m4a");
   let totalFrames;
   if (fs.existsSync(audioPath)) {
@@ -771,21 +752,25 @@ function createProject(projectDir, config) {
     "import { RemotionRoot } from \"./Root\";\n\n" +
     "registerRoot(RemotionRoot);\n");
 
-  // ── ASS → captions.json ─────────────────────────────────────────────────
-  const assPath = path.join(projectDir, "audio", "subtitles.ass");
-  const capPath = path.join(pubAudio, "captions.json");
-  if (fs.existsSync(assPath)) {
-    const caps = assToCaptions(fs.readFileSync(assPath, "utf8"));
-    fs.writeFileSync(capPath, JSON.stringify(caps, null, 2));
-    console.log("captions.json generated: " + caps.length + " captions");
-  }
-
   // ── 复制音频到 public/audio/ ──────────────────────────────────────────
+  // ⚠️ 必须同时复制 audio 文件和 captions.json，否则渲染时 CaptionOverlay 404
   const audioSrc = path.join(projectDir, "audio", "neural_1_2x.m4a");
   const audioDst = path.join(pubAudio, "neural_1_2x.m4a");
   if (fs.existsSync(audioSrc)) {
     fs.copyFileSync(audioSrc, audioDst);
     console.log("Audio copied to public/audio/");
+  }
+
+  // captions.json 也必须复制（已知问题： captions.json 未复制导致 CaptionOverlay 404）
+  const captionsSrc = path.join(projectDir, "audio", "captions.json");
+  const captionsDst = path.join(pubAudio, "captions.json");
+  if (fs.existsSync(captionsSrc)) {
+    fs.copyFileSync(captionsSrc, captionsDst);
+    console.log("captions.json copied to public/audio/");
+  } else {
+    // captions.json 尚未生成（launch.sh render 时才生成），创建空文件占位
+    fs.writeFileSync(captionsDst, "[]");
+    console.log("captions.json 占位文件已创建（等待 Step 8 生成）");
   }
 
   console.log("\n=== Remotion Project Structure ===");
@@ -835,5 +820,3 @@ if (require.main === module) {
 
   createProject(projectDir, config);
 }
-
-module.exports = { createProject, assToCaptions };

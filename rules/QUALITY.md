@@ -41,7 +41,7 @@
 - [ ] **⚠️【新增】音频 RMS 验证**：最终视频每个音频样本 RMS > -60dB（禁止全 -inf）
   ```bash
   # 验证命令（0个样本表示全静音 = 无效）
-  ffmpeg -i final-video.mp4 \
+  ffmpeg -i final.mp4 \
     -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" \
     -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l
   # 非0个样本 = 有效音频

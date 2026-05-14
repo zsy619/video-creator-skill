@@ -49,7 +49,7 @@ Step 11       Step 10        Step 9        Step 8        Step 7        Step 6
 | 字幕生成脚本   | `docs/assets/gen_subtitles.py`      | ASS 字幕生成脚本                                    |
 | 音频文件     | `audio/neural_1_2x.m4a`             | 处理后音频（atempo 后，文件名反映实际语速）                     |
 | 字幕文件     | `audio/subtitles_58s.ass`           | ASS 格式（文件名反映实际时长）                             |
-| 最终视频     | `video-project/out/final-video.mp4` | 音频混流后的成品                                      |
+| 最终视频     | `video-project/out/final.mp4`    | Remotion Native 直出（音频内嵌 / 字幕同期）                        |
 
 ***
 
@@ -273,7 +273,7 @@ REQUIRED_FILES=(
   "${PROJECT_DIR}/docs/assets/gen_subtitles.py"
   "${PROJECT_DIR}/audio/neural_1_2x.m4a"
   "${PROJECT_DIR}/audio/subtitles_*.ass"
-  "${PROJECT_DIR}/video-project/out/final-video.mp4"
+  "${PROJECT_DIR}/video-project/out/final.mp4"
 )
 
 MISSING=""
@@ -905,8 +905,8 @@ await generator.generateASS(subtitles, 'audio/subtitles.ass');
 ### 8.3 字幕质量验证
 
 ```bash
-# 烧录一帧截图验证字幕显示效果
-ffmpeg -y -i video-project/out/final-video.mp4 \
+  # 烧录一帧截图验证字幕显示效果
+ffmpeg -y -i video-project/out/final.mp4 \
   -vf "ass=audio/subtitles.ass" \
   -frames:v 1 -q:v 2 /tmp/subtitle-check.png
 
@@ -1059,36 +1059,31 @@ export const VerticalVideo: React.FC<{
 }
 ```
 
-### 10.4 视频渲染
+### 10.4 视频渲染（Remotion Native，音频内嵌）
 
 ```bash
 # ⚠️ 必须先执行 10.0 前置检查（Sequence帧数、帧数和验证）
 
-# 渲染无音频视频
-npx remotion render VerticalVideo \
-  --output out/video_noaudio.mp4 \
-  --fps 60 \
-  --height 1920 \
-  --width 1080
+# 计算帧数（60fps）
+AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
+  -of csv=p=0 "${PROJECT_DIR}/audio/neural_1_2x.m4a")
+TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
+
+# Remotion 直接渲染带音频成品（无需 ffmpeg 混流）
+cd "${PROJECT_DIR}/video-project" && npx remotion render VerticalVideo \
+  out/final.mp4 \
+  --concurrency=4 \
+  --fps=60 \
+  --duration-in-frames=${TOTAL_FRAMES} \
+  --disable-gpu
 ```
 
-### 10.5 音频混流
+### 10.5 音频验证（Remotion 内嵌，无需混流）
 
 ```bash
-# ⚠️ 必须用 -c:a aac -b:a 256k 强制重编码（禁止 -c:a copy）
-# ⚠️ Remotion raw 视频的音频轨道可能为空（RMS=-inf），必须完全替换
-ffmpeg -y \
-  -i out/video_noaudio.mp4 \
-  -i processed/audio_1_2x.m4a \
-  -c:v copy \
-  -c:a aac -b:a 256k \
-  -map 0:v -map 1:a \
-  -shortest \
-  out/final-video.mp4
-
-# ⚠️【强制】混流后音频验证（禁止跳过）
-# 最终视频的音频必须来自 edge-tts 文件，Remotion raw 视频只取视频流
-RMS_COUNT=$(ffmpeg -i out/final-video.mp4 \
+# Remotion Native 方案：音频由 <Audio> 组件内嵌，无需 ffmpeg 混流
+# 验证最终视频音频有效性
+RMS_COUNT=$(ffmpeg -i video-project/out/final.mp4 \
   -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" \
   -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l)
 if [ "$RMS_COUNT" -eq 0 ]; then
@@ -1098,7 +1093,7 @@ fi
 echo "✅ 最终视频音频有效（$RMS_COUNT 个有效样本）"
 
 # volumedetect 辅助验证
-ffmpeg -i out/final-video.mp4 -vn -af "volumedetect" -f null - 2>&1 | grep -E "mean_volume|max_volume"
+ffmpeg -i video-project/out/final.mp4 -vn -af "volumedetect" -f null - 2>&1 | grep -E "mean_volume|max_volume"
 ```
 
 ### 10.6 记录 Session 日志
@@ -1113,19 +1108,14 @@ session_status
 ### 10.7 视频预览（可选）
 
 ```bash
-# 方案一：Remotion still 预览（快速生成单帧预览）
-cd video-project
-npx remotion still VerticalVideo out/preview-frame-0.png --frame 0
-npx remotion still VerticalVideo out/preview-frame-mid.png --frame 450
-
-# 方案二：ffmpeg 生成缩略图预览（快速验证）
-ffmpeg -i video-project/out/final-video.mp4 \
+# 方案一：ffmpeg 生成缩略图预览（快速验证，已验证可用）
+ffmpeg -i video-project/out/final.mp4 \
   -vf "fps=1,scale=360:-1" \
   -frames:v 6 \
   video-project/out/preview-thumbs.jpg
 
 # 方案三：生成 GIF 预览（适合分享，文件较大）
-ffmpeg -i video-project/out/final-video.mp4 \
+ffmpeg -i video-project/out/final.mp4 \
   -vf "fps=5,scale=360:-1" \
   -frames:v 30 \
   video-project/out/preview.gif
@@ -1178,7 +1168,7 @@ echo "✅ session-log.md 已更新（最终状态）"
     "path": "workspace/${PROJECT_NAME}"
   },
   "files": {
-    "video": "video-project/out/final-video.mp4",
+    "video": "video-project/out/final.mp4",
     "audio": "audio/neural_1_2x.m4a",
     "subtitles": "audio/subtitles_*.ass"
   }
@@ -1228,7 +1218,7 @@ rm -rf video-project/node_modules/.cache
 rm -rf video-project/out/temp
 
 # 清理中间视频文件（保留最终视频）
-find video-project/out -name "*.mp4" ! -name "final-video.mp4" -delete
+find video-project/out -name "*.mp4" ! -name "final.mp4" -delete
 
 # 清理重复/低质量素材
 rm -f docs/assets/illustration-*_low.webp
@@ -1262,7 +1252,7 @@ REQUIRED_FILES=(
   "docs/assets/gen_subtitles.py"
   "audio/neural_1_2x_speed.m4a"
   "audio/subtitles_*.ass"
-  "video-project/out/final-video.mp4"
+  "video-project/out/final.mp4"
 )
 
 MISSING=""
@@ -1322,7 +1312,7 @@ fi
 | 内容插图   | `docs/assets/illustration-*.webp`   | 场景配图                 |
 | 音频文件   | `audio/neural_1_2x.m4a`             | 处理后音频（atempo 后）      |
 | 字幕文件   | `audio/subtitles_58s.ass`           | ASS 格式字幕（基于最终音频时长）   |
-| 最终视频   | `video-project/out/final-video.mp4` | 音频混流后的成品             |
+| 最终视频   | `video-project/out/final.mp4`    | Remotion Native 直出（音频内嵌）     |
 
 > ⚠️ **文档必须全部生成**，禁止跳过任何一个文件。参考 [PATHS.md](PATHS.md) 查看完整目录结构。
 

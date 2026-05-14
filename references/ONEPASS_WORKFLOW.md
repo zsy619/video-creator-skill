@@ -208,7 +208,7 @@ ffmpeg -y \
   -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p \
   -c:a aac -b:a 256k \
   -r 60 -s 1080x1920 \
-  "out/final_with_subs.mp4"
+  "out/final.mp4"
 
 rm -rf out/frames
 ```
@@ -239,12 +239,12 @@ node {SKILL_DIR}/scripts/video-quality-gate.js final
 ```
 
 **检查项**：
-- 文件存在：`out/final.mp4`（Remotion Native）或 `out/final_with_subs.mp4`（PIL fallback）
+- 文件存在：`video-project/out/final.mp4`
 - 帧率：60fps
 - 编码：H.264
 - 分辨率：1080×1920
 - 音频流：非空（AAC）
-- captions.json：Remotion Native 路径存在（PIL fallback 不需要）
+- captions.json：`video-project/public/audio/captions.json`（Remotion Native 字幕必需）
 
 **退出码**：0=通过，1=失败
 

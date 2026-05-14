@@ -6,7 +6,7 @@
 >
 > 1. **禁止分段拼接** — 必须整段连续生成配音
 > 2. **禁止跳过音频后处理** — 必须去静音 + 1.2x 语速 + AAC 256k
-> 3. **禁止在 Remotion 内嵌音频** — Remotion 渲染无音频 → ffmpeg 混流
+> 3. **✅ Remotion Native** — Remotion `<Audio>` 组件直接内嵌 MP4，无需 ffmpeg 混流；字幕通过 CaptionOverlay 同期烧录
 > 4. **音频文件必须命名** `neural_1_2x.m4a`
 > 5. **⚠️【新增】音频隔离原则** — Remotion raw 视频的音频轨道可能为空（结构正常但 RMS=-inf），所有音频必须来自 edge-tts 生成文件，raw 视频只用 `-map 0:v` 取视频流
 > 6. **⚠️【新增】音频码率强制** — 禁止 `-c:a copy`，必须 `-c:a aac -b:a 256k` 强制重编码
@@ -184,20 +184,27 @@ s2_end=$(echo "$fps * $dur * ($s1_pct + $s2_pct)" | bc | awk '{print int($1+0.5)
 # ...
 ```
 
-### Step 4: Remotion 代码
+### Step 4: Remotion Native 音频 + 字幕
 
-⚠️ **headless 环境禁止使用 Remotion Audio 组件**。音频通过 ffmpeg 外部注入（见 Step 5）。
+**Remotion Native 方案**（2026-05-13 起）：`<Audio>` 组件直接内嵌音频，`CaptionOverlay` 同期烧录字幕。无需 ffmpeg 混流。
 
 ```tsx
-// ✅ 正确：headless 环境不使用 Audio 组件
-// 音频通过 ffmpeg 混流注入最终视频
-import { registerRoot, Composition, AbsoluteFill, Img } from "remotion";
-// ❌ 错误：headless 环境禁止 Remotion Audio 组件
-// import { Audio } from "remotion";
-// <Audio src={require("../../audio/neural_1_2x.m4a")} />  ← 禁止！
+// Video.tsx 中使用 <Audio> 内嵌音频
+import { AbsoluteFill, Audio, staticFile } from "remotion";
+import { CaptionOverlay } from "./components/CaptionOverlay";
+
+// 音频直接内嵌，字幕通过 captions.json 同期烧录
+<AbsoluteFill>
+  <Audio src={staticFile("audio/neural_1_2x.m4a")} />
+  <CaptionOverlay captionsFile="audio/captions.json" />
+</AbsoluteFill>
 ```
 
-### Step 5: ffmpeg 混流（绕过 Remotion 编码杂音）
+> ⚠️ Remotion Native 方案无需 ffmpeg 混流。Step 5（ffmpeg 混流）已废弃，仅作历史参考。
+
+### Step 5: ~~ffmpeg 混流~~（⚠️ 已废弃，Remotion Native 无需此步）
+
+> **2026-05-14 标注**：Remotion Native 方案（`<Audio>` 内嵌）已取代 ffmpeg 混流。此步骤仅作历史参考，无需执行。
 
 ```bash
 # Remotion 渲染无音频视频，然后用 ffmpeg 混流

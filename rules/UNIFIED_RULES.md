@@ -3,7 +3,7 @@
 > **优先级：最高**
 > **适用范围**：所有 video-creator 技能生成的视频项目
 > **默认风格**：赛博朋克（Cyberpunk）
-> **最后更新**：2026-04-26
+> **最后更新**：2026-05-14
 
 ---
 
@@ -14,7 +14,7 @@
 | # | 问题 | 原因 | 教训 |
 |---|------|------|------|
 | 1 | 字幕太小 | 10px/18px 不适合竖屏 | **竖屏字幕必须 ≥72px** |
-| 2 | 封面字体小 | PIL 字体渲染有大小限制 | **封面必须用 Remotion still 渲染** |
+| 2 | 封面字体小 | PIL 字体渲染字号有限制 | **封面使用 PIL generate_cover.py，字号上限已定义** |
 | 3 | 黑屏 | 场景总帧数 < 视频总帧数 | **所有场景帧数之和必须 = 视频总帧数** |
 | 4 | 元素不居中 | CSS 硬编码 top 值 | **使用 Flexbox 居中，禁止硬编码偏移** |
 | 5 | 中间文件残留 | 未清理 | **只保留 final-with-subs.mp4** |
@@ -126,32 +126,26 @@ const SCENES = [
 | 微信公众号封面 | 900×383 | 公众号文章封面（必须单独生成！） |
 | 小红书封面 | 1440×2560 | 小红书 |
 
-#### 5.2 封面生成方案（Remotion 唯一路径）
+#### 5.2 封面生成方案（PIL 唯一路径）
 
-> **⚠️ 2026-05-13 更新**：封面图统一使用 `npx remotion still` 从 Remotion 项目渲染，PIL 已移除。
->
-> **⚠️ 关键：封面帧号必须使用动画完全进入的那一帧**
-> - 如果视频总帧数为 N，封面帧号 = `N - 2`（即最后一帧减1）
-> - 原因：帧0通常是动画淡入过程（opacity 0→1），文字不可见
-> - 验证方法：预览多个候选帧（0/30/60/N-2），选择文字最清晰的那一帧
+> **⚠️ 2026-05-14 更新**：封面图统一使用 `generate_cover.py` PIL 脚本生成，三平台独立渲染，不再使用 Remotion still。
+> **关键**：三平台封面各自独立生成（vertical / wechat / xhs），不再从 vertical 级联裁剪。
 
 ```bash
-# 1. 先渲染完整视频，得到总帧数 N
-npx remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=59.94 --duration-in-frames=N --disable-gpu
+SKILL_DIR="{SKILL_DIR}"
+PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
 
-# 2. 渲染封面（使用 N-2，即动画完全进入的那一帧）
-npx remotion still VerticalVideo docs/assets/cover.png --frame=N-2 --log=error
-
-# 截取公众号封面 900×383（居中裁剪）
-ffmpeg -y -i docs/assets/cover.png \
-  -vf "crop=900:383:(iw-900)/2:(ih-383)/2" \
-  docs/assets/cover-wechat.png
-
-# 截取小红书封面 1440×2560
-ffmpeg -y -i docs/assets/cover.png \
-  -vf "scale=1440:2560:force_original_aspect_ratio=decrease,pad=1440:2560:(ow-iw)/2:(oh-ih)/2" \
-  docs/assets/cover-xhs.png
+# 三平台封面各自独立生成
+python3 "$SKILL_DIR/scripts/generate_cover.py" "主标题" "副标题" "$PROJECT_DIR/docs/assets" vertical
+python3 "$SKILL_DIR/scripts/generate_cover.py" "主标题" "副标题" "$PROJECT_DIR/docs/assets" wechat
+python3 "$SKILL_DIR/scripts/generate_cover.py" "主标题" "副标题" "$PROJECT_DIR/docs/assets" xhs
 ```
+
+**字号安全上限**（generate_cover.py 内部强制约束）：
+| 类型 | vertical | wechat | xhs |
+|------|----------|--------|-----|
+| 主标题 | 130px | 100px | 180px |
+| 副标题 | 60px | 48px | 80px |
 
 #### 5.3 字号规范（Remotion 渲染）
 
@@ -161,7 +155,7 @@ ffmpeg -y -i docs/assets/cover.png \
 
 | 平台 | 分辨率 | 帧率 | 码率 |
 |------|--------|------|------|
-| 视频号/抖音/小红书 | 1080×1920 | 59.94fps | H.264 |
+| 视频号/抖音/小红书 | 1080×1920 | 60fps | H.264 |
 
 #### 5.5 自校验机制（Remotion 封面）
 
@@ -170,17 +164,15 @@ ffmpeg -y -i docs/assets/cover.png \
 | 封面尺寸 | 1080×1920 / 900×383 / 1440×2560 |
 | 文件大小 | > 20KB |
 
-#### 5.6 视频渲染流程
+#### 5.6 视频渲染流程（Remotion Native 字幕烧录）
 
 ```bash
-# Remotion 渲染
+# Remotion 渲染（含 CaptionOverlay 字幕，TikTok 逐字高亮风格）
 npx remotion render VerticalVideo out/final.mp4 \
-  --concurrency=4 --fps=59.94 --disable-gpu --log=error
+  --concurrency=4 --fps=60 --log=error
 
-# 字幕烧录
-ffmpeg -y -i out/final.mp4 \
-  -vf "ass=audio/subtitles.ass" -c:a copy \
-  out/final_with_subs.mp4
+# 音频在 Remotion 内嵌（<Audio> 组件），无需 ffmpeg 混流
+# captions.json 由 launch.sh Step 3 直接生成（比例分配算法），无需 ASS 转换
 ```
 
 ### 6. 赛博朋克风格规范（默认风格）
@@ -255,11 +247,11 @@ Step 4: 删除所有中间文件
 1. **禁止**字幕 < 72px
 2. **禁止**场景帧数之和 < 总帧数（会导致黑屏）
 3. **禁止**使用 `top: xxx px` 硬编码布局
-4. **禁止**Remotion Audio 组件（headless 环境不工作，音频通过 ffmpeg 外部注入）
-5. **禁止**在 Remotion 内嵌音频轨道（Remotion 渲染输出无音频 → ffmpeg 混流）
-6. **禁止**使用 `-c:a copy`（Remotion 内嵌音频轨道实际为静音 AAC）
-7. **禁止**封面使用 PIL（必须用 Remotion still 渲染）
-8. **禁止**在 Remotion 中集成字幕（用 ffmpeg 烧录）
+4. **必须**使用 Remotion `<Audio>` 组件（音频内嵌，headless 环境正常工作）
+5. **必须**在 Remotion 中集成字幕（`CaptionOverlay` + `captions.json` 同期烧录）
+6. **禁止**使用旧版 ffmpeg 混流（Remotion Native 方案无需混流）
+7. **禁止**使用 `-c:a copy` 复制 Remotion 内嵌的静音空音频轨道
+8. **禁止**封面使用级联裁剪（必须三平台独立生成）
 
 ---
 
@@ -270,19 +262,20 @@ Step 4: 删除所有中间文件
 - [ ] 字幕清晰可读（≥72px）
 - [ ] 无黑屏（最后帧 = 延续场景）
 - [ ] 只有 final-with-subs.mp4 一个视频文件
-- [ ] 封面图存在且尺寸正确（1080×1920）
-- [ ] 封面由 Remotion still 渲染
+- [ ] 封面图存在且尺寸正确（1080×1920 / 900×383 / 1440×2560）
+- [ ] 封面由 PIL generate_cover.py 生成，三平台各自独立
 
 ---
 
 ## 📝 经验总结
 
-### 为什么封面必须用 Remotion still 渲染？
+### 为什么封面使用 PIL 独立生成？
 
-Remotion still 渲染保证：
-- 与视频视觉风格完全一致（同一套 CSS/主题）
-- 字体渲染质量高（HTML/CSS 渲染引擎）
-- 无需额外工具或 API
+PIL generate_cover.py 生成封面：
+- 不依赖 Remotion 项目，可在视频渲染前独立运行
+- 三平台封面各自独立生成，不再级联裁剪
+- smart_resize_text() 自动处理长标题，字号安全上限已定义
+- 无需等待视频渲染完成，可提前生成预览封面
 
 ### 为什么字幕要在 ffmpeg 烧录？
 

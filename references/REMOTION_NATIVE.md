@@ -67,7 +67,6 @@
 ### 输入
 - `projectDir/video-config.json` — 主题/时长/分辨率配置
 - `projectDir/audio/neural_1_2x.m4a` — 配音文件
-- `projectDir/audio/subtitles.ass` — ASS 字幕（由 subtitle-generator.js 生成）
 
 ### 输出
 ```
@@ -94,7 +93,7 @@ video-project/
 └── public/
     └── audio/
         ├── neural_1_2x.m4a      # 音频（从 projectDir/audio/ 复制）
-        └── captions.json         # 字幕 JSON（从 ASS 转换）
+        └── captions.json         # 字幕 JSON（launch.sh Step 3 直接生成 startMs/endMs，非 ASS 转换）
 ```
 
 ---
@@ -141,11 +140,14 @@ video-project/
 
 ### 转换逻辑
 
-```
-ASS Dialogue 行 → Python 正则解析 Start/End 时间 → 文本清洗 → captions.json
-```
+> ⚠️ **launch.sh Step 3 直接生成 captions.json**，不是从 ASS 转换。
 
-> 完整转换脚本见 `ass-subtitle-gen.md` 或 `subtitle-tiktok-highlight.md`。
+```python
+# launch.sh Step 3 字幕生成逻辑
+# captions.json 由 launch.sh Step 3 直接生成，采用比例分配算法：
+# 总时长 = ffprobe 实测音频时长，每句按句子数等比划分时间槽
+# startMs/endMs 精确对应音频实际时间轴，字幕与音频完全同步
+```
 
 ---
 

@@ -114,8 +114,9 @@ const VerticalVideo: React.FC<VerticalVideoProps> = ({
       {/* 底部进度条 */}
       <ProgressBar theme={theme} />
 
-      {/* ⚠️ headless 环境：音频通过 ffmpeg 外部注入，禁止 Remotion Audio 组件 */}
-      {/* {audioUrl && <Audio src={audioUrl} />} ← 禁止！ */}
+      {/* ✅ Remotion Native：音频通过 <Audio> 直接内嵌 */}
+      {/* <Audio src={staticFile('audio/neural_1_2x.m4a')} /> */}
+      {/* <CaptionOverlay captionsFile="audio/captions.json" /> */}
     </AbsoluteFill>
   );
 };

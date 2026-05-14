@@ -95,7 +95,7 @@ echo "Remotion raw 音频有效样本: $RMS_COUNT"
 ### 节点4：最终视频（混流后）
 ```bash
 # ⚠️ 最终验证，禁止跳过
-RMS_COUNT=$(ffmpeg -i out/final-video.mp4 \
+RMS_COUNT=$(ffmpeg -i out/final.mp4 \
   -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" \
   -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l)
 [ "$RMS_COUNT" -eq 0 ] && echo "❌ 最终视频音频无效" && exit 1
@@ -234,6 +234,6 @@ ffmpeg -i video_raw.mp4 -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi
 # 0 = 空轨道，需要音频隔离
 
 # 4. 最终视频音频验证
-ffmpeg -i final-video.mp4 -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l
+ffmpeg -i final.mp4 -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l
 # 非0 = 有效
 ```

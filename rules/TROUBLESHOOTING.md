@@ -55,16 +55,13 @@ bun scripts/vendor/baoyu-fetch/src/cli.ts <url> --wait-for interaction
 
 ### Q: 音频有回音/重叠
 
-- 原因：多个 `<Audio>` 组件同时播放，或 Remotion 渲染时内嵌了音频
-- **解决方案：整个视频只用 1 个 `<Audio>` 组件，且必须通过 ffmpeg 混流嵌入，禁止在 Remotion 渲染时内嵌音频**
+- 原因：多个 `<Audio>` 组件同时播放
+- **解决方案：整个视频只用 1 个 `<Audio>` 组件**（Remotion `<Audio>` 直接内嵌，无回音问题）
 
 ### Q: Remotion 渲染后音频混入
 
-- **问题**：即使移除 `<Audio>` 组件，Remotion 4 仍会生成带静音音轨的视频
-- **解决方案**：
-  1. 确认 `VerticalVideo.tsx` 中**完全没有** `Audio` 和 `staticFile` 导入
-  2. `grep -n "Audio" src/VerticalVideo.tsx` 应只返回导入行
-  3. 如仍有音轨，用 ffmpeg 替换音频：`ffmpeg -y -i in.mp4 -c:v copy -c:a aac -b:a 256k -an out.mp4`
+- **Remotion Native 方案**：`<Audio>` 组件直接内嵌音频到 MP4，无需额外混流步骤
+- 如发现音频问题，用 ffprobe 验证：`ffprobe -v error -show_entries stream=codec_name,duration -of csv=p=0 out/final.mp4`
 
 ### Q: 音频有拼接感
 
@@ -83,7 +80,7 @@ bun scripts/vendor/baoyu-fetch/src/cli.ts <url> --wait-for interaction
 # bundle（用 index.ts）
 npx remotion bundle src/index.ts --output build/bundle.js
 # render（用 Composition ID）
-npx remotion render VerticalVideo out/final-video.mp4
+npx remotion render VerticalVideo out/final.mp4
 ```
 
 ### Q: ffmpeg 报 "No such file or directory"（output 目录不存在）
@@ -92,7 +89,7 @@ npx remotion render VerticalVideo out/final-video.mp4
 - **解决**: 先创建目录再执行 ffmpeg
 ```bash
 mkdir -p out/
-ffmpeg -i video-project/out/final-video.mp4 -i audio/neural_1_2x.m4a \
+ffmpeg -i video-project/out/final.mp4 -i audio/neural_1_2x.m4a \
   -c:v copy -c:a aac -shortest out/final-video-with-audio.mp4
 ```
 
@@ -257,8 +254,9 @@ export const VerticalVideo: React.FC = () => {
   const frame = useCurrentFrame(); // 在 Composition 内，可直接调用
   return (
     <AbsoluteFill>
-      {/* ⚠️ headless 环境：音频通过 ffmpeg 外部注入，禁止 Remotion Audio 组件 */}
-      {/* <Audio src={staticFile('audio/neural_1_2x.m4a')} /> ← 禁止！ */}
+      {/* ✅ Remotion Native：音频通过 <Audio> 直接内嵌 */}
+      {/* <Audio src={staticFile('audio/neural_1_2x.m4a')} /> */}
+      {/* <CaptionOverlay captionsFile="audio/captions.json" /> */}
       <Sequence from={0} durationInFrames={300}>
         <Scene1 frame={frame} /> {/* 通过 props 传递 frame */}
       </Sequence>

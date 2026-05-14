@@ -156,7 +156,7 @@ function Root() {
   return (
     <Composition
       id="VerticalVideo"         // render 命令的 composition ID
-      fps={59.94}
+      fps={60}
       height={1920}
       width={1080}
       durationInFrames={3024}
@@ -308,7 +308,7 @@ Error opening output file final_with_subtitles.mp4.
      -c:v libx264 -crf 18 -preset fast \
      -c:a aac -b:a 256k \
      -r 60 -s 1080x1920 \
-     out/final_with_subs.mp4
+     out/final.mp4
 
    （注意：ASS 滤镜只有视频输入端口，音频通过 -map 1:a 单独处理，不进滤镜链）
 ```

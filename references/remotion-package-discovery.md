@@ -78,7 +78,7 @@ ffmpeg -y -i final.mp4 -i neural_1_2x.m4a \
   -c:v libx264 -crf 18 -preset fast \
   -c:a aac -b:a 256k \
   -r 60 -s 1080x1920 \
-  final_with_subs.mp4
+  final.mp4
 ```
 
 ## 验证清单（新项目必查）

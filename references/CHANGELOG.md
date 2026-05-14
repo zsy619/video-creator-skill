@@ -8,7 +8,7 @@
 ## [Unreleased]
 
 ### 核心发现
-- **HTML字幕组件无法导出MP4**：CaptionOverlay（含 @remotion/captions 的所有HTML字幕组件）只在Remotion Player中渲染，导出MP4后完全消失。症状：`ffprobe` 显示 `subtitle:0KiB`。解决方案：Remotion渲染时禁用所有HTML字幕组件，改用 ffmpeg `subtitles`/`ass` 滤镜烧录。
+- **⚠️ 作废（2026-05-14 修正）**：`CaptionOverlay` 字幕在 Remotion Native 方案中**确实进入 MP4 帧**。CaptionOverlay 是 React 组件，通过 `<Sequence>` + 绝对定位 `<div>` 在每一帧渲染时将字幕绘制进画面，最终 MP4 包含烧录后的字幕。CHANGELOG 此条记录**基于早期错误认知（以为 HTML overlay 不进 MP4），现已废弃**。
 - **fontconfig 重要性**：macOS 上 libass 需 `~/.config/fontconfig/fonts.conf` 指向 `/System/Library/Fonts`
 
 ## 2026-05-13 — 语速实测修正 + Remotion Native 成功案例

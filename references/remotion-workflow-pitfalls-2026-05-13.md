@@ -49,7 +49,7 @@ TypeError: Cannot read properties of undefined (reading 'setVideoImageFormat')
 
 ```bash
 rm -f remotion.config.ts
-npx remotion render VerticalVideo out/final.mp4 --fps=59.94 --disable-gpu --log=error
+npx remotion render VerticalVideo out/final.mp4 --fps=60 --disable-gpu --log=error
 ```
 
 ---
@@ -104,7 +104,7 @@ import { useVideoConfig } from "remotion";                 // 不需要
 **正确写法**（静态时长）:
 ```typescript
 export const calculateMetadata = async () => {
-  const fps = 59.94;
+  const fps = 60;
   const audioDurationInSeconds = 40.426;  // 硬编码或从配置文件读取
   const durationInFrames = Math.ceil(audioDurationInSeconds * fps);
 
@@ -163,7 +163,7 @@ grep "@remotion/cli" package.json
 ls public/audio/neural_1_2x.m4a public/audio/captions.json
 
 # 5. 计算总帧数
-python3 -c "print(int(40.426 * 59.94))"  # ≈ 2423 帧
+python3 -c "print(int(40.426 * 60))"  # ≈ 2423 帧
 ```
 
 ---
@@ -199,7 +199,7 @@ print(f'平均亮度: {tb.mean():.1f}')
 - `>100 亮度像素也很少`: 文字基本不可见，需要从更晚的帧重新渲染
 
 **帧号选择策略**:
-- 封面动画时长 = 3秒 × 59.94fps = 180帧
+- 封面动画时长 = 3秒 × 60fps = 180帧
 - 渲染 `帧号 = 总帧数 - 1`（例如179，而非0或90）
 - 如果动画时长不是整数，提前一帧是安全的
 
@@ -231,7 +231,7 @@ magick /tmp/cover_frame179.png -resize 1440x2560 ../docs/assets/cover-xhs.png
 ```bash
 # 渲染视频
 npx remotion render VerticalVideo out/final.mp4 \
-  --fps=59.94 --disable-gpu --log=error
+  --fps=60 --disable-gpu --log=error
 
 # 生成封面
 npx remotion still VerticalVideo docs/assets/cover.png \

@@ -24,10 +24,10 @@
 
 | 方案 | 渲染路径 | 字幕来源 |
 |------|----------|----------|
-| **Remotion Native（主）** | Remotion 渲染 | `captions.json`（由 `create-remotion-project.js` 从 ASS 转换）|
+| **Remotion Native（主）** | Remotion 渲染 | `captions.json`（由 `launch.sh` Step 3 直接生成，比例分配算法）|
 | **ffmpeg ASS（fallback）** | PIL 帧序列混流 | `subtitles.ass`（`subtitle-generator.js` 输出）|
 
-> **Remotion Native 字幕烧录**：`create-remotion-project.js` 内置 ASS → `captions.json` 转换，`CaptionOverlay` 组件通过 `@remotion/captions` API 渲染到帧。
+> **Remotion Native 字幕烧录**：`launch.sh` Step 3 使用比例分配算法（总时长=ffprobe实测时长，按句子数等比划分）直接生成 `captions.json`（startMs/endMs 毫秒格式）。`CaptionOverlay` 组件读取 `captions.json` 通过 `@remotion/captions` API 渲染到帧。**无需 ASS 转换**。
 
 ### 规范冲突记录（已废弃的值）
 
@@ -43,7 +43,7 @@
 
 ```bash
 # 验证字幕 Fontsize=72
-ffmpeg -y -i final_with_subs.mp4 -vf "subtitles=audio/subtitles.ass" -frames:v 1 /tmp/check.png
+ffmpeg -y -i final.mp4 -vf "subtitles=audio/subtitles.ass" -frames:v 1 /tmp/check.png
 # 检查截图中的字幕大小（应约40px视觉）
 ```
 

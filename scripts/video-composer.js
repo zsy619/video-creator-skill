@@ -253,8 +253,9 @@ export const Video: React.FC = () => {
         </AbsoluteFill>
       </Sequence>
 
-      {/* 音频通过 ffmpeg 外部注入，禁止 Remotion Audio 组件（headless 环境不工作） */}
-    </AbsoluteFill>
+      {/* ✅ Remotion Native：音频通过 <Audio> 直接内嵌 */}
+      {/* <Audio src={staticFile('audio/neural_1_2x.m4a')} /> */}
+      {/* <CaptionOverlay captionsFile="audio/captions.json" /> */}
   );
 };`;
   }
@@ -354,7 +355,7 @@ export const RemotionVideo: React.FC = () => {
   async renderVideo(projectDir) {
     console.log('🔄 开始渲染视频...');
     
-    const outputPath = path.join(this.options.outputDir, 'video-project', 'out', 'final-video.mp4');
+    const outputPath = path.join(this.options.outputDir, 'video-project', 'out', 'final.mp4');
     
     try {
       // 安装依赖

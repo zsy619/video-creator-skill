@@ -25,7 +25,7 @@ metadata:
       - "Remotion Native渲染"
       - "@remotion/captions"
       - "音频内嵌视频"
-      - "59.94fps视频"
+      - "60fps视频"
     "clawdbot":
         "emoji": "🎬"
         "requires":
@@ -47,7 +47,45 @@ metadata:
 - **"生成公众号封面图" / "wechat-cover" / "微信封面"** → 执行 Step 6.2（使用 `generate_cover.py` PIL 生成）
 - **"企业级文案" / "优化 wechat-copy" / "优化 wechat-page"** → 执行 B/C 优化
 
-## ⚠️ 铁律：封面图是强制必选项
+### 已知问题：generate_docs.js 输出质量
+
+> **症状**：`generate_docs.js` 执行成功但 `narration.txt` 字数远低于安全上限（如 33字 vs 175字上限），或 `video-config.json` 报错"缺少配置文件"。
+
+**根因**：
+- `narration.txt` 由 `stripMarkdown()` 提取，该函数对中文标题/表格/列表结构解析能力弱，提取内容碎片化
+- `video-config.json` 必须在项目**根目录**（不是 `docs/`），否则 `generate_docs.js` 报错
+
+> **⚠️ JSON 有效性**：所有 `.json` 配置文件必须符合 JSON 语法，禁止重复键名（如 `"fps": 60` 出现两次）。可用 `node -e "JSON.parse(fs.readFileSync('video-config.json'))"` 预检。
+
+> **⚠️ captions.json 路径（已由脚本自动处理）**：`create-remotion-project.js` 已内置 captions.json 复制逻辑。若渲染时仍报 404，手动检查：
+> ```bash
+> ls "$PROJECT_DIR/audio/captions.json"          # 源文件存在？
+> ls "$PROJECT_DIR/video-project/public/audio/captions.json"  # 已复制到 public？
+> ```
+
+**修复流程**：
+```bash
+# 1. 确认 video-config.json 在正确位置
+[ -f "$PROJECT_DIR/video-config.json" ] || mv "$PROJECT_DIR/docs/video-config.json" "$PROJECT_DIR/"
+
+# 2. 运行 generate_docs.js
+node {SKILL_DIR}/scripts/generate_docs.js "$PROJECT_DIR"
+
+# 3. 检查 narration.txt 字数
+python3 -c "
+text = open('$PROJECT_DIR/docs/narration.txt').read()
+chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+max_chars = int(52 * 3.37)
+print(f'字数: {chinese_chars} / 上限: {max_chars}')
+assert chinese_chars >= 100, f'字数过少({chinese_chars})，需要手动重写'
+"
+
+# 4. 若字数不足，手动重写 narration.txt
+```
+
+**预防**：生成后立即检查字数，不要等到音频/渲染阶段才发现。
+
+### 铁律：封面图是强制必选项
 
 > **封面图是视频的门面，是用户第一眼看到的内容。封面未生成，不得进入音频生成和视频渲染步骤。**
 >
@@ -90,13 +128,14 @@ metadata:
 - [references/remotion-package-discovery.md](references/remotion-package-discovery.md) — `@remotion/core` 不存在；正确包名 `remotion`；47个 exports（Text 不存在）；React Error #130 根因；package.json 正确写法；渲染+混流命令
 - [references/subtitle-tiktok-highlight.md](references/subtitle-tiktok-highlight.md) — **⚠️ TikTok 逐字高亮特效完整方案**：`createTikTokStyleCaptions` 需要 word-level timing，ASS 只有 sentence-level，**必须用 interpolate 自定义 CaptionOverlay**；含完整 TSX 实现 + 入场/退场动画 + 荧光绿高亮
 - [references/video-one-shot-checks.md](references/video-one-shot-checks.md) — **⚠️ 一次生成到位铁律**：渲染前必做的 4 项预检（字数上限 / 英文句点 split 陷阱 / 叠速检测 / CaptionOverlay 方案确认）；"一次到位"用户偏好，工作流起点执行而非返工补救
-- [references/REMOTION_NATIVE.md](references/REMOTION_NATIVE.md) — **Remotion Native 渲染规范**：音频内嵌 + 字幕烧录 + 59.94fps/1080×1920/MP4 直出；三同步机制；create-remotion-project.js 用法
+- [references/REMOTION_NATIVE.md](references/REMOTION_NATIVE.md) — **Remotion Native 渲染规范**：音频内嵌 + 字幕烧录 + 60fps/1080×1920/MP4 直出；三同步机制；create-remotion-project.js 用法
+- [references/remotion-native-caption-burnin.md](references/remotion-native-caption-burnin.md) — **CaptionOverlay 字幕烧录机制**：React 组件在每帧绘制字幕进 MP4（非 HTML overlay）；字幕时间轴采用比例分配算法（ffprobe 实测时长，每句等比划分），与音频完全同步；TikTokCaptionLine 逐字高亮实现原理
 - [音频验证协议](references/audio-validation-protocol.md) — 音频有效性验证完整协议（4个验证节点）
 - [references/video-creator-remotion-conflicts-2026-05-11.md](references/video-creator-remotion-conflicts-2026-05-11.md) — **C1-C9 冲突审计报告**：video-composer.js Audio组件移除、calculateMetadata添加、entry路径修正、concurrency=4；含 remotion-best-practices 30+ 规则文件审查结果
 - [references/ass-subtitle-spec-2026-05-10.md](references/ass-subtitle-spec-2026-05-10.md) — **最终权威值**：Fontsize=72/PlayResX=1080/PlayResY=1920/MarginV=50/Outline=2/Format 10字段
 - [references/ass-subtitle-gen.md](references/ass-subtitle-gen.md) — **ASS字幕生成核心陷阱**：`re.split(r'[，。；、]+')` 不包含ASCII句点（否则`Claude4.5`被切断）；ASS时间解析`H:MM:SS.cc`需split成3段而非2段
 - [references/cover-smart-resize.md](references/cover-smart-resize.md) — 封面图尺寸验证
-- [references/path-standards.md](references/path-standards.md) — **铁律**：路径占位符标准（`{SKILL_DIR}`/`{WORKSPACE_DIR}`/`{project-name}`），禁止硬编码绝对路径
+- [references/repo-directory-cleanup.md](references/repo-directory-cleanup.md) — **GitHub 项目 -repo 目录清理规范**：克隆仓库提取内容后，渲染完成时删除目录
 - [references/remotion-sequence-black-screen-fix.md](references/remotion-sequence-black-screen-fix.md) — Sequence内帧计算错误（局部帧vs全局帧）
 - [references/remotion-subtitles-double-fix.md](references/remotion-subtitles-double-fix.md) — `<Subtitles />` 组件 + ASS 烧录导致双层字幕
 - [references/remotion-caption-overlay-pitfalls.md](references/remotion-caption-overlay-pitfalls.md) — ⚠️ **`createTikTokStyleCaptions` 对句子级字幕静默失效**；`useDelayRender` 在 Remotion 4.x 导致 `delayRender is not a function`；含两种解法（直接渲染 + TikTok 逐字高亮 `interpolate` 方案）
@@ -184,7 +223,7 @@ assert chinese_chars <= max_chars, f'字数超限: {chinese_chars} > {max_chars}
 |------|---------|
 | 禁止分段拼接配音 | 整段连续生成 |
 | 禁止跳过音频后处理 | 去静音 + 1.2x 语速 + AAC 256k |
-| 禁止在 Remotion 内嵌音频 | ✅ **Remotion Native（2026-05-13）**：Remotion `<Audio>` 组件直接内嵌 MP4，无需 ffmpeg 混流。字幕在 Remotion 渲染时同期烧录（`CaptionOverlay` + `@remotion/captions`），无需 ffmpeg ASS 滤镜。 |
+| 禁止使用旧版 ffmpeg 混流 | ✅ **Remotion Native（2026-05-13）**：Remotion `<Audio>` 组件直接内嵌 MP4，无需 ffmpeg 混流。字幕通过 `CaptionOverlay` + `@remotion/captions` 同期烧录进每一帧，无需 ffmpeg ASS 滤镜。 |
 
 ### ⚠️ 音频验证（必须执行）
 
@@ -322,6 +361,12 @@ cat >> "${PROJECT_DIR}/docs/session-log.md" << 'EOF'
 - Context: 168k/205k (82%)
 EOF
 ```
+或使用自动追加脚本：
+```bash
+node {SKILL_DIR}/scripts/session-log-append.py "$PROJECT_DIR" "Step X 完成"
+```
+
+**⚠️ generate_docs.js 执行后必须检查 narration.txt**：脚本输出的 narration.txt 常常字数过少（<50字），需要手动重写。详见"generate_docs.js 输出质量"章节。
 
 ---
 
@@ -385,7 +430,31 @@ echo "✅ session-log.md 已初始化"
 | 14 | 小红书封面 | `docs/assets/cover-xhs.png` | **强制必填，1440×2560（9:16）** |
 | 15 | 配音 | `audio/neural_1_2x.m4a` | edge-tts生成，1.2x语速 |
 | 16 | 字幕 | `audio/captions.json` | 字幕时间戳（startMs/endMs 毫秒格式），供 Remotion CaptionOverlay 使用 |
-| 17 | 最终视频 | `video-project/out/final_with_subs.mp4` | 字幕已烧录，52.8秒@59.94fps |
+| 17 | 最终视频 | `video-project/out/final.mp4` | Remotion Native 直出（音频内嵌 / 字幕同期），52.8秒@60fps |
+
+### ⚠️ 多文件同步检查（每次渲染流程修改后必做）
+
+> **核心教训（2026-05-14）**：渲染管道参数（输出文件名/帧率/字幕路径/音频路径）修改时，
+> 如果只改一个文件而不同步所有引用，会导致 16 个文件产生矛盾冲突，极难发现。
+>
+> **预防方法**：修改以下任意一项后，立即执行 grep 全局验证。
+
+| 修改项 | 必须同步检查的文件 |
+|--------|------------------|
+| 输出文件名（`final.mp4`） | launch.sh, video-quality-gate.js, video-composer.js, WORKFLOW.md, SKILL.md, 所有 rules/*.md, 所有 references/*.md |
+| 字幕路径（`public/audio/captions.json`） | launch.sh Step 3, create-remotion-project.js, CaptionOverlay.tsx |
+| 帧率（`60fps`） | launch.sh, WORKFLOW.md, create-remotion-project.js, ONEPASS_WORKFLOW.md |
+| 音频路径（`audio/neural_1_2x.m4a`） | launch.sh, create-remotion-project.js, video-quality-gate.js |
+
+```bash
+# 验证命令：渲染流程关键参数无矛盾
+SKILL_DIR="$HOME/.hermes/skills/video-creator"
+grep -rn "final_with_subs\|final-video\.mp4\|processed/audio_1_2x\|fps.*60\b" \
+  "$SKILL_DIR/scripts/" "$SKILL_DIR/rules/" "$SKILL_DIR/references/" 2>/dev/null | \
+  grep -v "CONFLICTS.md\|#.*期望\|注释\|示例" | \
+  grep -v "^.*\.md.*final_with_subs"  # allow in historical reference docs
+# 期望：0 行（任意匹配都表示有残留冲突）
+```
 
 ### Step 0 验证命令
 
@@ -520,19 +589,20 @@ grep "startMs\|endMs" {project}/audio/captions.json | head -5
 # {"text":"Hysteria 是开源社区明星项目","startMs":0,"endMs":5425}
 # Remotion 字幕叠加层陷阱与解法
 
-## 🔴 致命陷阱：HTML 字幕组件无法导出到 MP4
+## ✅ CaptionOverlay 字幕烧录机制（Remotion Native）
 
-**所有 `CaptionOverlay`（含 `@remotion/captions` 的 HTML 字幕组件）都是 HTML/CSS 组件，只在 Remotion Player 中渲染。导出 MP4 后完全消失——帧中没有任何字幕。**
+> **⚠️ 旧版文档（2026-05-13 之前）错误声称"HTML 字幕组件不进 MP4"——这是错的，已删除。**
 
-诊断：
+`CaptionOverlay`（`create-remotion-project.js` 第 171-292 行）是 React 组件，通过 `staticFile` 读取 `captions.json`，在 Remotion 渲染每一帧时用 `<Sequence>` + 绝对定位 `<div>` 将字幕绘制进画面。**最终 MP4 包含烧录后的字幕，无需 ffmpeg ASS 滤镜。**
+
+**验证**：
 ```bash
-ffprobe your_video.mp4 2>&1 | grep -E "subtitle|Stream"
-# 输出包含 subtitle:0KiB → 字幕未烧入
+# 渲染后检查字幕是否烧入（看帧内容，不看流）
+ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 out/final.mp4
+# 显示帧数（每帧含字幕）≠ 0
 ```
 
-**唯一可靠路径**：Remotion 渲染时不渲染任何字幕组件 → ffmpeg `subtitles`/`ass` 滤镜烧录。
-
-**禁止**：依赖 CaptionOverlay/TikTokCaptionOverlay 等 HTML 组件作为最终视频的字幕来源。
+**字幕同步机制**：captions.json 的 startMs/endMs 由 launch.sh Step 3 生成，采用**比例分配算法**（总时长 = ffprobe 实测音频时长，字幕按句子数等比划分时间槽）。每条字幕的 startMs/endMs 精确对应音频实际时间轴，字幕与音频完全同步。
 
 ---
 
@@ -631,7 +701,7 @@ bash {SKILL_DIR}/scripts/launch.sh init <项目名>
 #    Step 3: captions.json 生成（startMs/endMs 毫秒格式，供 CaptionOverlay 使用）
 #    Step 4: create-remotion-project.js（Remotion 项目，含 CaptionOverlay 逐字高亮）
 #    Step 5: npm install
-#    Step 6: npx remotion render（59.94fps/1080×1920，音频+字幕内嵌）
+#    Step 6: npx remotion render（60fps/1080×1920，音频+字幕内嵌）
 #    Step 7: PIL generate_cover.py（三平台封面）
 bash {SKILL_DIR}/scripts/launch.sh all
 ```
@@ -644,7 +714,7 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - `docs/video-script.md` — 分镜脚本
 - `audio/neural_1_2x.m4a` — 处理后音频（AAC 256k）
 - `audio/captions.json` — 字幕时间戳（startMs/endMs 格式，供 Remotion CaptionOverlay 使用）
-- `video-project/out/final_with_subs.mp4` — 最终视频（Remotion Native，含音频+字幕，59.94fps/H.264）
+- `video-project/out/final.mp4` — 最终视频（Remotion Native，含音频+字幕，60fps/H.264）
 
 **性能优化（2026-05-12 v3）**：
 - edge-tts + 帧生成并行：两者同时执行（~20s + ~50s → ~50s），节省 ~20s
@@ -663,6 +733,9 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - [rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md) - 提供视频渲染失败、baoyu获取内容、字体异常、音频回音/拼接、Remotion编码杂音、Chrome下载失败、create-video CLI交互bug等常见问题的解决方案。
 - [references/cloudflare-blocking-medium.md](references/cloudflare-blocking-medium.md) - **Medium.com Cloudflare 阻断**：所有自动化抓取均被阻止，article-to-video 任务需用户手动提供文章内容
 - [references/github-fetch-fallback.md](references/github-fetch-fallback.md) - **GitHub 内容获取降级流程**：HTTPS/代理/gh CLI/git:// 全部失败时的诊断顺序和用户报告模板
+- [references/generate_docs-issues-2026-05-14.md](references/generate_docs-issues-2026-05-14.md) - **generate_docs.js 已知问题**：video-config.json 路径（根目录而非 docs/）、narration.txt 自动生成质量差需手动检查
+- [references/launch-all-workflow-gaps-2026-05-14.md](references/launch-all-workflow-gaps-2026-05-14.md) — **`launch.sh all` 已知问题**：Gate B 失败后路径不一致导致提前退出，手动兜底流程
+- [references/remotion-captions-404-fix-2026-05-14.md](references/remotion-captions-404-fix-2026-05-14.md) — **captions.json 404 根因**：create-remotion-project.js 后 Remotion bundle 缓存导致音频文件丢失；必须在创建项目之前生成正确的 audio 文件
 - [references/node-execsync-encoding-bug.md](references/node-execsync-encoding-bug.md) - **Node.js execSync { encoding: 'utf8' } 返回值 bug**：encoding:'utf8' 直接返回字符串而非 { stdout } 对象；macOS arm64 Node.js 24 受影响；影响 ffprobe 解析
 
 ## ⚠️ 渲染路径：Remotion Native（唯一方案）
@@ -676,13 +749,13 @@ bash {SKILL_DIR}/scripts/launch.sh all
 cd video-project
 npx remotion render VerticalVideo out/final.mp4 \
   --concurrency=4 \
-  --fps=59.94 \
+  --fps=60 \
   --disable-gpu \
   --log=error
 
 # Step 2: 复制到输出目录
-cp out/final.mp4 "${OUTPUT_DIR}/final_with_subs.mp4"
-echo "✅ 最终视频已输出: final_with_subs.mp4"
+cp out/final.mp4 "${OUTPUT_DIR}/final.mp4"
+echo "✅ 最终视频已输出: final.mp4"
 ```
 
 ### 封面生成（PIL）
@@ -707,7 +780,7 @@ python3 "$SKILL_DIR/scripts/generate_cover.py" "$TITLE" "$SUBTITLE" "$PROJECT_DI
 
 ```bash
 # 验证最终视频
-ffprobe -v error -show_streams out/final_with_subs.mp4 2>&1 | grep -E "codec_name|width|height|duration|r_frame_rate"
+ffprobe -v error -show_streams out/final.mp4 2>&1 | grep -E "codec_name|width|height|duration|r_frame_rate"
 # 期望：codec_name=h264, width=1080, height=1920, duration≈43.4s, r_frame_rate=60000/1001
 ```
 
@@ -782,7 +855,7 @@ node {SKILL_DIR}/scripts/fix-remotion-project.js <project-dir>
 ```
   该脚本自动修复：themes/index.ts 连字符key、CaptionOverlay useDelayRender、Scene spring() 动画。运行后必须重新 `npm install` 再 `remotion render`。
 
-**实际验证（2026-05-13）**：在 Mac M-series headless 环境下 `npx remotion render` **成功渲染**，输出 4.4MB / 43.4秒 / 1080×1920 / 59.94fps 视频。结论与旧版文档矛盾，以本条为准。
+**实际验证（2026-05-13）**：在 Mac M-series headless 环境下 `npx remotion render` **成功渲染**，输出 4.4MB / 43.4秒 / 1080×1920 / 60fps 视频。结论与旧版文档矛盾，以本条为准。
 ### launch.sh all 说明
 
 `launch.sh all` 执行完整生成流程（不是只跑门禁）：
