@@ -146,6 +146,30 @@ PYEOF
 > 1. 检查 `~/.baoyu-skills/baoyu-imagine/EXTEND.md` 确认 provider 配置
 > 2. 尝试其他 provider（openrouter / replicate / dashscope / minimax）
 > 3. 所有 API 不可用时 → 使用 PIL 代码生成（见 rules/TROUBLESHOOTING.md 方案二）
+>
+### 封面属性标签（Attrs）
+
+> ⚠️ **attrs 渲染规范已更新（2026-05-14）**：白底 + 黑字 + 左侧 10px 彩色条纹方案，替代旧版白色文字 + 彩色半透明背景。详见 [references/cover-attrs-rendering-fix-2026-05-14.md](references/cover-attrs-rendering-fix-2026-05-14.md)
+
+PIL 封面支持在**副标题下方**渲染 4-8 个属性标签（偶数个，双行棋盘格排版）。属性从 `video-config.json` 的 `cover.attrs` 字段读取：
+
+```json
+{
+  "cover": {
+    "title": "主标题",
+    "subtitle": "副标题",
+    "attrs": ["开源免费", "纯本地运行", "支持Gemma4", "保护隐私"]
+  }
+}
+```
+
+**规则**：
+- 必须为偶数个（4/6/8），奇数自动丢弃最后一个
+- 超出 8 个自动截断
+- 双行棋盘格排版：每行 2 个标签，白底 + 黑字 + 左侧 10px 彩色条纹
+- **所有标签宽度统一**：以最长文字为基准计算 `tag_w`，禁止每列独立计算宽度（会导致两行总宽度不一致）
+- 颜色循环使用：青色/洋红/紫色/绿松石/橙色/金色/玫红/天蓝
+- 三平台（vertical/wechat/xhs）共享同一组 attrs，按各平台字号独立渲染
 
 ### 输入模式
 - [rules/INPUT.md](rules/INPUT.md) - 内容输入模式
@@ -180,6 +204,7 @@ PYEOF
 - [references/remotion-sequence-black-screen-fix.md](references/remotion-sequence-black-screen-fix.md) — Sequence内帧计算错误（局部帧vs全局帧）
 - [references/remotion-subtitles-double-fix.md](references/remotion-subtitles-double-fix.md) — `<Subtitles />` 组件 + ASS 烧录导致双层字幕
 - [references/remotion-caption-overlay-pitfalls.md](references/remotion-caption-overlay-pitfalls.md) — ⚠️ **`createTikTokStyleCaptions` 对句子级字幕静默失效**；`useDelayRender` 在 Remotion 4.x 导致 `delayRender is not a function`；含两种解法（直接渲染 + TikTok 逐字高亮 `interpolate` 方案）
+- [references/remotion-backup-rebuild.md](references/remotion-backup-rebuild.md) — **从备份恢复 Remotion 项目**：node_modules 版本冲突修复（`Cannot find module './dist/index'`）、Audio 组件路径要求（`public/audio/` 而非 `src/audio/`）、完整重建流程
 - [references/remotion-package-discovery.md](references/remotion-package-discovery.md) — `@remotion/core` 不存在；正确包名 `remotion`；47个 exports（Text 不存在）；React Error #130 根因；package.json 正确写法；渲染命令
 - [references/edge-tts-cli-usage.md](references/edge-tts-cli-usage.md) — **edge-tts正确CLI用法**：`--write-media`（不是`--output`）；`--rate`用百分比格式；SubtitleGenerator是默认导出（`require()`直接，不可用named import）
 - [references/git-clone-timeout-fix.md](references/git-clone-timeout-fix.md) — **Git Clone Timeout**：大仓库 clone 超时，使用 `--depth 1` 浅克隆解决
@@ -773,9 +798,11 @@ bash {SKILL_DIR}/scripts/launch.sh all
 ```
 
 **输出文件清单**：
-- `docs/assets/cover.png` — 竖屏封面（1080×1920）
-- `docs/assets/cover-wechat.png` — 公众号封面（900×383）
-- `docs/assets/cover-xhs.png` — 小红书封面（1440×2560）
+| `docs/assets/cover.png` | 视频号封面 |
+| `docs/assets/cover-wechat.png` | 公众号封面 |
+| `docs/assets/cover-xhs.png` | 小红书封面 |
+
+
 - `docs/narration.txt` — 配音文本
 - `docs/video-script.md` — 分镜脚本
 - `audio/neural_1_2x.m4a` — 处理后音频（AAC 256k）
@@ -800,6 +827,7 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - [references/cloudflare-blocking-medium.md](references/cloudflare-blocking-medium.md) - **Medium.com Cloudflare 阻断**：所有自动化抓取均被阻止，article-to-video 任务需用户手动提供文章内容
 - [references/github-fetch-fallback.md](references/github-fetch-fallback.md) - **GitHub 内容获取降级流程**：HTTPS/代理/gh CLI/git:// 全部失败时的诊断顺序和用户报告模板
 - [references/generate_docs-issues-2026-05-14.md](references/generate_docs-issues-2026-05-14.md) — **generate_docs.js 已知问题**：video-config.json 路径 + narration.txt 100%返工率（本 session 8个项目全部手动重写）
+- [references/launch-sh-bugs-2026-05-14.md](references/launch-sh-bugs-2026-05-14.md) — **launch.sh Bug 修复**：SKILL_DIR 路径错误 + captions.json 未同步到 audio/ + pre-render-check 路径问题
 - [references/captions-json-python-generation-2026-05-14.md](references/captions-json-python-generation-2026-05-14.md) — **captions.json 必须用 Python 生成**：Node.js -e inline 模板字符串在中文 TTS 场景有致命缺陷，Python heredoc 100% 可靠
 - [references/narration-rewrite-pattern.md](references/narration-rewrite-pattern.md) — **narration.txt 必然经历 3 次重写**：generate_docs.js 几乎每次都生成字数异常（实测 8/8 项目），需经过"超限→精简→过短→补全"循环；含 Python 验数字数和 rewrite 策略
 - [references/launch-all-workflow-gaps-2026-05-14.md](references/launch-all-workflow-gaps-2026-05-14.md) — **`launch.sh all` 已知问题**：Gate B 失败后路径不一致导致提前退出，手动兜底流程

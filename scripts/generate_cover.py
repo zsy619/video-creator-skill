@@ -142,6 +142,41 @@ TAG_SIZES = {
     'wechat':  36,
     'xhs':     56,
 }
+ATTR_SIZES = {
+    'vertical': 36,
+    'wechat':  30,
+    'xhs':     48,
+}
+ATTR_PAD_X = {
+    'vertical': 36,
+    'wechat':  28,
+    'xhs':     48,
+}
+ATTR_PAD_Y = {
+    'vertical': 8,
+    'wechat':  6,
+    'xhs':     10,
+}
+ATTR_ROUND_R = {
+    'vertical': 20,
+    'wechat':  16,
+    'xhs':     26,
+}
+ATTR_GAP = {
+    'vertical': 16,
+    'wechat':  12,
+    'xhs':     22,
+}
+ATTR_BG_COLORS = [
+    '#00FFFF',  # 青色
+    '#FF00FF',  # 洋红
+    '#9D00FF',  # 紫色
+    '#00FF88',  # 绿松石
+    '#FF6600',  # 橙色
+    '#FFD700',  # 金色
+    '#FF3366',  # 玫红
+    '#33CCFF',  # 天蓝
+]
 URL_SIZES = {
     'vertical': 24,
     'wechat':  20,
@@ -243,13 +278,14 @@ def hex_to_rgb(hex_color):
     return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
 
-def create_cover(title, subtitle, output_path, canvas_type='vertical'):
+def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical'):
     """
     生成封面图。使用 smart_resize_text() 自动处理长标题。
 
     参数:
         title:       主标题（超过8字会自动缩放）
         subtitle:    副标题（可选）
+        attrs:       属性标签列表（4-8个偶数，渲染在副标题下方；空列表则跳过）
         output_path: 输出文件路径
         canvas_type: 'vertical' | 'wechat' | 'xhs'
     """
@@ -315,9 +351,86 @@ def create_cover(title, subtitle, output_path, canvas_type='vertical'):
     draw.text((X, title_y), title, fill='#FFFFFF', font=font_title, anchor='mm')
 
     # ---- 副标题 ----
+    sub_y = title_y + title_h + gap
     if subtitle:
-        sub_y = title_y + title_h + gap
         draw.text((X, sub_y), subtitle, fill='#00FFFF', font=font_sub, anchor='mm')
+
+    # ---- 属性标签（偶数个，4-8个，双行棋盘格排版）----
+    attrs_y = sub_y + sub_h + gap if subtitle else title_y + title_h + gap
+
+    if attrs and len(attrs) >= 2:
+        # 确保偶数个（超过8个则截断）
+        if len(attrs) > 8:
+            attrs = attrs[:8]
+        if len(attrs) % 2 != 0:
+            attrs = attrs[:-1]
+
+        pad_x = ATTR_PAD_X[canvas_type]
+        pad_y = ATTR_PAD_Y[canvas_type]
+        r = ATTR_ROUND_R[canvas_type]
+        attr_gap = ATTR_GAP[canvas_type]
+
+        # ---- 统一字号：基于最长文本计算（保证所有标签字号相同）----
+        font_attr = ImageFont.truetype(FONT_PATH, ATTR_SIZES[canvas_type])
+        dummy_img = Image.new('RGB', (1, 1))
+        dummy_draw = ImageDraw.Draw(dummy_img)
+        max_text_w = 0
+        max_text_h = 0
+        for a in attrs:
+            tbbox = dummy_draw.textbbox((0, 0), a, font=font_attr)
+            tw = tbbox[2] - tbbox[0]
+            th = tbbox[3] - tbbox[1]
+            max_text_w = max(max_text_w, tw)
+            max_text_h = max(max_text_h, th)
+
+        # 标签固定高度（统一高度）
+        tag_h = max_text_h + pad_y * 2
+
+        # ---- 统一标签宽度：所有标签同宽，两列合计居中 ----
+        # 标签宽度 = 最长文字宽度 + 左右 padding
+        tag_w = max_text_w + pad_x * 2
+
+        # 两列总宽度（含间隙）
+        total_w = tag_w * 2 + attr_gap
+        start_x = (w - total_w) // 2
+        start_y = attrs_y
+        row_h = tag_h + attr_gap
+
+        img = img.convert('RGBA')
+
+        for idx, a in enumerate(attrs):
+            col = idx % 2
+            row = idx // 2
+            ax = start_x + col * (tag_w + attr_gap)
+            ay = start_y + row * row_h
+            color = ATTR_BG_COLORS[idx % len(ATTR_BG_COLORS)]
+            rgb = hex_to_rgb(color)
+
+            # 实心白底圆角矩形
+            solid_bg = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+            sd = ImageDraw.Draw(solid_bg)
+            sd.rounded_rectangle([ax, ay, ax + tag_w, ay + tag_h], r, fill=(255, 255, 255, 255))
+            img = Image.alpha_composite(img, solid_bg)
+
+            # 左侧彩色竖条纹（10px宽，左对齐，圆角在左上/左下）
+            sd2 = ImageDraw.Draw(img)
+            sd2.rounded_rectangle(
+                [ax, ay, ax + 10, ay + tag_h],
+                r,
+                fill=(*rgb, 255)
+            )
+
+            # 文字居中（黑色粗体，anchor='mm' 以文字边界框中心对齐）
+            tx = ax + tag_w // 2
+            ty = ay + tag_h // 2
+            draw = ImageDraw.Draw(img)
+            draw.text((tx, ty), a, fill='#1A1A1A', font=font_attr, anchor='mm')
+
+        # 更新垂直起始点
+        rows = len(attrs) // 2
+        attrs_bottom = start_y + rows * row_h
+    else:
+        attrs_bottom = attrs_y
 
     # ========== 自校验 ==========
     # ⚠️ 关键检查：宽度必须 < 画布 90%（这是硬约束）
@@ -340,14 +453,19 @@ def create_cover(title, subtitle, output_path, canvas_type='vertical'):
 if __name__ == '__main__':
     argc = len(sys.argv)
     if argc < 4:
-        print(f"用法: {sys.argv[0]} \"主标题\" \"副标题\" output_dir [canvas_type]")
+        print(f"用法: {sys.argv[0]} \"主标题\" \"副标题\" output_dir [canvas_type] [attrs]")
         print(f"canvas_type: vertical(默认) | wechat | xhs")
+        print(f"attrs: 逗号分隔的属性标签（4-8个偶数，如 \"开源,免费,跨平台\"）")
         sys.exit(1)
 
     title       = sys.argv[1]
     subtitle    = sys.argv[2]
     output_dir  = sys.argv[3]
     canvas_type = sys.argv[4] if argc > 4 else 'vertical'
+    attrs_str   = sys.argv[5] if argc > 5 else ''
+
+    # 解析 attrs（逗号分隔，丢弃空串）
+    attrs = [a.strip() for a in attrs_str.split(',') if a.strip()] if attrs_str else []
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -359,7 +477,7 @@ if __name__ == '__main__':
     output_path = os.path.join(output_dir, filenames[canvas_type])
 
     try:
-        create_cover(title, subtitle, output_path, canvas_type)
+        create_cover(title, subtitle, attrs, output_path, canvas_type)
     except ValueError as e:
         print(f"❌ 封面生成失败: {e}")
         sys.exit(1)

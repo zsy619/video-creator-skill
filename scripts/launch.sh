@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-SKILL_DIR="${SKILL_DIR:-$HOME/AISkills/video-creator}"
+SKILL_DIR="${SKILL_DIR:-$HOME/.hermes/skills/video-creator}"
 SCRIPT_DIR="${SKILL_DIR}/scripts"
 GATE="${SCRIPT_DIR}/video-quality-gate.js"
 
@@ -61,7 +61,7 @@ EOF
 # ── 子命令: init ──────────────────────────────────────────────────────────────
 cmd_init() {
   local name="$1"
-  local workspace="${PROJECT_DIR:-$(cd .. && pwd)}"
+  local workspace="${PROJECT_DIR:-/Volumes/OpenClawDrive/.hermes/workspace}"
   local proj_dir="${workspace}/${name}"
 
   log "初始化项目: ${proj_dir}"
@@ -358,6 +358,8 @@ cmd_all() {
   COVER_TITLE=$(node -e "console.log(require('${config_file}').cover?.title || require('${config_file}').title || '视频标题')")
   local COVER_SUBTITLE
   COVER_SUBTITLE=$(node -e "console.log(require('${config_file}').cover?.subtitle || require('${config_file}').subtitle || '')")
+  local COVER_ATTRS
+  COVER_ATTRS=$(node -e "console.log((require('${config_file}').cover?.attrs || require('${config_file}').attrs || []).join(','))")
   local cover_out="${proj_dir}/docs/assets"
 
   for canvas in vertical wechat xhs; do
@@ -366,6 +368,7 @@ cmd_all() {
       "$COVER_SUBTITLE" \
       "$cover_out" \
       "$canvas" \
+      "$COVER_ATTRS" \
       >> /tmp/cover.$$.out 2>&1
     [ $? -eq 0 ] && ok "✅ $canvas 封面生成完成" || warn "⚠️ $canvas 封面生成失败"
   done
@@ -462,6 +465,8 @@ print(f'CAPTION_OK:{len(captions)} captions ({AUDIO_DURATION:.3f}s total)')
   fi
   CAPTION_COUNT=$(grep "CAPTION_OK" /tmp/caption_gen.$$.out | cut -d: -f2)
   ok "✅ captions.json 生成完成: video-project/public/audio/captions.json（${CAPTION_COUNT} 条）"
+  # 同时复制到 audio/（供 Gate B 检查使用）
+  cp "${VP_DIR}/public/audio/captions.json" "${proj_dir}/audio/captions.json"
   rm -f /tmp/caption_gen.$$.out
 
   # ── Gate B（字数检查）───────────────────────────────────────────────
@@ -555,6 +560,7 @@ print(f'CAPTION_OK:{len(captions)} captions ({AUDIO_DURATION:.3f}s total)')
       "$COVER_SUBTITLE" \
       "${proj_dir}/docs/assets" \
       "$canvas" \
+      "$COVER_ATTRS" \
       >> /tmp/cover_step8.$$.out 2>&1
     [ $? -eq 0 ] && ok "✅ $canvas 封面生成完成" || warn "⚠️ $canvas 封面生成失败"
   done
