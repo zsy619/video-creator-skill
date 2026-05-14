@@ -13,7 +13,7 @@
 
 ### 验证命令
 ```bash
-PROJECT_DIR="~/VideoProjects/{project-name}"
+PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
 for f in README.md article.md video-script.md copy.md wechat-copy.md posting-guide.md landing-page.html article-page.html wechat-page.html session-log.md report.json; do
   if [ ! -f "$PROJECT_DIR/docs/$f" ]; then
     echo "❌ 缺失: $f"

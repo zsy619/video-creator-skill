@@ -44,7 +44,7 @@ metadata:
 - "检查视频质量" / "修复字幕字体" / "批量处理视频"
 - "大字体" / "大字体视频" / "字体要大"
 - **"发布公众号" / "微信公众号" / "微信文章" / "发到公众号"** → 执行 Step 12.5
-- **"生成公众号封面图" / "wechat-cover" / "微信封面"** → 执行 Step 6.2
+- **"生成公众号封面图" / "wechat-cover" / "微信封面"** → 执行 Step 6.2（使用 `generate_cover.py` PIL 生成）
 - **"企业级文案" / "优化 wechat-copy" / "优化 wechat-page"** → 执行 B/C 优化
 
 ## ⚠️ 铁律：封面图是强制必选项
@@ -95,7 +95,8 @@ metadata:
 - [references/video-creator-remotion-conflicts-2026-05-11.md](references/video-creator-remotion-conflicts-2026-05-11.md) — **C1-C9 冲突审计报告**：video-composer.js Audio组件移除、calculateMetadata添加、entry路径修正、concurrency=4；含 remotion-best-practices 30+ 规则文件审查结果
 - [references/ass-subtitle-spec-2026-05-10.md](references/ass-subtitle-spec-2026-05-10.md) — **最终权威值**：Fontsize=72/PlayResX=1080/PlayResY=1920/MarginV=50/Outline=2/Format 10字段
 - [references/ass-subtitle-gen.md](references/ass-subtitle-gen.md) — **ASS字幕生成核心陷阱**：`re.split(r'[，。；、]+')` 不包含ASCII句点（否则`Claude4.5`被切断）；ASS时间解析`H:MM:SS.cc`需split成3段而非2段
-- [references/cover-smart-resize.md](references/cover-smart-resize.md) — 封面图尺寸验证（Remotion 渲染）
+- [references/cover-smart-resize.md](references/cover-smart-resize.md) — 封面图尺寸验证
+- [references/path-standards.md](references/path-standards.md) — **铁律**：路径占位符标准（`{SKILL_DIR}`/`{WORKSPACE_DIR}`/`{project-name}`），禁止硬编码绝对路径
 - [references/remotion-sequence-black-screen-fix.md](references/remotion-sequence-black-screen-fix.md) — Sequence内帧计算错误（局部帧vs全局帧）
 - [references/remotion-subtitles-double-fix.md](references/remotion-subtitles-double-fix.md) — `<Subtitles />` 组件 + ASS 烧录导致双层字幕
 - [references/remotion-caption-overlay-pitfalls.md](references/remotion-caption-overlay-pitfalls.md) — ⚠️ **`createTikTokStyleCaptions` 对句子级字幕静默失效**；`useDelayRender` 在 Remotion 4.x 导致 `delayRender is not a function`；含两种解法（直接渲染 + TikTok 逐字高亮 `interpolate` 方案）
@@ -247,7 +248,7 @@ node {SKILL_DIR}/video-creator/scripts/pre-render-check.js <Video.tsx> <fps> <du
          ↓
 4. Remotion 渲染（音频内嵌 + 字幕同期烧录）→ 最终 MP4
          ↓（封面）
-5. npx remotion still → cover.png → ffmpeg crop/pad → cover-wechat.png / cover-xhs.png
+5. PIL generate_cover.py → cover.png → cover-wechat.png / cover-xhs.png
 ```
 
 ### ⚠️ Step 0 强制检查清单（禁止跳过）
@@ -256,7 +257,7 @@ node {SKILL_DIR}/video-creator/scripts/pre-render-check.js <Video.tsx> <fps> <du
 
 ```bash
 # Step 0 完成后必须执行此验证
-PROJECT_DIR="~/VideoProjects/{project-name}"
+PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
 for f in README.md article.md video-script.md copy.md wechat-copy.md posting-guide.md landing-page.html article-page.html wechat-page.html session-log.md report.json; do
   if [ ! -f "$PROJECT_DIR/docs/$f" ]; then
     echo "❌ 缺失: $f"
@@ -336,7 +337,7 @@ EOF
 
 ```bash
 # Step 0 开始时：初始化 session-log.md
-PROJECT_DIR="~/VideoProjects/{project-name}"
+PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
 START_TIME=$(date '+%Y-%m-%d %H:%M %Z')
 
 cat > "${PROJECT_DIR}/docs/session-log.md" << 'HDRY'
@@ -390,7 +391,7 @@ echo "✅ session-log.md 已初始化"
 
 ```bash
 # 验证所有文档是否存在
-PROJECT_DIR="~/VideoProjects/{project-name}"
+PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
 for f in README.md article.md video-script.md copy.md wechat-copy.md posting-guide.md landing-page.html article-page.html wechat-page.html session-log.md report.json; do
   if [ ! -f "$PROJECT_DIR/docs/$f" ]; then
     echo "❌ 缺失: $f"
@@ -517,9 +518,25 @@ import { AbsoluteFill } from '@remotion/core';
 grep "startMs\|endMs" {project}/audio/captions.json | head -5
 # 期望：每条字幕含 startMs、endMs、text 字段，例：
 # {"text":"Hysteria 是开源社区明星项目","startMs":0,"endMs":5425}
+# Remotion 字幕叠加层陷阱与解法
+
+## 🔴 致命陷阱：HTML 字幕组件无法导出到 MP4
+
+**所有 `CaptionOverlay`（含 `@remotion/captions` 的 HTML 字幕组件）都是 HTML/CSS 组件，只在 Remotion Player 中渲染。导出 MP4 后完全消失——帧中没有任何字幕。**
+
+诊断：
+```bash
+ffprobe your_video.mp4 2>&1 | grep -E "subtitle|Stream"
+# 输出包含 subtitle:0KiB → 字幕未烧入
 ```
 
-### ❌ 错误5：`createTikTokStyleCaptions` 对句子级字幕静默失效
+**唯一可靠路径**：Remotion 渲染时不渲染任何字幕组件 → ffmpeg `subtitles`/`ass` 滤镜烧录。
+
+**禁止**：依赖 CaptionOverlay/TikTokCaptionOverlay 等 HTML 组件作为最终视频的字幕来源。
+
+---
+
+## 致命陷阱：`createTikTokStyleCaptions` 对句子级字幕静默失效
 
 **影响**：Remotion 渲染成功无报错，但字幕完全不可见。
 
@@ -615,7 +632,7 @@ bash {SKILL_DIR}/scripts/launch.sh init <项目名>
 #    Step 4: create-remotion-project.js（Remotion 项目，含 CaptionOverlay 逐字高亮）
 #    Step 5: npm install
 #    Step 6: npx remotion render（59.94fps/1080×1920，音频+字幕内嵌）
-#    Step 7: npx remotion still（封面图）→ ffmpeg crop/pad（公众号/小红书封面）
+#    Step 7: PIL generate_cover.py（三平台封面）
 bash {SKILL_DIR}/scripts/launch.sh all
 ```
 
@@ -635,6 +652,7 @@ bash {SKILL_DIR}/scripts/launch.sh all
 - Gate B（~3s）在帧生成完成后串行执行（无法提前，因为字幕文件需要等字幕生成完成）
 - Remotion 帧并行化：`--concurrency=4` 参数控制并行渲染
 - 删除 re-encoding：edge-tts 输出码率已足够，跳过无意义重编码
+- 封面：PIL generate_cover.py 直接生成三平台封面，无需 Remotion still
 - 整体构建时间：~300-400s → ~50-80s（提升 75-85%）
 - 时间线：`[edge-tts+帧生成(并行50s)] → [GateA+字幕(并行25s)] → [GateB(3s)] → [Remotion渲染(20-60s)] → [封面(5s)]`
 - [rules/QUALITY.md](rules/QUALITY.md) - 定义视频质量检查清单，涵盖内容、视觉、文件、技术、音频五大维度的检查标准。
@@ -667,48 +685,22 @@ cp out/final.mp4 "${OUTPUT_DIR}/final_with_subs.mp4"
 echo "✅ 最终视频已输出: final_with_subs.mp4"
 ```
 
-### 封面生成（Remotion still）
+### 封面生成（PIL）
+
+> **⚠️ 2026-05-14 更新**：封面改用 `generate_cover.py` PIL 脚本直接生成三平台封面，不再依赖 Remotion still。
 
 ```bash
-### 渲染后验证（必须执行）
+SKILL_DIR="{SKILL_DIR}"
+PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
 
-```bash
-# 用 Python 检查文字区域亮度，判断文字是否可见
-python3 -c "
-from PIL import Image
-import numpy as np
-img = Image.open('/tmp/cover_frame.png')
-arr = np.array(img)
-h, w = arr.shape[:2]
-center = arr[h//3:2*h//3, w//3:2*w//3]
-tb = center.max(axis=2)
-bright200 = np.sum(tb > 200)
-print(f'中心区域亮度>200像素: {bright200}')
-if bright200 < 1000:
-    print('❌ 文字可能不可见 — 使用 ImageMagick 增强')
-else:
-    print('✅ 文字清晰可见')
-"
+# 主标题和副标题从 video-config.json 或 docs/assets/ 获取
+TITLE=$(node -e "const c=require('./video-config.json');console.log(c.title||c.topic)")
+SUBTITLE=$(node -e "const c=require('./video-config.json');console.log(c.subtitle||'')" 2>/dev/null || echo "")
 
-# 如果文字偏暗，用 ImageMagick 增强
-if [亮度不足]; then
-  magick /tmp/cover_frame.png -level 10%,60%,1.5 -brightness-contrast 20x15 /tmp/cover_enhanced.png
-  cp /tmp/cover_enhanced.png docs/assets/cover.png
-fi
-```
-
-### 渲染视频号封面 1080×1920
-npx remotion still VerticalVideo /tmp/cover_frame.png --frame 179 --log=error
-
-# 从同一帧截取公众号封面 900×383（居中裁剪）
-ffmpeg -y -i docs/assets/cover.png \
-  -vf "crop=900:383:(iw-900)/2:(ih-383)/2" \
-  docs/assets/cover-wechat.png
-
-# 从同一帧截取小红书封面 1440×2560
-ffmpeg -y -i docs/assets/cover.png \
-  -vf "scale=1440:2560:force_original_aspect_ratio=decrease,pad=1440:2560:(ow-iw)/2:(oh-ih)/2" \
-  docs/assets/cover-xhs.png
+# 三平台封面一次性生成
+python3 "$SKILL_DIR/scripts/generate_cover.py" "$TITLE" "$SUBTITLE" "$PROJECT_DIR/docs/assets" vertical
+python3 "$SKILL_DIR/scripts/generate_cover.py" "$TITLE" "$SUBTITLE" "$PROJECT_DIR/docs/assets" wechat
+python3 "$SKILL_DIR/scripts/generate_cover.py" "$TITLE" "$SUBTITLE" "$PROJECT_DIR/docs/assets" xhs
 ```
 
 ### 渲染验证

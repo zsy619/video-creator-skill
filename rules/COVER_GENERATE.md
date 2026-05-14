@@ -1,51 +1,86 @@
-# 封面图生成规范
+## 封面图生成（PIL 唯一方案）
 
-> 所属模块：video-creator / SKILL.md → Step 6 封面图生成
+> **⚠️ 2026-05-14 更新**：封面图统一使用 `generate_cover.py` PIL 脚本生成，不再使用 Remotion still。
+> 原因：视频渲染后才能拿到帧，封面无法作为强制前置步骤；PIL 可独立先出封面。
 
-## 封面图生成规则
-
-> ⚠️ **重要**：封面图是强制必选项，生成后才能进入音频和渲染步骤。
-
-### 封面图类型
-
-| 平台 | 分辨率 | 比例 | 文件名 | 输出路径 |
-|------|--------|------|--------|----------|
-| 视频号 | 1080×1920 | 9:16 | `cover.png` | `docs/assets/` |
-| 公众号 | 900×383 | ≈2.35:1 | `cover-wechat.png` | `docs/assets/` |
-| 小红书 | 1440×2560 | 9:16 | `cover-xhs.png` | `docs/assets/` |
-
----
-
-## Remotion 封面生成（唯一方案）
-
-> **⚠️ 2026-05-13 重要更新**：封面图统一使用 `npx remotion still` 从 Remotion 项目渲染，禁止使用 PIL 生成封面。
-
-### 渲染命令
+### 使用方式
 
 ```bash
-cd video-project
-
-# 渲染视频号封面 1080×1920
-npx remotion still VerticalVideo docs/assets/cover.png --frame=0 --log=error
-
-# 从同一帧截取公众号封面 900×383（居中裁剪）
-ffmpeg -y -i docs/assets/cover.png \
-  -vf "crop=900:383:(iw-900)/2:(ih-383)/2" \
-  docs/assets/cover-wechat.png
-
-# 从同一帧截取小红书封面 1440×2560
-ffmpeg -y -i docs/assets/cover.png \
-  -vf "scale=1440:2560:force_original_aspect_ratio=decrease,pad=1440:2560:(ow-iw)/2:(oh-ih)/2" \
-  docs/assets/cover-xhs.png
+python3 {SKILL_DIR}/scripts/generate_cover.py "主标题" "副标题" output_dir [canvas_type]
 ```
 
-### 验证
+### 三平台封面同时生成
 
 ```bash
-ffprobe -v error -show_entries stream=width,height -of default=noprint_wrappers=1 \
-  docs/assets/cover.png docs/assets/cover-wechat.png docs/assets/cover-xhs.png
-# 期望：1080×1920 / 900×383 / 1440×2560
+SKILL_DIR="{SKILL_DIR}"
+PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
+
+# 视频号封面 1080×1920
+python3 "$SKILL_DIR/scripts/generate_cover.py" \
+  "主标题文字" "副标题可选" \
+  "$PROJECT_DIR/docs/assets" vertical
+
+# 公众号封面 900×383
+python3 "$SKILL_DIR/scripts/generate_cover.py" \
+  "主标题文字" "副标题可选" \
+  "$PROJECT_DIR/docs/assets" wechat
+
+# 小红书封面 1440×2560
+python3 "$SKILL_DIR/scripts/generate_cover.py" \
+  "主标题文字" "副标题可选" \
+  "$PROJECT_DIR/docs/assets" xhs
 ```
+
+### 画布类型
+
+| 类型 | 分辨率 | 比例 | 文件名 |
+|------|--------|------|--------|
+| `vertical` | 1080×1920 | 9:16 | `cover.png` |
+| `wechat` | 900×383 | ≈2.35:1 | `cover-wechat.png` |
+| `xhs` | 1440×2560 | 9:16 | `cover-xhs.png` |
+
+### 输出路径
+
+所有封面统一输出到 `docs/assets/` 目录：
+- `docs/assets/cover.png` — 视频号封面（1080×1920）
+- `docs/assets/cover-wechat.png` — 公众号封面（900×383）
+- `docs/assets/cover-xhs.png` — 小红书封面（1440×2560）
+
+### generate_cover.py 核心特性
+
+| 特性 | 说明 |
+|------|------|
+| smart_resize_text() | 标题超宽自动缩字号（从安全上限开始，每轮-4px，最低36px） |
+| CJK 乱码检测 | textbbox 检测宽高比，方块字 aspect≈1.0 触发报错 |
+| 多层霓虹发光 | 4层渐变叠加，赛博朋克风格 |
+| 动态字体探测 | 优先用户目录 → PingFang → Hiragino → Heiti |
+
+### 字号安全上限
+
+| 类型 | vertical | wechat | xhs |
+|------|----------|--------|-----|
+| 主标题 | 130px | 100px | 180px |
+| 副标题 | 60px | 48px | 80px |
+| 标签 | 42px | 36px | 56px |
+
+### 验证命令
+
+```bash
+python3 -c "
+from PIL import Image
+import os
+
+def verify(path, w, h, platform):
+    img = Image.open(path)
+    ok = img.size == (w, h)
+    sz = os.path.getsize(path) / 1024
+    print(f'{platform}: {img.size} {\"✅\" if ok else \"❌\"} {sz:.0f}KB')
+
+p = '{WORKSPACE_DIR}/{project-name}/docs/assets'
+verify(f'{p}/cover.png',      1080, 1920, '视频号')
+verify(f'{p}/cover-wechat.png', 900,  383, '公众号')
+verify(f'{p}/cover-xhs.png',  1440, 2560, '小红书')
+"
 
 ---
 

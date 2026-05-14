@@ -14,8 +14,8 @@
  *   1 = 至少一项检查失败
  *
  * 示例:
- *   node video-quality-gate.js ~/VideoProjects/my-video audio
- *   node video-quality-gate.js ~/VideoProjects/my-video all
+ *   node video-quality-gate.js {WORKSPACE_DIR}/{project-name} audio
+ *   node video-quality-gate.js {WORKSPACE_DIR}/{project-name} all
  */
 
 const fs = require('fs');

@@ -3,7 +3,7 @@
 # 带完整质量门禁的视频创作流程
 #
 # 用法:
-#   cd ~/VideoProjects/my-project
+#   cd {WORKSPACE_DIR}/{project-name}
 #   bash {SKILL_DIR}/scripts/launch.sh
 #
 # 环境变量:
@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-SKILL_DIR="${SKILL_DIR:-$HOME/.hermes/skills/video-creator}"
+SKILL_DIR="${SKILL_DIR:-$HOME/AISkills/video-creator}"
 SCRIPT_DIR="${SKILL_DIR}/scripts"
 GATE="${SCRIPT_DIR}/video-quality-gate.js"
 

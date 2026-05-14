@@ -120,7 +120,7 @@ echo "| $(printf '%02d' $REQ_NUM) | $TS | Step X: 任务名 | minimax/MiniMax-M2
 
 ```bash
 SKILL_SCRIPT="${HOME}/.hermes/skills/video-creator/scripts/session-log-append.py"
-PROJECT_DIR="/Volumes/OpenClawDrive/.hermes/workspace/{project-name}"
+PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
 python3 "${SKILL_SCRIPT}" "${PROJECT_DIR}" "Step X: 任务名" "<emoji输出>"
 ```
 

@@ -5,6 +5,12 @@
 
 ---
 
+## [Unreleased]
+
+### 核心发现
+- **HTML字幕组件无法导出MP4**：CaptionOverlay（含 @remotion/captions 的所有HTML字幕组件）只在Remotion Player中渲染，导出MP4后完全消失。症状：`ffprobe` 显示 `subtitle:0KiB`。解决方案：Remotion渲染时禁用所有HTML字幕组件，改用 ffmpeg `subtitles`/`ass` 滤镜烧录。
+- **fontconfig 重要性**：macOS 上 libass 需 `~/.config/fontconfig/fonts.conf` 指向 `/System/Library/Fonts`
+
 ## 2026-05-13 — 语速实测修正 + Remotion Native 成功案例
 
 ### 核心发现：edge-tts 实际语速 vs 规范值

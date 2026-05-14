@@ -1193,26 +1193,26 @@ cd $HOME/.hermes/skills/video-creator
 
 # 批量检查所有项目（不自动修复）
 node scripts/video-check.js batch-process \
-  --directory ~/VideoProjects
+  --directory {WORKSPACE_DIR}
 
 # 批量检查并自动修复问题
 node scripts/video-check.js batch-process \
-  --directory ~/VideoProjects \
+  --directory {WORKSPACE_DIR} \
   --fix
 
 # 批量检查 + 自动修复 + 生成缺失字幕
 node scripts/video-check.js batch-process \
-  --directory ~/VideoProjects \
+  --directory {WORKSPACE_DIR} \
   --fix \
   --generate-subtitles
 ```
 
-**批量处理报告输出到**：`~/VideoProjects/batch-processing-report.json`
+**批量处理报告输出到**：`{WORKSPACE_DIR}/batch-processing-report.json`
 
 ```json
 {
   "timestamp": "2026-04-23T10:30:00.000Z",
-  "directory": "~/VideoProjects",
+  "directory": "{WORKSPACE_DIR}",
   "totalProjects": 5,
   "successful": 4,
   "failed": 1,

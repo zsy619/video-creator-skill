@@ -17,7 +17,7 @@
 npx create-video@latest --template remix --yes my-project
 
 # ✅ 正确（使用脚本生成）
-node ~/.hermes/skills/video-creator/scripts/create-remotion-project.js ~/VideoProjects/my-project
+node {SKILL_DIR}/scripts/create-remotion-project.js {WORKSPACE_DIR}/{project-name}
 ```
 
 **Remotion 项目必须生成在 `video-project/` 目录**（由脚本自动创建），不得手动创建子目录。

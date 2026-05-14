@@ -54,7 +54,7 @@ chrome_profile_path: ~/Library/Application Support/Google/Chrome
 
 #### Step 1: 准备发布
 ```bash
-PROJECT="/Users/zhushuyan/VideoProjects/{project-name}"
+PROJECT="{WORKSPACE_DIR}/{project-name}"
 cd ~/.baoyu-skills/baoyu-post-to-wechat
 ```
 
