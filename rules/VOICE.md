@@ -91,7 +91,7 @@ cp /opt/homebrew/Cellar/ca-certificates/2025-05-20/share/ca-certificates/cacert.
 
 | 语音 | 说明 | 场景 |
 |------|------|------|
-| `zh-CN-YunjianNeural` | 温和男声，自然流畅 | **通用推荐** |
+| `zh-CN-YunjianNeural` | 温和男声，自然流畅 | **通用推荐（默认）** |
 | `zh-CN-YunxiNeural` | 年轻男声，清晰有力 | 科技/工具类 |
 | `zh-CN-YunxiaNeural` | 少年男声，活泼 | 年轻受众 |
 | `zh-CN-YunyangNeural` | 新闻男声，稳重 | 新闻/资讯类 |
@@ -131,7 +131,7 @@ EOF
 /opt/homebrew/bin/python3.13 << 'EOF'
 import asyncio, edge_tts
 
-VOICE = "zh-CN-YunjianNeural"  # 推荐男声
+VOICE = "zh-CN-YunjianNeural"  # 默认男声，温和自然
 OUTPUT = "audio/neural_full.mp3"
 
 async def main():
@@ -247,7 +247,7 @@ done
 # synthesize-voice.sh
 
 PROJECT_DIR="$(pwd)"
-VOICE="zh-CN-YunjianNeural"   # 可选: YunxiNeural, XiaoxiaoNeural 等
+VOICE="zh-CN-YunjianNeural"   # 默认男声（温和自然），可选 YunxiNeural/YunyangNeural
 SPEED="1.2"
 
 cd "$PROJECT_DIR"

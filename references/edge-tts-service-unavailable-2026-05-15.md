@@ -3,7 +3,7 @@
 ## 本次发现（2026-05-15）
 
 **症状**：
-- `zh-CN-YunJiaNeural` 调用失败：`NoAudioReceived: No audio was received`
+- `zh-CN-YunjianNeural` 调用失败：`NoAudioReceived: No audio was received`
 - 同时检测到 `speech.platform.bing.com` 返回 "Our services aren't available right now"
 - `edge-tts --list-voices` 正常（不依赖语音合成）
 
@@ -13,13 +13,14 @@
 
 | Voice | 性别 | 状态 | 备注 |
 |-------|------|------|------|
-| zh-CN-YunyangNeural | 男 | ✅ 可用 | **用户首选男声** |
-| zh-CN-XiaoxiaoNeural | 女 | ✅ 可用 | 微软小冰，备用方案 |
+| zh-CN-YunjianNeural | 男 | ✅ 可用 | **用户首选男声（默认）** |
+| zh-CN-YunxiNeural | 男 | ✅ 可用 | 科技/工具类备选 |
+| zh-CN-XiaoxiaoNeural | 女 | ✅ 可用 | **禁用**（用户不接受女声） |
 
 > **2026-05-15 补充**：
-> 1. `zh-CN-YunyangNeural` 实测成功（用户确认男声效果满意）
-> 2. 记忆中的 `YunJiaNeural`（带 i）不可用，正确拼写为 `Yun**yang**Neural`（yang）
-> 3. 用户明确拒绝女声，**默认应使用男声**
+> 1. `zh-CN-YunjianNeural` 实测成功（用户确认温和男声效果满意）
+> 2. 用户永久偏好：`zh-CN-YunjianNeural`（默认）> `zh-CN-YunxiNeural` > `zh-CN-YunyangNeural`
+> 3. **禁止降级到女声**（XiaoxiaoNeural 等）
 
 ## 建议流程
 
