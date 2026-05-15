@@ -30,7 +30,7 @@
 
 **公式**：`⌊目标时长 × 3.37⌋`（3.37 = 3.73 × 0.9，留 10% 余量）
 
-**受影响文件**：SKILL.md（多处表格+公式）、 rules/VOICE.md、references/tts-length-limit.md
+**受影响文件**：SKILL.md（多处表格+公式）、 rules/VOICE.md、references/tts-production.md
 
 ### 核心发现：Remotion Native 在 Mac M1 headless 可用
 
@@ -61,14 +61,14 @@ npx remotion render VerticalVideo out/final.mp4 \
 |------|------|
 | `SKILL.md` | 表格数值 330→175（52秒），公式 `×6.45` → `×3.37`，增加 6.45/3.37 差异说明 |
 | `rules/VOICE.md` | 同上 |
-| `references/tts-length-limit.md` | 表格更新，补充实测数据 |
+| `references/tts-production.md` | 表格更新，补充实测数据 |
 
 #### P2 — Remotion Native 成功路径记录
 
 | 文件 | 修复 |
 |------|------|
 | `rules/TROUBLESHOOTING.md` | 新增"Remotion Native 渲染成功案例"章节 |
-| `references/REMOTION_NATIVE.md` | 补充 `tech-modern` 引号问题、JSX语法错误、ProtocolBadge prop 问题 |
+| `references/remotion-native.md` | 补充 `tech-modern` 引号问题、JSX语法错误、ProtocolBadge prop 问题 |
 
 ---
 
@@ -104,7 +104,7 @@ npx remotion render VerticalVideo out/final.mp4 \
 | `SKILL.md` | 更新致命错误修复记录，统一规范描述 |
 | `rules/SUBTITLES.md` | 新增"规范冲突记录"表，废弃值明确标注 |
 | `rules/VOICE.md` | 新增"文本长度→目标时长"强约束章节 |
-| `references/remotion-package-discovery.md` | 保留作为权威参考（已验证正确） |
+| `references/remotion-compilation-errors.md` | 保留作为权威参考（已验证正确） |
 
 #### P3 — 脚本增强
 
@@ -205,4 +205,4 @@ npx remotion render VerticalVideo out/final.mp4 \
 | `scripts/video-quality-gate.js` | 一键质量门禁（audio/subtitle/render/final） |
 | `scripts/launch.sh` | 一键启动脚本 |
 | `scripts/pre-subtitle-check.js` | 字幕前置检查（含文本长度校验） |
-| `references/remotion-package-discovery.md` | Remotion 包名 + exports 权威验证 |
+| `references/remotion-compilation-errors.md` | Remotion 包名 + exports 权威验证 |

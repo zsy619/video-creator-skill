@@ -209,7 +209,7 @@ bash launch.sh gate all         # 仅门禁检查
 
 `re.split(r'[\uff0c\u3001\uff1b\u2192\.\\.,;]+', text)` 中的 `\.` 会把 `Claude4.5` 切断为 `Claude4` + `5`。**只用中文标点** `，。；、` 作为分割符。
 
-详见：`references/ass-subtitle-gen.md`
+详见：`references/ass-subtitle-production.md`
 
 ### ⚠️ 禁止叠速
 
@@ -237,9 +237,9 @@ bash launch.sh gate all         # 仅门禁检查
 | **rules/ONEPASS_WORKFLOW.md** | 一键生成工作流（推荐） |
 | **rules/VOICE.md** | edge-tts 配音规范（含字数公式） |
 | **rules/SUBTITLES.md** | ASS 字幕规范（含 split bug 警告） |
-| **references/subtitle-tiktok-highlight.md** | TikTokCaptionOverlay 逐字高亮实现 |
-| **references/ass-subtitle-gen.md** | ASS 生成规则 |
-| **references/REMOTION_NATIVE.md** | Remotion Native 字幕渲染方案 |
+| **references/ass-subtitle-production.md** | TikTokCaptionOverlay 逐字高亮实现 |
+| **references/ass-subtitle-production.md** | ASS 生成规则 |
+| **references/remotion-native.md** | Remotion Native 字幕渲染方案 |
 
 ---
 

@@ -1,7 +1,7 @@
-# Remotion 渲染失败修复笔记
+# Remotion 编译与入口点错误
 
-> 来源：ai-psychology-video 项目调试，2026-05-09
-> 关联：video-creator SKILL.md / rules/REMOTION.md / rules/TROUBLESHOOTING.md
+> **最后更新**：2026-05-15
+> **配套文档**：`remotion-project-creation.md`（项目创建）、`remotion-rendering-issues.md`（渲染问题）
 
 ---
 
@@ -79,50 +79,25 @@ npx remotion render src/entry.tsx Video /tmp/out.mp4
 
 **版本冲突时的快速修复**：
 ```bash
-npx remotion upgrade  # 统一到最新版本（最有效的修复）
+npx remotion upgrade  # 统一到最新版本
 ```
 
----
-
-## 调试实录：如何发现 `Composition` 是 React 组件（而非工厂函数）
-
-> 本节来自 react-doctor-video 项目，2026-05-13
-
-**问题**：尝试 `Composition.fromRoot()`、`Composition.register()`、`Composition({ id, component })` 等各种写法均失败，最终发现 `useCurrentFrame()` 报错 "can only be called inside a component that was registered as a composition"。
-
-**调试步骤**（在 `node -e` REPL 中逐步验证）：
+### 调试实录：Composition 是 React 组件
 
 ```bash
 cd video-project
 node -e "const {Composition, registerRoot} = require('remotion'); console.log(typeof Composition);"
 # 输出: function
 
-# 检查 Composition 的实际性质
 node -e "
 const {Composition} = require('remotion');
 const React = require('react');
-// 尝试作为组件创建 element
 const el = React.createElement(Composition, {
   id: 'test', fps: 30, durationInFrames: 30, height: 100, width: 100,
   component: () => React.createElement('div', null, 'test')
 });
 console.log('Element type:', el.type.name || el.type.toString().substring(0,80));
-// 输出: Composition（即它是一个 React 组件）
 "
-
-# 关键验证：Composition 可以直接作为 React 组件调用
-node -e "
-const {Composition} = require('remotion');
-const React = require('react');
-// Composition.call() 尝试以函数方式调用 → 抛出 "Invalid hook call"
-const result = Composition({ id: 'test', fps: 30, durationInFrames: 30, height: 100, width: 100, component: () => null });
-"
-# 错误: Invalid hook call (因为 hooks 需要在 React 组件树内调用)
-# 这证明 Composition 是组件，不是工厂函数
-
-# 检查 registerRoot 的签名
-node -e "const {registerRoot} = require('remotion'); console.log(registerRoot.length);"
-// 输出: 1（接收一个参数：React 组件）
 ```
 
 **结论**：
@@ -130,7 +105,7 @@ node -e "const {registerRoot} = require('remotion'); console.log(registerRoot.le
 - `registerRoot` 接收一个返回 `<Composition .../>` 的 React 函数组件
 - 错误 "useCurrentFrame() can only be called inside a component that was registered as a composition" 的根因：**直接对含 `useCurrentFrame()` 的内部组件调用 `registerRoot(innerComponent)`**，而没有通过 `<Composition>` 包装
 
-**正确结构（经本次验证）**：
+### 正确结构（经本次验证）
 
 ```tsx
 // src/index.tsx
@@ -175,11 +150,7 @@ npx remotion render VerticalVideo out/final.mp4 --log=error
 #          与 <Composition id="VerticalVideo"> 匹配
 ```
 
----
-
-## 2. 旧模式（有问题的模式）
-
-以下模式在 Remotion 4.x 中会失败：
+### 旧模式（有问题的模式）
 
 ```tsx
 // ❌ 错误：Root.tsx 中直接 registerRoot(Video)
@@ -194,20 +165,156 @@ registerRoot(Video);
 
 ---
 
-## 3. 视频拼接后黑屏 / 封面场景首帧黑
+## 2. esbuild 语法错误（2026-05-13）
 
-**症状**：最终拼接视频前几秒画面全黑
+> create-remotion-project.js 生成的代码在 esbuild bundling 时暴露的语法错误。
+> TypeScript 编译（`tsc`）静默通过，但 esbuild bundling 失败。
+> **必须每次创建项目后检查并修复这些问题。**
 
-**根因**：封面场景组件（如 CoverScene）在帧 0-20 之间只有装饰线条的 opacity 动画渐变，无实质性视觉内容。
+### 错误1：themes/index.ts 连字符 key 无引号
 
-**修复**：在封面场景根部添加不透明背景层，确保帧 0 已有内容：
+**症状**：
+```
+ERROR: Expected "}" but found "-"
+src/themes/index.ts:12:6: ERROR
+```
+
+**根因**：JavaScript 对象 key 包含连字符时必须加引号：
+```ts
+// ❌ 错误：esbuild 解析失败
+export const THEMES: Record<string, ThemeConfig> = {
+  tech-modern: {    // 连字符 key 无引号
+    primary: "#2563EB"
+  }
+};
+
+// ✅ 正确：所有 key 加引号
+export const THEMES: Record<string, ThemeConfig> = {
+  "tech-modern": {
+    primary: "#2563EB"
+  }
+};
+```
+
+**自动修复**：
+```python
+import re
+content = open('src/themes/index.ts').read()
+fixed = re.sub(
+    r'(\s+)([a-z][a-z0-9]*-[a-z0-9-]+):(\s*\{)',
+    r'\1"\2":\3',
+    content
+)
+open('src/themes/index.ts', 'w').write(fixed)
+```
+
+### 错误2：JSX 属性值后多余右花括号
+
+**症状**：
+```
+ERROR: Expected ">" but found "}"
+Scene4_Features.tsx:194:134: ERROR
+```
+
+**根因**：属性值后多写了一个 `}`：
 ```tsx
-<AbsoluteFill style={{ backgroundColor: '#F8FAFC' }} />
+// ❌ 错误
+<FeatureCard color="#00FF88"} delay={30} ... />
+//                                     ^ 多余的 }
+```
+
+```tsx
+// ✅ 正确
+<FeatureCard color="#00FF88" delay={30} ... />
+```
+
+**搜索模式**：
+```bash
+grep -rn '} delay=' src/scenes/
+grep -rn '} index=' src/scenes/
+grep -rn '} frame=' src/scenes/
+```
+
+### 错误3：组件 prop 缺少必需参数
+
+**症状**：
+```
+Type error: Property 'delay' is missing in type
+```
+
+**搜索模式**：
+```bash
+grep -rn '<ProtocolBadge' src/scenes/
+grep -rn '<FeatureCard' src/scenes/
+grep -rn '<PulseRing' src/scenes/
+```
+
+### 错误4：未使用的 import 导致 TypeScript 编译警告
+
+**修复**：
+```tsx
+// ❌ Video.tsx 中多余
+import { spring, interpolate, AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig } from 'remotion';
+
+// ✅ 正确
+import { AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig } from 'remotion';
+```
+
+### 自动修复脚本
+
+```python
+#!/usr/bin/env python3
+"""fix-remotion-esbuild.py — 修复 create-remotion-project.js 生成的 esbuild 错误"""
+import re, sys, os
+
+def fix_themes_index(path):
+    content = open(path).read()
+    fixed = re.sub(
+        r'(\s+)([a-z][a-z0-9]*-[a-z0-9-]+):(\s*\{)',
+        r'\1"\2":\3',
+        content
+    )
+    if fixed != content:
+        open(path, 'w').write(fixed)
+        print(f"Fixed: {path}")
+
+def fix_jsx_syntax(path):
+    content = open(path).read()
+    fixed = re.sub(r'(color="[^"]*")\}(\s+(delay|frame|index)x=)', r'\1 \2', content)
+    if fixed != content:
+        open(path, 'w').write(fixed)
+        print(f"Fixed JSX syntax: {path}")
+
+def main():
+    base = sys.argv[1] if len(sys.argv) > 1 else '.'
+    themes = os.path.join(base, 'src', 'themes', 'index.ts')
+    if os.path.exists(themes):
+        fix_themes_index(themes)
+    for root, _, files in os.walk(os.path.join(base, 'src')):
+        for f in files:
+            if f.endswith('.tsx'):
+                fix_jsx_syntax(os.path.join(root, f))
+
+if __name__ == '__main__':
+    main()
+```
+
+### 验证命令（渲染前必须执行）
+
+```bash
+# 1. themes/index.ts 所有 key 有引号
+grep -E '^\s+[a-z][a-z0-9]*-[a-z0-9-]+:' src/themes/index.ts && echo "❌ 有未加引号的 key" || echo "✅ 全部加引号"
+
+# 2. JSX 属性无多余 }
+grep -rn '} delay=\|} frame=\|} index=' src/scenes/ && echo "❌ 有多余 }" || echo "✅ 无多余 }"
+
+# 3. 渲染前最终验证
+cd video-project && npm install && npx remotion render VerticalVideo out/test.mp4 --concurrency=4 --fps=60 --disable-gpu
 ```
 
 ---
 
-## 4. 字幕缺失 — 所有场景无字幕叠加
+## 3. 字幕缺失 — SubtitleOverlay 未集成
 
 **根因**：各场景组件（CoverScene、ConceptScene 等）内部没有渲染字幕代码，SubtitleOverlay 组件未集成到视频中。
 
@@ -253,7 +360,6 @@ const SubtitleOverlay: React.FC<{ frame: number }> = ({ frame }) => {
   );
 };
 
-// 在 Video 组件中使用
 export const Video: React.FC = () => {
   const frame = useCurrentFrame();
   return (
@@ -268,25 +374,7 @@ export const Video: React.FC = () => {
 
 ---
 
-## 5. 封面标题字体过大超出画面
-
-**症状**：封面主标题（如"AI心理学"，四字）在 96px + letterSpacing:8 时超出 1080px 宽度，导致文字被截断。
-
-**安全字号表（竖屏 1080×1920）**：
-
-| 位置 | 最大安全字号 | 推荐字号 |
-|------|-------------|---------|
-| 封面主标题（四字） | ≤72px | 56-72px |
-| 封面副标题 | ≤36px | 24-32px |
-| 正文内容 | ≤56px | 40-56px |
-| 结尾"谢谢观看" | ≤88px | 56-64px |
-| 字幕（底部） | ≤32px | 24-28px |
-
-**计算方式**：中文字符约等于 1em，4字 × 72px = 288px，加上 letterSpacing（8px × 3 = 24px），总约 312px。竖屏可用宽度约 1000px，72px 安全。96px 则 4 × 96 + 8 × 3 = 408px，可能溢出。
-
-**原则**：竖屏视频宽度仅 1080px，主标题超过 80px 就有溢出风险。优先减小字号而非压缩字间距（字间距太紧影响可读性）。
-
-## 6. ffmpeg ASS 字幕烧录 — `force_style` 选项不存在
+## 4. ffmpeg ASS 字幕烧录 — `force_style` 选项不存在
 
 **症状**：
 ```
@@ -296,12 +384,12 @@ Error opening output file final_with_subtitles.mp4.
 
 **根因**：ffmpeg 的 `-vf "ass=file.ass:force_style='FontSize=72'"` 语法在标准 libass 构建中不支持 `force_style` 参数。
 
-**正确做法**：将所有样式（字号、颜色、字体、位置）直接写入 `.ass` 文件，不依赖 ffmpeg 的 `force_style` 覆盖。
+**正确做法**：将所有样式写入 `.ass` 文件，不依赖 ffmpeg 的 `force_style` 覆盖。
 
 **工作流程**：
 ```
 1. 生成 ASS 文件时指定完整 Style（含 Fontsize、PrimaryColour、Alignment 等）
-2. 烧录时使用 filter_complex 显式语法（推荐）：
+2. 烧录时使用 filter_complex 显式语法：
    ffmpeg -i video.mp4 -i audio/neural_1_2x.m4a \
      -filter_complex "[0:v]ass=subs.ass[v]" \
      -map "[v]" -map 1:a \
@@ -309,8 +397,6 @@ Error opening output file final_with_subtitles.mp4.
      -c:a aac -b:a 256k \
      -r 60 -s 1080x1920 \
      out/final.mp4
-
-   （注意：ASS 滤镜只有视频输入端口，音频通过 -map 1:a 单独处理，不进滤镜链）
 ```
 
 **ASS Style 正确模板**：
@@ -323,4 +409,22 @@ Style: Default,Arial,72,&H00FFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,1
 - `PrimaryColour=&H00FFFF`（青色）
 - `Alignment=2`（底部居中）
 - `Bold=-1`（加粗）
-- `Outline=2, Shadow=2`（2px描边+阴影，可见性保障）
+- `Outline=2, Shadow=2`（2px描边+阴影）
+
+---
+
+## 5. 封面标题字体过大超出画面
+
+**症状**：封面主标题（如"AI心理学"，四字）在 96px + letterSpacing:8 时超出 1080px 宽度。
+
+**安全字号表（竖屏 1080×1920）**：
+
+| 位置 | 最大安全字号 | 推荐字号 |
+|------|-------------|---------|
+| 封面主标题（四字） | ≤72px | 56-72px |
+| 封面副标题 | ≤36px | 24-32px |
+| 正文内容 | ≤56px | 40-56px |
+| 结尾"谢谢观看" | ≤88px | 56-64px |
+| 字幕（底部） | ≤32px | 24-28px |
+
+**原则**：竖屏视频宽度仅 1080px，主标题超过 80px 就有溢出风险。优先减小字号而非压缩字间距。

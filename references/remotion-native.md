@@ -213,6 +213,161 @@ bash ~/.hermes/skills/video-creator/scripts/launch.sh all .
 
 ---
 
+## 5. CaptionOverlay 烧录机制（补充）
+
+> **来源**：remotion-native-subtitles.md（2026-05-15 新发现）
+
+> **核心结论**：**CaptionOverlay 组件确实将字幕烧录进最终 MP4。**
+
+CaptionOverlay 是 React 组件，通过 `staticFile` 读取 `captions.json`，在 Remotion 渲染**每一帧**时用 `<Sequence>` + 绝对定位 `<div>` 将字幕绘制进画面。最终输出的 MP4 包含烧录后的可见字幕。
+
+### 组件代码
+
+```typescript
+// TikTokCaptionLine：逐字高亮行
+const TikTokCaptionLine = ({ text, startFrame, durationInFrames, fps }) => {
+  const tokens = useMemo(() => tokenize(text), [text]);
+  const msPerToken = (durationInFrames / tokens.length / fps) * 1000;
+  const localFrame = frame - startFrame;
+  const currentMs = localFrame * (1000 / fps);
+
+  return (
+    <div style={{ position: "absolute", bottom: 56, left: 0, right: 0, display: "flex", justifyContent: "center", flexWrap: "wrap", paddingHorizontal: 40 }}>
+      {tokens.map((token, i) => {
+        const tokenEndMs = (i + 1) * msPerToken;
+        const isPast = currentMs > tokenEndMs;
+        return (
+          <span key={i} style={{
+            color: isPast ? "rgba(255,255,255,0.45)" : "#FFFFFF",
+            fontSize: 32,
+            fontFamily: "PingFang SC, Microsoft YaHei, sans-serif",
+            fontWeight: 700,
+            textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+            marginHorizontal: 2,
+            transition: "color 0.3s",
+          }}>
+            {token}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+// CaptionOverlay：读取 JSON + 按时间戳切分
+export const CaptionOverlay = ({ captionsFile = "audio/captions.json" }) => {
+  const [captions, setCaptions] = useState([]);
+  useEffect(() => {
+    fetch(staticFile(captionsFile)).then(r => r.json()).then(d => setCaptions(d));
+  }, [captionsFile]);
+
+  return (
+    <AbsoluteFill>
+      {captions.map((caption, index) => {
+        const nextCaption = captions[index + 1] || null;
+        const startFrame = Math.floor((caption.startMs / 1000) * fps);
+        const endFrame = nextCaption
+          ? Math.floor((nextCaption.startMs / 1000) * fps)
+          : Math.floor((caption.endMs / 1000) * fps);
+        return (
+          <Sequence key={index} from={startFrame} durationInFrames={endFrame - startFrame}>
+            <TikTokCaptionLine text={caption.text} startFrame={0} durationInFrames={endFrame - startFrame} fps={fps} />
+          </Sequence>
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+```
+
+---
+
+## 6. captions.json 404 根因与解决方案
+
+> **来源**：remotion-native-subtitles.md（2026-05-15 新发现）
+
+### 问题现象
+
+```
+[http://localhost:3000/public/audio/captions.json] Failed to load resource: the server responded with a status of 404 (Not Found)
+TypeError: captions.map is not a function
+```
+
+### 根因
+
+`create-remotion-project.js` 创建项目时生成空的 `public/audio/captions.json`。即使后续手动生成正确的 captions.json 并复制到 `public/audio/`，Remotion bundle 在服务启动时已经编译了这些路径。**Remotion 的 bundle 是预编译的，服务启动后不再重新读取文件系统中的 audio 目录。**
+
+### 正确流程
+
+音频和字幕**必须在创建 Remotion 项目之前生成**，并放置在 `audio/` 目录中。`create-remotion-project.js` 会在创建项目时从 `audio/` 复制到 `public/audio/`。
+
+```bash
+# 1. 先生成音频和字幕（在创建 Remotion 项目之前）
+edge-tts --voice "zh-CN-YunjianNeural" --rate "+0%" --write-media audio/neural_full.mp3 --text "$(cat docs/narration.txt)"
+ffmpeg -y -i audio/neural_full.mp3 -af "atempo=1.2" -c:a aac -b:a 256k audio/neural_1_2x.m4a
+
+# 2. 生成 captions.json
+python3 -e "...caption generation..." > audio/captions.json
+
+# 3. 然后再创建 Remotion 项目
+node {SKILL_DIR}/scripts/create-remotion-project.js {PROJECT_DIR}
+
+# 4. 渲染
+cd video-project && npm install && npx remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=60 --disable-gpu --log=error
+```
+
+### 如果已经 404，执行以下命令重新复制
+
+```bash
+cp "$PROJECT_DIR/audio/captions.json" "$PROJECT_DIR/video-project/public/audio/"
+cp "$PROJECT_DIR/audio/neural_1_2x.m4a" "$PROJECT_DIR/video-project/public/audio/"
+```
+
+---
+
+## 7. 字幕时间轴精度：末段 endMs 必须与视频时长同步
+
+> **来源**：remotion-native-subtitles.md（2026-05-15 教训）
+
+**典型错误**：
+- 视频 42.65s，但 captions.json 末段 `endMs: 38064`（= 音频时长 38.064s）
+- 导致最后 4.6s 没有字幕覆盖
+
+**正确值**：
+- 视频时长 42.65s → 末段 endMs = **42645**
+- 音频时长 38.06s → 末段 endMs = **42645**（不是 38064）
+
+**计算公式**：`endMs = Math.round(视频时长秒数 * 1000)`
+
+**同步检查命令**：
+```bash
+VIDEO_DUR=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 out/final.mp4)
+LAST_ENDMS=$(python3 -c "import json; c=json.load(open('audio/captions.json')); print(c[-1]['endMs'])")
+EXPECTED=$(python3 -c "print(int(round($VIDEO_DUR * 1000)))")
+if [ "$LAST_ENDMS" != "$EXPECTED" ]; then
+  echo "❌ 末段字幕未同步: endMs=$LAST_ENDMS, 应为 $EXPECTED"
+fi
+```
+
+---
+
+## 8. 双字幕问题：Subtitles 组件 + ASS 烧录
+
+> **来源**：remotion-native-subtitles.md
+
+**症状**：同一位置显示两行字幕。
+
+**根因**：Remotion 视频组件中使用了 `<Subtitles />` 组件（渲染到视频帧内），再执行 ASS 字幕烧录，产生双层字幕。
+
+**解决方案**：渲染 Remotion 视频之前，必须先移除所有场景的 `<Subtitles />` 组件调用。
+
+```bash
+# 移除所有 <Subtitles /> 行
+sed -i '' 's/<Subtitles \/>//g' src/Video-{project}.tsx
+```
+
+---
+
 ## 门禁检查
 
 | 节点 | 检查项 |

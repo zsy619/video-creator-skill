@@ -480,11 +480,12 @@ function checkRender() {
     warn('@remotion/captions 未安装（Remotion Native 字幕渲染将不可用）');
   }
 
-  // C8: 检查是否使用 @remotion/captions API（createTikTokStyleCaptions / parseSrt）
-  if (content.includes('createTikTokStyleCaptions') || content.includes('parseSrt')) {
-    pass('使用 @remotion/captions API');
+  // C8: Video.tsx 必须包含 <CaptionOverlay 组件（Remotion Native 字幕渲染）
+  if (/<CaptionOverlay\b/.test(content)) {
+    pass('Video.tsx 包含 <CaptionOverlay（字幕渲染通过）');
   } else {
-    warn('未找到 @remotion/captions API 调用');
+    fail('Video.tsx 缺少 <CaptionOverlay 组件（字幕将不会渲染）');
+    warn('请在 VerticalVideo 的 <AbsoluteFill> 内添加 <CaptionOverlay captionsFile="audio/captions.json" />');
   }
 }
 
@@ -566,6 +567,22 @@ function checkFinal() {
       const data = JSON.parse(fs.readFileSync(captionsJson, 'utf8'));
       if (Array.isArray(data) && data.length > 0) {
         pass(`captions.json: ${data.length} 条字幕记录 ✓`);
+
+        // D4b: 末段 endMs 必须与视频时长同步（防止最后几秒无字幕）
+        if (finalFile) {
+          const durOut = execSync(
+            `ffprobe -v error -show_entries format=duration -of csv=p=0 "${finalFile}" 2>/dev/null`,
+            { encoding: 'utf8' }
+          ).trim();
+          const videoDurSec = parseFloat(durOut);
+          const expectedEndMs = Math.round(videoDurSec * 1000);
+          const lastEndMs = data[data.length - 1].endMs;
+          if (Math.abs(lastEndMs - expectedEndMs) > 500) {
+            warn(`captions.json 末段 endMs=${lastEndMs} 与视频时长 ${videoDurSec.toFixed(2)}s 不同步（期望 ${expectedEndMs}）`);
+          } else {
+            pass(`captions.json 末段 endMs=${lastEndMs} 与视频时长同步 ✓`);
+          }
+        }
       } else {
         warn('captions.json 格式异常或为空');
       }
@@ -632,6 +649,24 @@ function checkCover() {
       allPassed = false;
     }
   });
+
+  // E2: video-config.json 必须包含 cover.attrs（封面属性标签）
+  const configFile = path.join(PROJECT_DIR, 'video-config.json');
+  if (fs.existsSync(configFile)) {
+    try {
+      const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+      const attrs = config.cover?.attrs || config.attrs || [];
+      if (Array.isArray(attrs) && attrs.length > 0) {
+        pass(`video-config.json 包含封面属性标签: ${attrs.join(', ')}`);
+      } else {
+        warn('video-config.json 缺少 cover.attrs（封面将没有属性标签）');
+      }
+    } catch {
+      warn('video-config.json 解析失败');
+    }
+  } else {
+    warn('video-config.json 不存在（无法验证封面属性标签）');
+  }
 
   return allPassed;
 }

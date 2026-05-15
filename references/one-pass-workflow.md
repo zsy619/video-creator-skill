@@ -64,10 +64,9 @@ edge-tts \
   --write-media audio/neural_full.mp3
 ```
 
-**配音文本字数公式（实测验证）：**
-- 上限 = ⌊目标时长 × 6.45⌋ 字
-- 52秒目标 → 最多 335 字（zh-CN-YunjianNeural --rate +0% 测得）
-- 旧公式 ⌊目标时长 ÷ 1.2 × 4.5⌋ 严重偏低（52秒仅195字），已废弃
+# 配音文本字数公式（实测验证）：
+- 上限 = ⌊目标时长 × 3.37⌋ 字（3.37 = 3.73 实测 × 0.9 安全系数）
+- 52秒目标 → 最多 175 字（zh-CN-YunjianNeural --rate +0% + atempo 1.2x 实测）
 
 **禁止叠速规则（二选一）：**
 - 方案A：`--rate +0%` + `atempo 1.2x`（推荐，音频质量最高）
@@ -282,4 +281,4 @@ node {SKILL_DIR}/scripts/video-quality-gate.js final
 | Remotion 规范 | `rules/REMOTION.md` |
 | 字体规范 | `rules/FONTS.md` |
 | 综合规则 | `rules/UNIFIED_RULES.md` |
-| 音频验证协议 | `references/audio-validation-protocol.md` |
+| 音频验证协议 | `references/audio-production.md` |
