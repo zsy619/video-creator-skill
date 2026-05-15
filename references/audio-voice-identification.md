@@ -6,8 +6,6 @@ Given an existing video project's audio file (e.g., `neural_1_2x.m4a`), determin
 
 ## Voice Priority (Authoritative — from VOICE.md)
 
-> **注意**：`zh-CN-YunyangNeural` 不是通用默认！SKILL.md 的描述过时了，以本文件为准。
-
 | 优先级 | 语音 | 风格 | 适用场景 |
 |--------|------|------|----------|
 | 1 | `zh-CN-YunjianNeural` | 温和男声，自然流畅 | **通用默认** |
@@ -37,10 +35,12 @@ ffmpeg -i input.mp3 -af "silenceremove=start_periods=1:detection=peak,atempo=1.2
 | `*_yunxi_*` | 年轻男声 | zh-CN-YunxiNeural |
 | `*_xiaoxiao_*` | 女声 | zh-CN-XiaoxiaoNeural |
 
-**重要**：从文件名无法区分 Yunyang/Yunjian/Yunxi，核心判断依据是**项目主题**：
+**重要**：从文件名无法区分 Yunyang/Yunjian/Yunxi，核心判断依据是 `video-config.json` 的 `voice` 字段（显式覆盖优先）。若无覆盖，按主题推断：
 - 科技/工具/GitHub 项目 → `zh-CN-YunxiNeural`
 - 新闻/资讯类 → `zh-CN-YunyangNeural`
 - 通用/其他 → `zh-CN-YunjianNeural`
+
+> ⚠️ **推断不等于强制**：用户可以在任意项目中选择非主题对应的声音（如 markdown-nice 科技工具类项目使用 YunjianNeural），**voice 字段值 = 最终答案**。
 
 ### Step 2: Check audio format (ffprobe)
 
@@ -92,9 +92,9 @@ Both formats are compatible with Remotion Native CaptionOverlay.
 
 1. `neural_1_2x.m4a` filename → Neural voice (Azure edge-tts)
 2. AAC / 24kHz / mono → edge-tts Neural standard output
-3. Read `video-config.json` — `voice` field or `theme` field
-4. Check VOICE.md priority table above
-5. report.json / session-log.md if available
+3. **Read `video-config.json` — `voice` field = definitive answer**（显式覆盖优先）
+4. If no `voice` field: infer from `theme` field (cyberpunk → YunxiNeural; else → YunjianNeural)
+5. Fallback: check report.json / session-log.md if available
 
 ## Permanent User Voice Preference
 
