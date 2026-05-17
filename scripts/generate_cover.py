@@ -65,10 +65,21 @@ def _find_cjk_font():
         '/System/Library/Fonts',
         '/Library/Fonts',
     ]
-    # 字体名关键词（按优先级）
+    # 字体名关键词（按优先级，从用户目录到系统目录）
     keywords = [
-        'pingfang', 'hiragino', 'heiti', 'songti',
-        'wenkai', 'cangti', 'tsanger', 'lxgw',
+        # 用户安装字体（优先）
+        'lxgw', 'wenkai', 'cangti', 'tsanger',
+        'pingfang', 'hiragino', 'heiti', 'songti', 'kaiti',
+        'yozai', 'noto', 'source han', '_SOURCE_',
+    ]
+    # 备用搜索：任何包含 CJK 字符集的 OTF/TTF
+    cjk_fonts = [
+        'LXGWWenKai-Regular', 'LXGWWenKai-Bold',
+        'PingFangSC-Regular', 'PingFangSC-Medium', 'PingFangSC-Semibold',
+        'HiraginoSansGB-W3', 'HiraginoSansGB-W6',
+        'STHeitiSC-Medium', 'STHeitiSC-Light',
+        'STSongti-SC-Regular', 'STSongti-SC-Bold',
+        'AppleSDGothicNeo', 'Yuanti-SC',
     ]
 
     for d in search_dirs:
@@ -84,7 +95,19 @@ def _find_cjk_font():
                 if not line:
                     continue
                 basename = os.path.basename(line).lower()
-                if any(k in basename for k in keywords):
+                matched = False
+                for k in keywords:
+                    if k in basename:
+                        matched = True
+                        break
+                # 也匹配 cjk_fonts 中的精确名称
+                if not matched:
+                    font_name_lower = os.path.splitext(os.path.basename(line))[0].lower()
+                    for cf in cjk_fonts:
+                        if cf.lower().replace('-', '') in font_name_lower.replace('-', ''):
+                            matched = True
+                            break
+                if matched:
                     # 再次确认文件可读
                     if os.path.exists(line) and os.path.getsize(line) > 100_000:
                         return line

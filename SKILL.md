@@ -336,7 +336,86 @@ assert chinese_chars <= max_chars, f'字数超限: {chinese_chars} > {max_chars}
 | 禁止跳过音频后处理 | 去静音 + 1.2x 语速 + AAC 256k |
 | 禁止使用旧版 ffmpeg 混流 | ✅ **Remotion Native（2026-05-13）**：Remotion `<Audio>` 组件直接内嵌 MP4，无需 ffmpeg 混流。字幕通过 `CaptionOverlay` + `@remotion/captions` 同期烧录进每一帧，无需 ffmpeg ASS 滤镜。 |
 
-### ⚠️ 音频验证（必须执行）
+**语速基准修正（2026-05-17）**：
+> ⚠️ **feedgrab 12.05 chars/s 实为字节数，非字符数**：277 bytes = narration.txt 文件大小（含换行），不是 277 个中文字符。真实 feedgrab 中文字符语速约 **3.40 Chinese chars/s**（110 个中文 / 32.36s），与 edge-tts 自然语速 3.37~3.73 完全一致。
+>
+> 视频旁白语速基准：**3.37~3.73 Chinese chars/s**（edge-tts 自然语速），无需刻意匹配某个"参考视频"字节数指标。
+>
+> 验证命令（勿用字节数混淆）：
+> ```bash
+> python3 -c "
+> text = open('docs/narration.txt').read()
+> chinese = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+> import subprocess
+> r = subprocess.run(['ffprobe','-v','quiet','-show_entries','format=duration','-of','csv=p=0','audio/neural_1_2x.m4a'], capture_output=True, text=True)
+> dur = float(r.stdout.strip())
+> rate = chinese / dur
+> print(f'中文字符: {chinese}, 时长: {dur:.3f}s, 语速: {rate:.2f} chars/s')
+> "
+> ```
+
+| 项目 | 语速 | 说明 |
+|------|------|------|
+| feedgrab (误标) | 12.05 bytes/s | 277 bytes / 22.99s，非字符数 |
+| feedgrab (修正) | 3.40 Chinese chars/s | 正常 edge-tts 语速 |
+
+| obsidian-skills | 3.40 Chinese chars/s | 正常值，无需调整 |
+
+**⚠️ 不要按 bytes/s 计算语速**，否则会把正常语速的视频（如 needle）用 atempo=0.5 强行拉慢 50%，浪费渲染帧数。
+
+**⚠️ 必须同步修改的文件（atempo 路径，三者缺一不可）**：
+
+**⚠️ 必须同步修改的文件（atempo 路径，三者缺一不可）**：
+
+| 文件 | 修改内容 |
+|------|---------|
+| `audio/neural.mp3` | `ffmpeg -i neural_full.mp3 -filter:a "atempo=0.5" neural.mp3` |
+| `Root.tsx` | `TOTAL_FRAMES` 硬编码值：`⌊audio_duration × fps⌋`（例：57.33s × 60 = 3440） |
+| `captions.json` | 时间戳按 atempo 比例缩放：所有 `startMs/endMs × atempo`（例：0.5 时 ×2.0） |
+
+**Root.tsx TOTAL_FRAMES 计算公式**：
+```
+TOTAL_FRAMES = audio_duration_after_atempo × fps
+例：57.33s × 60 = 3440
+```
+
+**captions.json 缩放公式**：
+```
+scale_factor = atempo_value
+所有 startMs/endMs × scale_factor
+例：atempo=0.5 → scale_factor=2.0（音频延长2倍，时间戳也延长2倍）
+```
+
+**⚠️ 致命陷阱**：Remotion 的 `durationInFrames` 来自 **Root.tsx 的 TOTAL_FRAMES**。atempo 调整音频后，帧数必须重新计算（`audio_duration × fps`），Video.tsx 的 `<Audio>` 组件**不使用** `playbackRate` prop（ playbackRate 由 atempo 在音频层面处理）。
+
+**验证命令**：
+```bash
+# 检查 TOTAL_FRAMES
+grep "TOTAL_FRAMES" video-project/src/Root.tsx
+
+# 检查音频时长（atempo 后）
+ffprobe -v quiet -show_entries format=duration -of csv=p=0 video-project/public/audio/neural.mp3
+
+# 验证视频实际时长 = audio_duration
+ffprobe -i video-project/out/needle_v1_3_final.mp4 -show_entries format=duration -v quiet -of csv="p=0"
+
+# 验证语速（699 chars / 57.33s ≈ 12.19 chars/s ≈ feedgrab 基准 12.05）
+python3 -c "
+chars = sum(1 for c in open('docs/narration.txt').read() if '\u4e00' <= c <= '\u9fff')
+dur = float(open('video-project/public/audio/neural.mp3').close() or 0)
+# 用 ffprobe 代替
+import subprocess
+r = subprocess.run(['ffprobe','-v','quiet','-show_entries','format=duration','-of','csv=p=0','video-project/public/audio/neural.mp3'], capture_output=True, text=True)
+dur = float(r.stdout.strip())
+rate = chars / dur
+print(f'语速: {rate:.2f} chars/s（目标: 12.05 chars/s）')
+"
+
+**渲染后必须验证**：时长 = audio_duration / playbackRate × fps，否则说明 TOTAL_FRAMES 未同步。
+
+---
+
+## ⚠️ 音频验证（必须执行）
 
 > **根因**：Remotion 渲染的 raw 视频内部含有一个结构正常但实际静音的 AAC 轨道（ffprobe 显示 codec_name=aac + bit_rate=317k，看起来完全正常，但 astats 显示所有帧 RMS=-inf）。当使用 `-c:a copy` 合并时，ffmpeg 默认选择第一个音频流（Remotion 内嵌的静音轨），导致最终视频音频静默。
 >
@@ -843,10 +922,11 @@ grep -c "^[|]" "${PROJECT_DIR}/docs/session-log.md"
 
 阅读各个规则文件以获取详细说明和代码示例：
 - [references/remotion-compilation-errors.md](references/remotion-compilation-errors.md) — **Remotion 编译错误**：esbuild语法；themes key引号；CaptionOverlay useDelayRender；spring()缺少fps参数
+- [references/cover-font-selection.md](references/cover-font-selection.md) — **封面字体选择**：_find_cjk_font 字体探测优先级；cjk_fonts 精确匹配表；LXGWWenKai/PingFangSC/HiraginoSansGB；字体乱码自检函数 _cjk_detect_render
 - [references/ass-subtitle-production.md](references/ass-subtitle-production.md) — **ASS字幕+TikTokCaptionOverlay**：逐字高亮；interpolate方案；双字幕修复
 - [references/tts-production.md](references/tts-production.md) — **edge-tts**：CLI语法；服务不可用备用方案；语音优先级
 - [references/video-optimization.md](references/video-optimization.md) — **性能优化**：execSync批量；PIL缓存；launch.sh路径bug修复
-- [references/content-workflow.md](references/content-workflow.md) — **内容获取**：GitHub clone；generate_docs已知问题；narration Rewrite循环
+- [references/generate-docs-known-issues.md](references/generate-docs-known-issues.md) — **generate_docs.js 已知问题**：extractNarration() 截断逻辑缺陷与修复；11 个文档铁律；Step 0 验证命令
 - [references/audio-production.md](references/audio-production.md) — **音频验证**：ffprobe RMS检测；silenceremove陷阱；混流正确做法
 - [references/video-visual-design.md](references/video-visual-design.md) — **视觉设计**：居中布局铁律；粒子/霓虹/glow系统
 - [references/cloudflare-blocking-medium.md](references/cloudflare-blocking-medium.md) — **Medium阻断**：需用户手动提供内容

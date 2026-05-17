@@ -123,10 +123,10 @@ function generateVideoScript(articleContent, config) {
 /**
  * 从 video-script.md 提取配音文本
  * @param {string} scriptContent
- * @param {number} maxChars — ⌊duration × 3.37⌋（实测安全上限）
+ * @param {number} maxChineseChars — ⌊duration × 3.37⌋（实测安全上限，中文字符数）
  * @returns {string} narration.txt
  */
-function extractNarration(scriptContent, maxChars) {
+function extractNarration(scriptContent, maxChineseChars) {
   // 从脚本中提取场景内容（去掉标题、时长标注等）
   const lines = scriptContent.split("\n");
   const narrationLines = [];
@@ -145,17 +145,38 @@ function extractNarration(scriptContent, maxChars) {
   }
 
   let narration = narrationLines.join("。");
-  // 截断逻辑：统计中文字符数（与验证逻辑一致），在自然断点处截断
-  const chineseChars = (narration.match(/[\u4e00-\u9fa5]/g) || []).length;
-  if (chineseChars > maxChars) {
+
+  // 统计中文字符数（与验证逻辑完全一致）
+  const countChinese = (text) => (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+  let chineseChars = countChinese(narration);
+
+  // ⚠️ 截断逻辑：按中文字符数截断，在自然断点处截断
+  if (chineseChars > maxChineseChars) {
     let acc = 0, breakIdx = narration.length;
     for (let i = 0; i < narration.length; i++) {
       if (/[\u4e00-\u9fa5]/.test(narration[i])) acc++;
-      if (acc > maxChars && /[。！？]/.test(narration[i])) {
-        breakIdx = i + 1; break;
+      if (acc > maxChineseChars && /[。！？]/.test(narration[i])) {
+        breakIdx = i + 1;
+        break;
       }
     }
-    narration = narration.slice(0, breakIdx) || narration.slice(0, Math.floor(maxChars * 1.5));
+    narration = narration.slice(0, breakIdx) || narration.slice(0, Math.floor(maxChineseChars * 1.5));
+    chineseChars = countChinese(narration);
+  }
+
+  // 最终安全检查：若截断后仍超限，取上限一半强制截断（不抛错，避免阻断流程）
+  if (chineseChars > maxChineseChars) {
+    let acc = 0, breakIdx = narration.length;
+    for (let i = 0; i < narration.length; i++) {
+      if (/[\u4e00-\u9fa5]/.test(narration[i])) {
+        acc++;
+        if (acc >= Math.floor(maxChineseChars * 0.95)) {
+          breakIdx = i + 1;
+          break;
+        }
+      }
+    }
+    narration = narration.slice(0, breakIdx);
   }
 
   return narration + "。";
