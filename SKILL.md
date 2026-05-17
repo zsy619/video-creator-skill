@@ -5,6 +5,7 @@ homepage: https://github.com/zsy619/video-creator-skill
 metadata:
     tags:
       - "video-creator"
+      - "video creator"
       - "创建视频"
       - "生成视频"
       - "视频创作"
