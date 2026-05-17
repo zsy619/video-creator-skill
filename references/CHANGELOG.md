@@ -1,24 +1,24 @@
-# video-creator Changelog
+# CHANGELOG — video-creator Skill
 
-## 2026-05-17 18:25 (opskat session)
-- 修复 `launch.sh all` 渲染失败：Bus error 根因是 CWD 在渲染时被删除导致，`all` 中渲染命令需要先 `cd "${VP_DIR}"` 再执行
-- 记录 Remotion Composition ID (`VerticalVideo`) ≠ 组件注册名 (`RemotionRoot`)，两者是不同命名空间，render 时必须用 `VerticalVideo`
-- 添加 `launch.sh render` 子命令中 `cd "${VP_DIR}"` 的修复
+## [已发布] 2026-05-17 晚间更新
 
-## 2026-05-17 上午
-- 发现 RuView-video 之后 11 个项目存在系统性质量问题（缺 docs/、无封面、音频命名错误）
-- 修复 atempo 动态计算（`source_duration / target_duration` 替代固定 1.2）
-- 修复 `launch.sh render` 中 `cd "${VP_DIR}"` 逻辑
+### 新增参考文档
+- `references/generate-docs-html-table-bug.md` — 新增 ShadowBroker 实测案例（10字 narration → 116字手动重写），补充动态 atempo 计算（0.642x）和 Python captions.json heredoc-safe 生成方式。
 
-## 2026-05-15
-- 用户确认默认语音为 `zh-CN-YunjianNeural`（永久偏好，不接受女声）
-- 修复 edge-tts rate=+0% 与 atempo 1.2x 叠加问题（禁止叠加使用）
-- Remotion Native 渲染成功：音频内嵌 + 字幕烧录 + 60fps + 1080×1920
+### 已知问题确认
+- GitHub README 含 HTML 标签/表格时 `stripMarkdown()` 近乎 100% 失败，Skill 文档已记录此为已知高风险场景。
 
-## 2026-05-14
-- 8 个项目（oh-my-codex、deer-flow、claude-hud、OpenViking、openscreen、open-swe、impeccable、deepagents）全部 narration.txt 字数不足，需手动重写
-- 确认 `generate_docs.js` 对中文内容提取能力极弱
+---
 
-## 2026-05-13
-- Remotion Native 渲染首战成功，弃用 ffmpeg 混流方案
-- edge-tts 实测语速 3.37~3.73 中文字符/秒（安全上限取 3.37）
+## 2026-05-17 上午批次（已废弃旧版）
+
+- ⚠️ `references/feishu-base-batch-workflow.md` 已废弃（描述的错误流程导致RuView-video后全部11个项目无文档/无封面/音频混乱）
+- 新增 Feishu Base 批量处理门禁规则（最高优先级入口规则）
+
+---
+
+## 2026-05-15 v5.x 大修订
+
+- TTS 实测修正：3.37 字/秒安全上限
+- Remotion Native 成功：音频内嵌+字幕烧录+60fps/1080×1920；三同步机制；CaptionOverlay代码；末段endMs同步；404根因
+- 批量处理门禁新增：必须完整执行 Step 0-11，禁止"快速路径"
