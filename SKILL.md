@@ -140,6 +140,25 @@ atempo = source_duration / target_duration
 >
 > **修复**：Step 0 后必须**人工检查并重写** narration.txt，不要依赖自动生成版本。
 
+**Step 0 后强制检查与重写规程**：
+
+1. `generate_docs.js` 执行完毕后，**立即**统计 narration.txt 中文字符数：
+   ```bash
+   python3 -c "
+   text = open('docs/narration.txt').read()
+   chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+   print(f'中文字数: {chinese_chars}')
+   # 若 < 20 字，或含 '---'、'|'、'[' 等 markdown 残留字符 → 立即重写
+   "
+   ```
+2. **触发重写条件（满足任一）**：
+   - 中文字数 < 20（严重提取失败）
+   - 文本含 `---`、`|`、`[![]()`、`|:---` 等 markdown 噪声字符
+   - 中文字数 > 上限的 2 倍（175 × 2 = 350 字，说明大量英文/符号被混入）
+3. **重写方法**：基于 `article.md` 内容，手动撰写 100~175 字的中文配音文本，涵盖项目名、功能、亮点、使用方式。
+4. **重写后复检**：再次统计字数，确认在 100~175 字安全区间内，再进入 Step 1。
+5. **禁止跳过**：即使 `launch.sh all` 打印"字数检查通过"，也须鉴别提取文本是否有意义（不含 markdown 残留）。如果文本是噪声（即使字数在范围内），必须重写。
+
 **RuView-video 之后 11 个问题项目列表**
 
 以下项目使用旧版错误流程生成（手动 edge-tts + source.mp3/speech.mp3 + 无 docs/），需用 `launch.sh all` 或完整 Step 0-11 重新处理：
