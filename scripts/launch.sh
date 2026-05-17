@@ -272,7 +272,7 @@ cmd_render() {
 
   log "音频时长: ${AUDIO_DURATION}s → ${TOTAL_FRAMES} 帧 @60fps"
 
-  npx remotion render VerticalVideo \
+  npx remotion render RemotionRoot \
     "${VP_DIR}/out/final.mp4" \
     --concurrency=4 \
     --fps=60 \
@@ -338,14 +338,20 @@ cmd_all() {
     exit 1
   fi
 
-  # 字数检查
+  # 字数检查（统计中文字符，不含标点/英文/空格）
   local CHAR_COUNT
-  CHAR_COUNT=$(wc -c < "$narration_file" | tr -d ' ')
+  CHAR_COUNT=$(python3 -c "
+text = open('$narration_file', encoding='utf-8').read()
+count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+print(count)
+")
   local MAX_CHARS
   MAX_CHARS=$(python3 -c "import math; print(math.floor(${TARGET_DURATION} * 3.37))")
   if [ "$CHAR_COUNT" -gt "$MAX_CHARS" ]; then
     warn "⚠️ narration.txt ${CHAR_COUNT}字 > 上限 ${MAX_CHARS}字，可能会超出目标时长"
     warn "   建议精简到 ${MAX_CHARS}字以内"
+  elif [ "$CHAR_COUNT" -lt 100 ]; then
+    warn "⚠️ narration.txt ${CHAR_COUNT}字 < 100字，可能内容不足"
   else
     ok "字数检查: ${CHAR_COUNT}字 / ${MAX_CHARS}字上限"
   fi
@@ -396,13 +402,21 @@ cmd_all() {
   ok "✅ TTS 原始音频: audio/neural_full.mp3"
   rm -f /tmp/edge_tts.$$.out
 
-  # ── Step 2: ffmpeg 后处理（atempo 1.2x + AAC 256k）────────────────────
+  # ── Step 2: ffmpeg 后处理（动态 atempo + AAC 256k）──────────────────
   echo ""
-  echo "=== Step 2: ffmpeg 后处理（去静音 + atempo 1.2x + AAC 256k）==="
+  echo "=== Step 2: ffmpeg 后处理（去静音 + 动态 atempo + AAC 256k）==="
+
+  # 动态计算 atempo：不是固定 1.2，而是根据 source 时长 / 目标时长计算
+  local SOURCE_DURATION
+  SOURCE_DURATION=$(ffprobe -v error -show_entries format=duration \
+    -of csv=p=0 "${proj_dir}/audio/neural_full.mp3" 2>/dev/null || echo "0")
+  local ATEMPO
+  ATEMPO=$(python3 -c "import math; print(round(min(max(${SOURCE_DURATION} / ${TARGET_DURATION}, 0.5), 2.0), 4))")
+  log "atempo计算: ${SOURCE_DURATION}s / ${TARGET_DURATION}s = ${ATEMPO}"
 
   ffmpeg -y \
     -i "${proj_dir}/audio/neural_full.mp3" \
-    -af "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.3,atempo=1.2" \
+    -af "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.3,atempo=${ATEMPO}" \
     -c:a aac -b:a 256k \
     "${proj_dir}/audio/neural_1_2x.m4a" \
     > /dev/null 2>&1
