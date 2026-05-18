@@ -48,6 +48,7 @@ metadata:
 | `audio-tts.md` | edge-tts规范、atempo动态计算、音频参数 |
 | `subtitle-production.md` | ASS字幕格式、Fontsize=72规范、六禁止铁律 |
 | `documentation-consistency.md` | 文档一致性检查（死链已修复） |
+| `git-workflow.md` | 目录分离、launch.sh init隔离逻辑、Git清理规范 |
 
 ## ⚠️ Feishu Base 批量处理警告
 

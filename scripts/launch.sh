@@ -61,10 +61,23 @@ EOF
 # ── 子命令: init ──────────────────────────────────────────────────────────────
 cmd_init() {
   local name="$1"
-  local workspace="${PROJECT_DIR:~/.hermes/workspace}"
+  local workspace="${PROJECT_DIR:-$HOME/.hermes/workspace}"
   local proj_dir="${workspace}/${name}"
 
   log "初始化项目: ${proj_dir}"
+
+  # ── Git 内容隔离（2026-05-18）────────────────────────────────────────────
+  # 若 proj_dir 已存在且包含 .git/config，说明是 git clone 的目标目录
+  # 此时将 Git 内容移入 <name>-repo/ 子目录，保持 proj_dir 根目录干净
+  if [ -d "${proj_dir}" ] && [ -f "${proj_dir}/.git/config" ]; then
+    log "检测到已有 Git 仓库（${proj_dir}），自动隔离至 ${name}-repo/"
+    local repo_temp="${workspace}/${name}-repo-temp"
+    mv "${proj_dir}" "${repo_temp}"
+    mkdir -p "${proj_dir}"
+    mv "${repo_temp}" "${proj_dir}/${name}-repo"
+    ok "Git 内容已隔离至 ${proj_dir}/${name}-repo/"
+  fi
+  # ── 隔离逻辑结束 ─────────────────────────────────────────────────────────
 
   mkdir -p "${proj_dir}/docs/assets/imgs"
   mkdir -p "${proj_dir}/docs/assets/illustrations"
