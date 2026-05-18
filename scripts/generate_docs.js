@@ -139,8 +139,10 @@ function extractNarration(scriptContent, maxChineseChars) {
     }
     if (capture && line.startsWith("#")) break;
     if (capture && line.match(/^\*\*时长\*\*/)) continue;
-    if (capture && line.trim()) {
-      narrationLines.push(line.trim());
+    // 跳过 markdown 语法噪声行
+    const strippedLine = line.replace(/^\*\*时长\*\*\s*\d+s\n?/, "").replace(/[*_~`#|>]/g, "").replace(/\|+/g, "").replace(/^-+$/, "").trim();
+    if (capture && strippedLine) {
+      narrationLines.push(strippedLine);
     }
   }
 

@@ -1,5 +1,41 @@
 # CHANGELOG — video-creator Skill
 
+## [已发布] 2026-05-18 References 文档优化
+
+### 合并与归档
+
+- **5大合并**：将30个参考文档优化为18个主文件 + archived/ 目录
+  - `subagent-timeout-recovery.md` ← `launch-sh-reference` + `subagent-timeout-recovery` + `feishu-base-补全流程` + `remotion-render-output-filename`
+  - `audio-tts.md` ← `tts-production` + `audio-production`
+  - `remotion-troubleshoot.md` ← `remotion-compilation-errors` + `remotion-rendering-issues` + `remotion-project-creation` + `remotion-composition-id`
+  - `subtitle-production.md` ← `remotion-native` + `ass-subtitle-production`
+  - `content-document-generation.md` ← `content-workflow` + `generate-docs-html-table-bug` + `generate-docs-known-issues`
+- **归档**：`archived/` 目录存放废弃文件（feishu-base-batch-workflow.md、one-pass-workflow.md、remotion-render-output-filename.md、feishu-base-补全流程.md、launch-sh.md）
+- **重命名**：`feishu-base-api.md` → `feishu-base-api-reference.md`
+- **精简**：`openhuman-narration-template.md`（从62行压缩至示例+教训两部分）
+
+### 删除的冗余文件
+
+- `tts-production.md`（已合并至 audio-tts.md）
+- `audio-production.md`（已合并至 audio-tts.md）
+- `remotion-compilation-errors.md`（已合并至 remotion-troubleshoot.md）
+- `remotion-rendering-issues.md`（已合并至 remotion-troubleshoot.md）
+- `remotion-project-creation.md`（已合并至 remotion-troubleshoot.md）
+- `remotion-composition-id.md`（已合并至 remotion-troubleshoot.md）
+- `remotion-native.md`（已合并至 subtitle-production.md）
+- `ass-subtitle-production.md`（已合并至 subtitle-production.md）
+- `content-workflow.md`（已合并至 content-document-generation.md）
+- `generate-docs-html-table-bug.md`（已合并至 content-document-generation.md）
+- `generate-docs-known-issues.md`（已合并至 content-document-generation.md）
+- `captions-json-python-generation.md`（已合并至 content-document-generation.md）
+- `feishu-base-batch-workflow.md`（已归档至 archived/）
+- `one-pass-workflow.md`（已归档至 archived/）
+- `remotion-render-output-filename.md`（已归档至 archived/）
+- `feishu-base-补全流程.md`（已归档至 archived/）
+- `launch-sh.md`（已归档至 archived/）
+
+---
+
 ## [已发布] 2026-05-17 晚间更新
 
 ### 新增参考文档

@@ -61,7 +61,7 @@ EOF
 # ── 子命令: init ──────────────────────────────────────────────────────────────
 cmd_init() {
   local name="$1"
-  local workspace="${PROJECT_DIR:-/Volumes/OpenClawDrive/.hermes/workspace}"
+  local workspace="${PROJECT_DIR:~/.hermes/workspace}"
   local proj_dir="${workspace}/${name}"
 
   log "初始化项目: ${proj_dir}"

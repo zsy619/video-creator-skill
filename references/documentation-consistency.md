@@ -1,7 +1,7 @@
 # 文档一致性维护指南
 
-> **最后更新**：2026-05-15
-> **配套文档**：`remotion-project-creation.md`（Remotion 项目创建规范）、`tts-production.md`（TTS 规范）
+> **最后更新**：2026-05-18
+> **配套文档**：`references/remotion-troubleshoot.md`（Remotion 问题排查）、`references/audio-tts.md`（TTS 规范）
 
 ---
 
@@ -330,7 +330,7 @@ grep -n "remotion still\|Step 8\|--frame=" {SKILL_DIR}/scripts/launch.sh
 | `references/ONEPASS_WORKFLOW.md` | 3 |
 | `references/audio-validation-protocol.md` | 2 |
 | `references/video-optimization.md` | 1 |
-| `references/video-visual-design.md` | 1 |
+| `references/video-visual.md` | 1 |
 | `references/remotion-compilation-errors.md` | 1 |
 | `references/audio-production.md` | 1 |
 | `references/remotion-compilation-errors.md` | 1 |

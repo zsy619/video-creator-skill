@@ -20,7 +20,7 @@
 # video-creator-workflow.sh
 
 PROJECT_NAME="my-video-project"
-SKILL_DIR="~/.openclaw/skills/video-creator"
+SKILL_DIR="{SKILL_DIR}"
 
 mkdir -p "workspace/${PROJECT_NAME}/docs/assets/imgs"
 mkdir -p "workspace/${PROJECT_NAME}/docs/assets/illustrations"

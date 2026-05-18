@@ -176,7 +176,7 @@ Dialogue: 0,0:00:00.00,0:00:05.00,Default,,30,30,30,,今天给大家介绍一个
 ### 安装依赖
 ```bash
 # 进入video-creator目录
-cd ~/.openclaw/skills/video-creator
+cd {SKILL_DIR}
 
 # 安装依赖
 npm install commander chalk figlet

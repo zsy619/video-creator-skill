@@ -18,15 +18,15 @@
 
 检查 out/ 是否已有 .mp4：
 ```bash
-ls -la /Volumes/OpenClawDrive/.hermes/workspace/<project>-video/video-project/out/
+ls -la "{WORKSPACE_DIR}/<project>-video/video-project/out/"
 ```
 
 ### 恢复验证
 
 实际有效的检测命令（在当前会话验证过）：
 ```bash
-ls -la /Volumes/OpenClawDrive/.hermes/workspace/newsnow-video/video-project/out/ 2>/dev/null && echo "有文件"
-ls /Volumes/OpenClawDrive/.hermes/workspace/newsnow-video/audio/ 2>/dev/null
+ls -la "{WORKSPACE_DIR}/newsnow-video/video-project/out/" 2>/dev/null && echo "有文件"
+ls "{WORKSPACE_DIR}/newsnow-video/audio/" 2>/dev/null
 ```
 
 ### 已知问题：SIGBUS on CWD invalidation
@@ -67,7 +67,7 @@ bash launch.sh covers    # Step 8
 
 | 文件 | 路径 |
 |------|------|
-| launch.sh | `/Users/zhushuyan/.hermes/skills/video-creator/scripts/launch.sh` |
-| generate_cover.py | `/Users/zhushuyan/.hermes/skills/video-creator/scripts/generate_cover.py` |
-| generate_docs.js | `/Users/zhushuyan/.hermes/skills/video-creator/scripts/generate_docs.js` |
-| 工作空间 | `/Volumes/OpenClawDrive/.hermes/workspace/` |
+| launch.sh | `{SKILL_DIR}/scripts/launch.sh` |
+| generate_cover.py | `{SKILL_DIR}/scripts/generate_cover.py` |
+| generate_docs.js | `{SKILL_DIR}/scripts/generate_docs.js` |
+| 工作空间 | `{WORKSPACE_DIR}/` |
