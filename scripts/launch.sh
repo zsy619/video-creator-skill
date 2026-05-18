@@ -574,6 +574,30 @@ print(f'CAPTION_OK:{len(captions)} captions ({AUDIO_DURATION:.3f}s total)')
   ok "✅ Remotion 渲染完成"
   rm -f /tmp/remotion.$$.out
 
+  # ── Step 7.5: 修正 captions.json 末段 endMs 为视频实际时长 ──────────
+  # 根因：captions.json 末段 endMs 基于音频时长计算，但渲染后视频时长可能微差
+  # 导致最后 N 秒无字幕覆盖（seomachine 教训：末段 endMs=38064 但视频 42645ms）
+  echo ""
+  echo "=== Step 7.5: 同步 captions.json 末段 endMs ==="
+  VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "${VP_DIR}/out/final.mp4" 2>/dev/null)
+  if [ -n "$VIDEO_DUR" ]; then
+    EXPECTED_MS=$(python3 -c "print(int(round($VIDEO_DUR * 1000)))")
+    python3 << PYEOF
+import json, sys
+cap_path = '${VP_DIR}/public/audio/captions.json'
+try:
+    caps = json.load(open(cap_path))
+    if caps[-1]['endMs'] != $EXPECTED_MS:
+        print(f'修正末段endMs: {caps[-1]["endMs"]}ms → ${EXPECTED_MS}ms')
+        caps[-1]['endMs'] = $EXPECTED_MS
+        json.dump(caps, open(cap_path, 'w'), ensure_ascii=False, indent=2)
+    else:
+        print(f'✅ 末段 endMs 已正确: ${EXPECTED_MS}ms')
+except Exception as e:
+    print(f'⚠️ captions.json 修正失败: {e}', file=sys.stderr)
+PYEOF
+  fi
+
   # ── Step 8: PIL 生成三平台正式封面 ────────────────────────────────
   # 统一使用 generate_cover.py PIL 脚本，三平台独立生成，不再级联裁剪
   echo ""

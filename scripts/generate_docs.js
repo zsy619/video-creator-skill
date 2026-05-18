@@ -535,12 +535,32 @@ function generateWechatPage(articleContent, config) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 11 文件完整性校验
+// ─────────────────────────────────────────────────────────────────────────────
+const REQUIRED_FILES = [
+  'article.md', 'video-script.md', 'narration.txt', 'copy.md',
+  'wechat-copy.md', 'posting-guide.md', 'session-log.md', 'report.json',
+  'landing-page.html', 'article-page.html', 'wechat-page.html'
+];
+
+function validateDocs(projectDir) {
+  const docsDir = path.join(projectDir, 'docs');
+  const missing = REQUIRED_FILES.filter(f => !fs.existsSync(path.join(docsDir, f)));
+  if (missing.length > 0) {
+    console.error('❌ 缺少文件: ' + missing.join(', '));
+    process.exit(1);
+  }
+  console.log('✅ 11个文件全部生成: ' + REQUIRED_FILES.join(', '));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CLI
 // ─────────────────────────────────────────────────────────────────────────────
 if (require.main === module) {
   const projectDir = process.argv[2] || process.cwd();
   console.log(`📄 文档生成: ${projectDir}`);
   generateDocs(projectDir);
+  validateDocs(projectDir);
 }
 
 module.exports = { generateDocs, stripMarkdown, extractNarration, generateVideoScript };

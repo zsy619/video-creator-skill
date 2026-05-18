@@ -200,16 +200,30 @@ PYEOF
 
 ### 重写策略
 
-**字数超限（>175）时**：
+**字数超限时**：
 - 删除修饰词："called X"、"meaning Y"、括号注释
 - 合并并列结构："支持 A、B、C 和 D" → "支持 A、B、C"
 - 删除重复概念（如果标题/副标题已陈述）
 
-**字数过少（<100）时**：
+**字数过少（<20）时**：
 - 添加具体化：`"AI tool"` → `"Anthropic Claude Code CLI 编程助手"`
 - 补充安装/使用细节
 - 添加输出格式/平台兼容性信息
 - 包含版本号或量化数据
+
+### 成功 narration 示例（openhuman-video 实测）
+
+```
+OpenHuman 是你的个人 AI 超级智能助手。它支持 118 种第三方集成，一键连接 Gmail、Notion、GitHub、Slack、日历、Drive 等服务。记忆树结合 Obsidian Wiki 本地知识库，所有内容压缩为 Markdown 片段存储在本机 SQLite。桌面吉祥物会说话、能感知环境，还能加入 Google Meet 会议。TokenJuice 智能压缩技术可降低 80% token 消耗。支持 Ollama 本地 AI 保护隐私。React 加 Tauri v2 加 Rust 技术栈，开源免费，清爽 UI 几分钟快速上手。
+```
+
+| 指标 | 值 |
+|------|---|
+| 中文字数 | 109 |
+| 原始音频 | 39.912s |
+| atempo | 0.7675（39.912/52） |
+| 处理后音频 | 51.973s ✅ |
+| 语音 | zh-CN-YunjianNeural --rate +0% |
 
 ### 为什么 narration.txt 生成质量差
 
@@ -266,7 +280,7 @@ ffmpeg -y -i "audio/neural_full.mp3" -af "atempo=${ATEMPO}" -c:a aac -b:a 256k "
 python3 << 'PYEOF'
 import json, subprocess, re
 
-PROJECT_DIR = '{WORKSPACE_DIR}/workspace/<项目>-video'
+PROJECT_DIR = '{WORKSPACE_DIR}/<项目>-video'
 
 with open(f'{PROJECT_DIR}/docs/narration.txt', 'r') as f:
     text = f.read()

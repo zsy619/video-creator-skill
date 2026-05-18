@@ -152,7 +152,6 @@ video-creator/
     ├── subtitle-production.md         # 字幕生产 + TikTokCaptionOverlay
     ├── remotion-troubleshoot.md     # Remotion 问题排查
     ├── subagent-timeout.md   # Subagent 超时恢复
-    ├── CHANGELOG.md                   # 演进历史
     └── archived/                       # 废弃文件（仅供历史参考）
 ```
 
@@ -256,9 +255,7 @@ ffmpeg ... -af "atempo=1.2" ...
 | **references/subtitle-production.md** | 字幕生产 + TikTokCaptionOverlay 完整实现 |
 | **references/remotion-troubleshoot.md** | Remotion 问题排查（compilation/rendering/Sequence） |
 | **references/content-document-generation.md** | 内容获取 + generate_docs.js 问题 + narration 重写 |
-| **references/CHANGELOG.md** | 演进历史（v5.x 大修订 / 2026-05-18 文档优化） |
 
 ---
 
 **最后更新**: 2026-05-18
-**版本**: v5.x（References 文档优化版）
