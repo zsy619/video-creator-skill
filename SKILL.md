@@ -136,7 +136,8 @@ metadata:
 | `cover-font.md` | 封面字体规范 |
 | `pil-cover.md` | PIL封面生成参考、Attrs属性标签（attrs必须是数组，不是字符串） |
 | `content-document-generation.md` | Step 0-3 完整流程（narration.txt 生成规范） |
-| `theme-matching.md` | sceneContent 动态化：封面配色/Remotion场景/关键词传递数据流 |
+| `theme-palette.md` | 50 套封面配色完整色值表，与 THEMES.md 50 主题一一对应，颜色数据来源：`scripts/theme-colors.js`（单一数据源） |
+| `theme-matching.md` | sceneContent 动态化：封面配色/Remotion 场景/关键词传递数据流 |
 | `cloudflare-medium.md` · `node-execsync-bug.md` · `readme-location.md` | 专项问题 |
 | `launch-testing-findings.md` | launch.sh实测发现（pre-render-check路径/synthesize-voice占位符/attrs数组要求） |
 

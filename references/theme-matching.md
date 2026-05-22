@@ -46,18 +46,70 @@ article.md
 
 ---
 
-## inferredTheme 主题风格
+## inferredTheme 主题风格（50 套）
 
-| inferredTheme | 配色方案 | 适用场景 |
-|--------------|---------|---------|
-| `cyberpunk` | 深紫+霓虹（青/洋红） | 科技/开源/工具 |
-| `food-warm` | 暖橙+金色 | 美食/餐饮 |
-| `travel-vibrant` | 天蓝+橙色 | 旅游/出行 |
-| `education-calm` | 蓝绿主调 | 教育/学习 |
-| `health-fresh` | 绿色清新 | 健康/运动 |
-| `fashion-elegant` | 黑金配色 | 时尚/美妆 |
-| `finance-professional` | 深蓝金色 | 金融/商业 |
-| `gaming-neon` | 暗色霓虹 | 游戏/娱乐 |
+> **命名规范**：`inferredTheme` 值必须与 `rules/THEMES.md` 的 Remotion 动画风格 ID 完全一致，与 `generate_cover.py` `THEME_STYLES` 键名一一对应。
+> ⚠️ 颜色数据来源：`scripts/theme-colors.js`（单一数据源）
+
+||| inferredTheme | 名称 | 配色方案 | 适用场景 |
+|||--------------|------|---------|---------|
+||| `tech-modern` | 科技现代风 | 科技蓝+紫 | 科技产品、AI工具 |
+||| `cyberpunk` | 赛博朋克风 | 深紫+霓虹 | 科技/开源/工具 |
+||| `neon-future` | 霓虹未来风 | 绿+粉霓虹 | 创新、前沿 |
+||| `minimal-tech` | 极简科技风 | 墨灰+纯白 | 高端品牌、金融 |
+||| `particle-tech` | 粒子科技风 | 青+金+紫 | 数据、科学 |
+||| `gradient-wave` | 渐变波纹风 | 青绿+紫+粉 | 设计、创意 |
+||| `glass-morphism` | 玻璃拟态风 | 半透明白 | 时尚、品牌 |
+||| `holographic` | 全息投影风 | 青+蓝+紫 | AR/VR、元宇宙 |
+||| `data-stream` | 数据流风 | 绿色矩阵 | 大数据、金融 |
+||| `quantum-tech` | 量子科技风 | 粉+青+黄绿 | 量子、物理 |
+||| `vibrant-gradient` | 活力渐变风 | 橙+金+绿 | 生活方式、健身 |
+||| `aurora-gradient` | 极光渐变风 | 青+紫+粉 | 视觉艺术 |
+||| `forest-nature` | 森林自然风 | 森林绿+金 | 环保、户外 |
+||| `deep-ocean` | 深海科技风 | 深海青+靛蓝 | 海洋、环保 |
+||| `arctic-ice` | 极地冰晶风 | 冰蓝+淡紫 | 冰雪、能源 |
+||| `dark-minimal` | 暗夜极简风 | 墨灰+纯白 | 专业服务 |
+||| `neon-city` | 霓虹都市风 | 玫红+紫+金 | 夜生活、音乐 |
+||| `fintech` | 金融科技风 | 深绿+金 | 金融、投资 |
+||| `pure-medical` | 纯净医疗风 | 天空蓝+青绿 | 医疗、生物 |
+||| `autumn-vintage` | 暖秋复古风 | 枫红+橙黄 | 复古、艺术 |
+||| `game-elite` | 电竞游戏风 | 紫色+玫红 | 游戏、电竞 |
+||| `education-blue` | 学术教育风 | 深蓝+浅蓝 | 课程、教育 |
+||| `food-warm` | 美食温暖风 | 暖橙+金色 | 美食、探店 |
+||| `travel-vibrant` | 旅行冒险风 | 天蓝+橙色 | 旅行、冒险 |
+||| `music-beat` | 音乐节拍风 | 粉+金 | 音乐、音频 |
+||| `news-official` | 新闻权威风 | 深蓝主调 | 新闻、时事 |
+||| `pet-cute` | 萌宠可爱风 | 粉色系 | 宠物、萌宠 |
+||| `auto-tech` | 汽车科技风 | 青+绿+橙 | 汽车、科技 |
+||| `startup-energy` | 创业活力风 | 深绿+金 | 创业、投资 |
+||| `luxury-elegant` | 奢华优雅风 | 黑金配色 | 奢侈品、品牌 |
+||| `ai-smart` | AI 智能风 | 紫+靛青 | AI绘画、AI生成 |
+||| `coding-dev` | 编程开发风 | 青+蓝+绿 | 编程、代码 |
+||| `space-cosmos` | 太空宇宙风 | 紫+粉 | 太空、宇宙 |
+||| `cyber-dark` | 暗黑黑客风 | 绿色矩阵 | 网络安全 |
+||| `bio-tech` | 生物科技风 | 青+绿 | 生物技术、基因 |
+||| `social-media` | 社交媒体风 | 粉+紫 | 网红、涨粉 |
+||| `beauty-makeup` | 美容美妆风 | 粉+金 | 美容、医美 |
+||| `parenting-baby` | 育儿萌娃风 | 粉+绿 | 育儿、亲子 |
+||| `fitness-gym` | 健身塑形风 | 橙+红+金 | 健身、减脂 |
+||| `coffee-break` | 咖啡慢生活风 | 棕+金 | 咖啡、慢生活 |
+||| `book-literature` | 读书文学风 | 棕+琥珀 | 读书、文学 |
+||| `anime-manga` | 二次元动漫风 | 紫+粉+青 | 动漫、二次元 |
+||| `celebrity-star` | 明星偶像风 | 红+金+紫 | 明星、偶像 |
+||| `law-justice` | 法律正义风 | 蓝主调 | 法律、维权 |
+||| `invest-plan` | 财富规划风 | 绿主调 | 理财、财务自由 |
+||| `psychology-mind` | 心理心灵风 | 靛紫主调 | 心理学、情绪 |
+||| `handcraft-diy` | 手工 DIY 风 | 棕+金 | 手工、DIY |
+||| `architecture-interior` | 家居设计风 | 灰白主调 | 室内设计 |
+||| `photo-lifestyle` | 摄影生活风 | 灰调主调 | 摄影、人像 |
+||| `vintage-film` | 复古胶片风 | 棕+红+金 | 复古胶片、怀旧 |
+
+> 旧版 `inferredTheme` 别名兼容性：
+> - `health-fresh` → `particle-tech`
+> - `education-calm` → `aurora-gradient`
+> - `gaming-neon` → `game-elite`
+> - `finance-professional` → `fintech`
+> - `fashion-elegant` → `luxury-elegant`（保留）
 
 ---
 

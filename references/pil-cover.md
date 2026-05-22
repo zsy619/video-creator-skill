@@ -52,22 +52,50 @@ launch.sh 中使用以下逻辑读取：
 COVER_ATTRS=$(node -e "console.log((require('${config_file}').cover?.attrs || require('${config_file}').attrs || []).join(','))")
 ```
 
-## inferredTheme 主题配色
+## inferredTheme 主题配色（30 套）
 
-封面配色由 `inferredTheme` 字段控制，通过 launch.sh Step -1 自动读取：
+封面配色由 `inferredTheme` 字段控制，通过 launch.sh Step -1 自动读取。
 
-| inferredTheme | 配色方案 | 适用场景 |
-|--------------|---------|---------|
-| `cyberpunk` | 深紫+霓虹（青/洋红） | 科技/开源/工具（默认） |
-| `food-warm` | 暖橙+金色 | 美食/餐饮 |
-| `travel-vibrant` | 天蓝+橙色 | 旅游/出行 |
-| `education-calm` | 蓝绿主调 | 教育/学习 |
-| `health-fresh` | 绿色清新 | 健康/运动 |
-| `fashion-elegant` | 黑金配色 | 时尚/美妆 |
-| `finance-professional` | 深蓝金色 | 金融/商业 |
-| `gaming-neon` | 暗色霓虹 | 游戏/娱乐 |
+> **完整 30 套配色方案**见 [references/theme-palette.md](theme-palette.md)，以下为核心速查表：
 
-手动覆盖（在 video-config.json 中）：
+|| inferredTheme | 配色主调 | 适用场景 |
+||--------------|---------|---------|
+|| `tech-modern` | 科技蓝+紫 | 科技产品、AI工具 |
+|| `cyberpunk` | 深紫+霓虹 | 科技/开源/工具 |
+|| `neon-future` | 绿+粉霓虹 | 创新、前沿 |
+|| `minimal-tech` | 墨灰+纯白 | 高端品牌、金融 |
+|| `particle-tech` | 青+金+紫 | 数据、科学 |
+|| `gradient-wave` | 青绿+紫+粉 | 设计、创意 |
+|| `glass-morphism` | 半透明白 | 时尚、品牌 |
+|| `holographic` | 青+蓝+紫 | AR/VR、元宇宙 |
+|| `data-stream` | 绿色矩阵 | 大数据、金融 |
+|| `quantum-tech` | 粉+青+黄绿 | 量子、物理 |
+|| `vibrant-gradient` | 橙+金+绿 | 生活方式、健身 |
+|| `aurora-gradient` | 青+紫+粉 | 视觉艺术 |
+|| `forest-nature` | 森林绿+金 | 环保、户外 |
+|| `deep-ocean` | 深海青+靛蓝 | 海洋、环保 |
+|| `arctic-ice` | 冰蓝+淡紫 | 冰雪、能源 |
+|| `dark-minimal` | 墨灰+纯白 | 专业服务 |
+|| `neon-city` | 玫红+紫+金 | 夜生活、音乐 |
+|| `fintech` | 深绿+金 | 金融、投资 |
+|| `pure-medical` | 天空蓝+青绿 | 医疗、生物 |
+|| `autumn-vintage` | 枫红+橙黄 | 复古、艺术 |
+|| `game-elite` | 紫色+玫红 | 游戏、电竞 |
+|| `education-blue` | 深蓝+浅蓝 | 课程、教育 |
+|| `food-warm` | 暖橙+金色 | 美食、探店 |
+|| `travel-vibrant` | 天蓝+橙色 | 旅行、冒险 |
+|| `music-beat` | 粉+金 | 音乐、音频 |
+|| `news-official` | 深蓝主调 | 新闻、时事 |
+|| `pet-cute` | 粉色系 | 宠物、萌宠 |
+|| `auto-tech` | 青+绿+橙 | 汽车、科技 |
+|| `startup-energy` | 深绿+金 | 创业、投资 |
+|| `luxury-elegant` | 黑金配色 | 奢侈品、品牌 |
+
+> 旧版别名：`health-fresh` → `particle-tech`，`education-calm` → `aurora-gradient`，`gaming-neon` → `game-elite`
+
+### 手动覆盖
+
+在 `video-config.json` 中手动指定主题：
 ```json
 "inferredTheme": "food-warm"
 ```

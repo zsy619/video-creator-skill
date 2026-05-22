@@ -302,90 +302,57 @@ def hex_to_rgb(hex_color):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 主题配色方案（8种主题，封面背景/光晕/文字颜色由此定义）
+# 主题配色方案（50种主题 + 3个别名）
+# ⚠️ 数据来源：scripts/theme-colors.js（单一数据源）
+#    本文件通过 Node.js 动态加载，确保封面配色与 Remotion 风格100%一致
 # ═══════════════════════════════════════════════════════════════════════════
-THEME_STYLES = {
-    # 科技/开源 — 深紫+霓虹
-    'cyberpunk': {
-        'bg_primary':  '#0D0221',
-        'bg_grid':     '#150828',
-        'glow_colors': ['#00FFFF', '#FF00FF', '#9D00FF', '#00FFFF'],
-        'glow_pcts':   [(0.1, 0.1, 0.35), (0.9, 0.1, 0.25), (0.1, 0.9, 0.25), (0.9, 0.9, 0.20)],
-        'title_glow':  '#00CCCC',
-        'subtitle_color': '#00FFFF',
-        'attr_colors': ['#00FFFF', '#FF00FF', '#9D00FF', '#00FF88', '#FF6600', '#FFD700', '#FF3366', '#33CCFF'],
-    },
-    # 美食 — 暖橙+金色
-    'food-warm': {
-        'bg_primary':  '#1A0A00',
-        'bg_grid':     '#2D1500',
-        'glow_colors': ['#FF6600', '#FFD700', '#FF3300', '#FF6600'],
-        'glow_pcts':   [(0.1, 0.1, 0.30), (0.9, 0.1, 0.25), (0.5, 0.9, 0.20), (0.9, 0.9, 0.15)],
-        'title_glow':  '#FF9900',
-        'subtitle_color': '#FFD700',
-        'attr_colors': ['#FF6600', '#FFD700', '#FF3300', '#FF9933', '#FFCC00', '#FF5500', '#CC6600', '#FFB300'],
-    },
-    # 旅游 — 天蓝+橙色
-    'travel-vibrant': {
-        'bg_primary':  '#001A2D',
-        'bg_grid':     '#002040',
-        'glow_colors': ['#33CCFF', '#FF6600', '#00CCFF', '#FF9933'],
-        'glow_pcts':   [(0.1, 0.1, 0.30), (0.9, 0.1, 0.25), (0.1, 0.9, 0.20), (0.9, 0.9, 0.15)],
-        'title_glow':  '#00AAFF',
-        'subtitle_color': '#33CCFF',
-        'attr_colors': ['#33CCFF', '#FF6600', '#00CCFF', '#FFCC00', '#0099FF', '#FF9933', '#00AAEE', '#FF7744'],
-    },
-    # 教育 — 蓝绿主调
-    'education-calm': {
-        'bg_primary':  '#001A1A',
-        'bg_grid':     '#002626',
-        'glow_colors': ['#00CC99', '#0099FF', '#00CC99', '#0066CC'],
-        'glow_pcts':   [(0.1, 0.1, 0.28), (0.9, 0.1, 0.22), (0.1, 0.9, 0.22), (0.9, 0.9, 0.18)],
-        'title_glow':  '#00DDAA',
-        'subtitle_color': '#00CC99',
-        'attr_colors': ['#00CC99', '#0099FF', '#00DDAA', '#66CCFF', '#00BB88', '#0088DD', '#00EEBB', '#3399FF'],
-    },
-    # 健康 — 绿色清新
-    'health-fresh': {
-        'bg_primary':  '#001A00',
-        'bg_grid':     '#002600',
-        'glow_colors': ['#00DD44', '#88FF00', '#00CC33', '#AAFF00'],
-        'glow_pcts':   [(0.1, 0.1, 0.28), (0.9, 0.1, 0.22), (0.1, 0.9, 0.22), (0.9, 0.9, 0.18)],
-        'title_glow':  '#00FF55',
-        'subtitle_color': '#00DD44',
-        'attr_colors': ['#00DD44', '#88FF00', '#00CC33', '#AAFF00', '#33FF66', '#CCFF00', '#00FF88', '#66FF33'],
-    },
-    # 时尚 — 黑金配色
-    'fashion-elegant': {
-        'bg_primary':  '#0A0A0A',
-        'bg_grid':     '#1A1A1A',
-        'glow_colors': ['#FFD700', '#FFB300', '#FF9900', '#FFD700'],
-        'glow_pcts':   [(0.1, 0.1, 0.25), (0.9, 0.1, 0.20), (0.5, 0.9, 0.18), (0.9, 0.9, 0.15)],
-        'title_glow':  '#FFCC00',
-        'subtitle_color': '#FFD700',
-        'attr_colors': ['#FFD700', '#FFB300', '#FF9900', '#FFAA00', '#FFE033', '#CC9900', '#FFCC33', '#DDAA00'],
-    },
-    # 金融 — 深蓝金色
-    'finance-professional': {
-        'bg_primary':  '#000D1A',
-        'bg_grid':     '#001429',
-        'glow_colors': ['#0066CC', '#FFD700', '#004499', '#FFAA00'],
-        'glow_pcts':   [(0.1, 0.1, 0.28), (0.9, 0.1, 0.22), (0.1, 0.9, 0.22), (0.9, 0.9, 0.18)],
-        'title_glow':  '#0088DD',
-        'subtitle_color': '#FFD700',
-        'attr_colors': ['#0066CC', '#FFD700', '#004499', '#FFAA00', '#0077DD', '#FFCC00', '#0055AA', '#FFBB00'],
-    },
-    # 游戏 — 暗色霓虹
-    'gaming-neon': {
-        'bg_primary':  '#0D0015',
-        'bg_grid':     '#1A0025',
-        'glow_colors': ['#FF0066', '#9900FF', '#00FF88', '#FF3300'],
-        'glow_pcts':   [(0.1, 0.1, 0.32), (0.9, 0.1, 0.28), (0.1, 0.9, 0.22), (0.9, 0.9, 0.18)],
-        'title_glow':  '#FF0088',
-        'subtitle_color': '#FF0066',
-        'attr_colors': ['#FF0066', '#9900FF', '#00FF88', '#FF3300', '#FF00CC', '#6600FF', '#00FF44', '#FF5500'],
-    },
-}
+
+import subprocess, json, os
+
+def _load_theme_styles_from_js():
+    """通过 Node.js 读取 theme-colors.js 的 cover 字段，转换为 Python dict。"""
+    script = r"""
+const tc = require('/Users/zhushuyan/.hermes/skills/video-creator/scripts/theme-colors');
+const result = {};
+Object.keys(tc.THEME_COLORS).forEach(k => {
+  const c = tc.THEME_COLORS[k];
+  result[k] = {
+    bg_primary:      c.cover.bg_primary,
+    bg_grid:         c.cover.bg_grid,
+    glow_colors:     c.cover.glow_colors,
+    glow_pcts:       c.cover.glow_pcts,
+    title_glow:      c.cover.title_glow,
+    subtitle_color:  c.cover.subtitle_color,
+    attr_colors:     c.cover.attr_colors,
+  };
+});
+process.stdout.write(JSON.stringify(result));
+"""
+    skill_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        raw = subprocess.check_output(
+            ['node', '-e', script],
+            cwd=skill_root,
+            timeout=10, text=True
+        )
+        data = json.loads(raw)
+        # glow_pcts 从 JSON 数组转回 Python 元组列表
+        for k, v in data.items():
+            v['glow_pcts'] = [tuple(p) for p in v['glow_pcts']]
+        return data
+    except Exception as e:
+        # 降级：内置最基础的 cyberpunk 配置（防止 node 不可用时完全崩溃）
+        return {
+            'cyberpunk': {
+                'bg_primary':'#0D0221','bg_grid':'#150828',
+                'glow_colors':['#00FFFF','#FF00FF','#9D00FF','#00FFFF'],
+                'glow_pcts':[(0.1,0.1,0.35),(0.9,0.1,0.25),(0.1,0.9,0.25),(0.9,0.9,0.20)],
+                'title_glow':'#00CCCC','subtitle_color':'#00FFFF',
+                'attr_colors':['#00FFFF','#FF00FF','#9D00FF','#00FF88','#FF6600','#FFD700','#FF3366','#33CCFF'],
+            }
+        }
+
+THEME_STYLES = _load_theme_styles_from_js()
 
 
 def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical', theme='cyberpunk'):
@@ -398,9 +365,14 @@ def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical', th
         attrs:       属性标签列表（4-8个偶数，渲染在副标题下方；空列表则跳过）
         output_path: 输出文件路径
         canvas_type: 'vertical' | 'wechat' | 'xhs'
-        theme:       主题配色方案，支持: cyberpunk / food-warm / travel-vibrant /
-                    education-calm / health-fresh / fashion-elegant /
-                    finance-professional / gaming-neon（默认 cyberpunk）
+        theme:       主题配色方案，支持全部 30 种主题:
+                    tech-modern / cyberpunk / neon-future / minimal-tech / particle-tech /
+                    gradient-wave / glass-morphism / holographic / data-stream / quantum-tech /
+                    vibrant-gradient / aurora-gradient / forest-nature / deep-ocean / arctic-ice /
+                    dark-minimal / neon-city / fintech / pure-medical / autumn-vintage /
+                    game-elite / education-blue / food-warm / travel-adventure / music-beat /
+                    news-official / pet-cute / auto-tech / startup-energy / luxury-elegant
+                    （默认 cyberpunk）
     """
     if canvas_type not in CANVAS_SIZES:
         raise ValueError(f"未知 canvas_type: {canvas_type}，可选: {list(CANVAS_SIZES.keys())}")

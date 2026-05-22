@@ -1,7 +1,8 @@
-# 主题系统 (30 主题)
+# 主题系统 (50 主题)
 
 > 所属模块：video-creator / SKILL.md → 视觉设计
-> 代码实现：`scripts/themes.js`（与本文档保持同步）
+> ⚠️ **数据来源**：`scripts/theme-colors.js`（单一数据源）
+> 代码实现：`scripts/themes.js`（颜色引用自 theme-colors.js）
 > 动画配置：`scripts/themes.js` 内的 `animation` 字段，或 [THEME_ANIMATIONS.md](THEME_ANIMATIONS.md) 查看详细参数
 
 ## ⚠️ 强制要求：所有视频必须使用大字体
@@ -43,6 +44,26 @@
 | auto-tech | 汽车科技风 | #1F2937 | 高级+精致 | 汽车、科技 |
 | startup-energy | 创业活力风 | #10B981 | 激情+创新 | 创业、投资 |
 | luxury-elegant | 奢华优雅风 | #B8860B | 高贵+精致 | 奢侈品、品牌 |
+| ai-smart | AI智能风 | #6366F1 | 快速+AI | AI绘画、AI生成 |
+| coding-dev | 编程开发风 | #22D3EE | 稳定+工程 | 编程、代码 |
+| space-cosmos | 太空宇宙风 | #6366F1 | 极快+星尘 | 太空、宇宙 |
+| cyber-dark | 暗黑黑客风 | #00FF00 | 极快+矩阵 | 网络安全 |
+| bio-tech | 生物科技风 | #06B6D4 | 稳定+生命 | 生物技术、基因 |
+| social-media | 社交媒体风 | #EC4899 | 活力+社交 | 网红、涨粉 |
+| beauty-makeup | 美容美妆风 | #F472B6 | 柔和+女性 | 美容、医美 |
+| parenting-baby | 育儿萌娃风 | #F472B6 | 温暖+柔和 | 育儿、亲子 |
+| fitness-gym | 健身塑形风 | #F97316 | 力量+能量 | 健身、减脂 |
+| coffee-break | 咖啡慢生活风 | #D97706 | 温暖+柔和 | 咖啡、慢生活 |
+| book-literature | 读书文学风 | #B45309 | 沉稳+书香 | 读书、文学 |
+| anime-manga | 二次元动漫风 | #8B5CF6 | 活力+次元 | 动漫、二次元 |
+| celebrity-star | 明星偶像风 | #F43F5E | 闪耀+璀璨 | 明星、偶像 |
+| law-justice | 法律正义风 | #3B82F6 | 严肃+可信 | 法律、维权 |
+| invest-plan | 财富规划风 | #10B981 | 稳定+增长 | 理财、财务自由 |
+| psychology-mind | 心理心灵风 | #6366F1 | 柔和+深邃 | 心理学、情绪 |
+| handcraft-diy | 手工DIY风 | #B45309 | 温暖+匠心 | 手工、DIY |
+| architecture-interior | 家居设计风 | #E5E7EB | 极简+精致 | 室内设计 |
+| photo-lifestyle | 摄影生活风 | #6B7280 | 柔和+光影 | 摄影、人像 |
+| vintage-film | 复古胶片风 | #B45309 | 温暖+怀旧 | 复古胶片、怀旧 |
 
 ---
 
@@ -362,6 +383,53 @@ Stars 数字:      fontSize: 38,  fontWeight: 700
 建议内容:        fontSize: 30,  fontWeight: 600
 CTA:             fontSize: 36,  fontWeight: 700  // 🔄 转发提醒身边的人
 ```
+
+### 46. AI智能风 (ai-smart)
+- **主色**: `#6366F1` (靛蓝紫)
+- **辅色**: `#8B5CF6` (紫)
+- **强调色**: `#06B6D4` (青)
+- **背景色**: `#0F172A` (深空)
+- **字体**: Inter, sans-serif
+- **粒子数**: 100
+- **适用场景**: AI 绘画、AI 生成、Midjourney、Stable Diffusion
+
+### 47. 编程开发风 (coding-dev)
+- **主色**: `#22D3EE` (青)
+- **辅色**: `#3B82F6` (蓝)
+- **强调色**: `#10B981` (绿)
+- **背景色**: `#0F172A` (深空)
+- **字体**: JetBrains Mono, monospace
+- **粒子数**: 80
+- **适用场景**: 编程、代码、程序员、GitHub
+
+### 48. 太空宇宙风 (space-cosmos)
+- **主色**: `#6366F1` (靛蓝紫)
+- **辅色**: `#8B5CF6` (紫)
+- **强调色**: `#EC4899` (粉)
+- **背景色**: `#000000` (纯黑)
+- **字体**: Orbitron, sans-serif
+- **粒子数**: 120
+- **适用场景**: 太空、宇宙、航天、火星
+
+### 49. 暗黑黑客风 (cyber-dark)
+- **主色**: `#22C55E` (矩阵绿)
+- **辅色**: `#00FF00` (终端绿)
+- **强调色**: `#16A34A` (深绿)
+- **背景色**: `#000000` (纯黑)
+- **字体**: JetBrains Mono, monospace
+- **粒子数**: 100
+- **适用场景**: 网络安全、黑客、渗透测试
+
+### 50. 生物科技风 (bio-tech)
+- **主色**: `#06B6D4` (青)
+- **辅色**: `#059669` (绿)
+- **强调色**: `#10B981` (亮绿)
+- **背景色**: `#052E16` (深绿)
+- **字体**: Inter, sans-serif
+- **粒子数**: 70
+- **适用场景**: 生物技术、基因、制药、医疗
+
+---
 
 ### 字号设计原则
 
