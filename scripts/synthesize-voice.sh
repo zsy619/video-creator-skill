@@ -128,15 +128,15 @@ echo -e "${YELLOW}🎙️  Step 1: 生成配音...${NC}"
 echo "   语音: $VOICE"
 echo "   文本: $NARRATION_FILE"
 
-$PYTHON_BIN << 'PYTHON_EOF'
+$PYTHON_BIN << PYTHON_EOF
 import asyncio
 import edge_tts
 import sys
 
 async def main():
-    voice = "VOICE_PLACEHOLDER"
-    output = "OUTPUT_PLACEHOLDER"
-    narration_file = "NARRATION_PLACEHOLDER"
+    voice = "$VOICE"
+    output = "$RAW_AUDIO"
+    narration_file = "$NARRATION_FILE"
     
     try:
         with open(narration_file, 'r', encoding='utf-8') as f:

@@ -163,7 +163,7 @@ const gen = new SubtitleGenerator({ fontSize: 10, ... }); // ← 遗漏
 症状：代码已修复，但文档注释仍描述旧值，误导后续调试。
 
 ```
-CHECKLIST.md 第131行：Fontsize=10（已过时）
+CHECKLIST.md 第114行：Fontsize=72 ✅ 已修复（2026-05-22）
 main.js 第784行注释：Fontsize=10（已过时）
 ```
 
@@ -371,3 +371,14 @@ find "$SKILL_DIR/references" -maxdepth 1 -name "*.md" | wc -l
 2. **文档与代码必须同步修订**：代码改了文档要改，文档改了代码也要查
 3. **自相矛盾是最高优先级信号**：文档自己否认自己，比文档与代码不一致更严重
 4. **任何文件操作前先验证文件系统状态**：ls / test -f 是唯一可信的真相来源
+
+## 2026-05-22 验证发现
+
+| 项目 | 描述 | 状态 |
+|------|------|------|
+| pre-render-check.js 路径错误 | 检查 `${projDir}/src/` 但 Remotion 在 `${projDir}/video-project/src/` | ✅ 已修复（2026-05-22）|
+| synthesize-voice.sh PLACEHOLDER | 三处 PLACEHOLDER（VOICE/OUTPUT/NARRATION）无 sed 替换 | ✅ 已修复（2026-05-22）|
+| attrs 需为数组 | launch.sh 用 `.join(',')`，字符串会报 TypeError | ✅ 文档已补充（2026-05-22）|
+| session-log.md 位置 | SKILL.md 说 `session-log.md`，实际在 `docs/session-log.md` | ⚠️ 待确认 |
+| README.md 位置 | SKILL.md 说 `docs/README.md`，实际不在 docs/ 内 | ⚠️ 待确认 |
+

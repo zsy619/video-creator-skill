@@ -43,7 +43,15 @@ if (TSX_FILE && fs.existsSync(TSX_FILE) && fs.statSync(TSX_FILE).isDirectory()) 
     }
   }
   if (!foundTsx) {
-    console.error(`❌ 在 ${projDir}/src/ 下找不到 .tsx 文件`);
+    // 重试 video-project/src/（Remotion 项目实际位置）
+    const vpSrcDir = path.join(projDir, 'video-project', 'src');
+    if (fs.existsSync(vpSrcDir)) {
+      const tsxFiles = fs.readdirSync(vpSrcDir).filter(f => /\.tsx$/.test(f));
+      if (tsxFiles.length > 0) foundTsx = path.join(vpSrcDir, tsxFiles[0]);
+    }
+  }
+  if (!foundTsx) {
+    console.error(`❌ 在 ${projDir}/src/ 或 ${projDir}/video-project/src/ 下找不到 .tsx 文件`);
     process.exit(1);
   }
   TSX_FILE = foundTsx;

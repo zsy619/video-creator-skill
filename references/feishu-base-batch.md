@@ -111,7 +111,95 @@ Step 6.3 PIL resize/裁剪 → cover-xhs.png (1440×2560)
 
 ---
 
-## 8. 飞书多维表格 API
+## 9. Feishu Base 记录更新语法（必须使用 +record-batch-update）
+
+> ⚠️ **Feishu Base 更新语法与文档旧版冲突，以此为准。**
+
+**错误语法**（试错得出）：
+```bash
+lark-cli base +record-upsert --fields '{"video-creator": "是"}' # ❌ 报错
+```
+
+**正确语法**：
+```bash
+lark-cli base +record-batch-update \
+  --base-token DTjXbS3tcaLVlqss6mHcmTwrnMg \
+  --table-id tblks7R5MCE03xlS \
+  --json '{"record_id_list":["RECORD_ID"],"patch":{"video-creator":"是"}}'
+```
+
+**参数说明**：
+- `--json`：传递 JSON 字符串，字段名为 Map Key，值为 CellValue
+- 字段名为单选/文本类型时，直接传字符串值 `"是"`
+- 不支持 `--fields` 参数（会报错）
+- 必须使用 `+record-batch-update`，不是 `+record-upsert`
+
+**验证步骤**（强制，执行后立即验证）：
+```bash
+lark-cli base +record-list \
+  --base-token DTjXbS3tcaLVlqss6mHcmTwrnMg \
+  --table-id tblks7R5MCE03xlS \
+  --record-id {record-id} \
+  --format json 2>/dev/null | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+rows = data['data']['data']
+for row in rows:
+    vc = row[2]  # video-creator 字段索引
+    vc_val = vc[0] if vc else '(空)'
+    print(f'video-creator: {vc_val}')
+    if '是' in str(vc_val):
+        print('✅ Base 更新验证通过')
+    else:
+        print('❌ Base 更新失败，需重试')
+        exit(1)
+"
+```
+
+---
+
+## 10. Git 内容隔离门禁
+
+Git 克隆内容必须与 video-creator 生成物严格隔离，在进行任何 Step 之前必须先隔离：
+
+```bash
+# Step -0.5: Git 内容隔离确认
+REPO_NAME=$(basename "$PROJECT_DIR")
+if [ -f "$PROJECT_DIR/.git/config" ]; then
+  echo "❌ 检测到 Git 内容未隔离：存在 .git/config"
+  echo "执行 launch.sh init 或手动隔离后再继续"
+  exit 1
+fi
+if [ -d "$PROJECT_DIR/${REPO_NAME}-repo" ]; then
+  echo "✅ Git 内容已隔离至 ${REPO_NAME}-repo/"
+elif [ -d "$PROJECT_DIR/$REPO_NAME" ] && [ -f "$PROJECT_DIR/$REPO_NAME/.git/config" ]; then
+  echo "⚠️ 嵌套隔离未完成，手动执行隔离后再继续"
+  exit 1
+else
+  echo "✅ 项目为纯净 video-creator 结构"
+fi
+```
+
+完整 Git 隔离规范见 `references/git-workflow.md`。
+
+---
+
+## 11. 封面图规范（强制必填）
+
+封面图是强制项，**生成顺序不可跳**：
+
+```
+Step 6.1 generate_cover.py → cover.png (1080×1920)
+Step 6.2 PIL resize/裁剪 → cover-wechat.png (900×383)
+Step 6.3 PIL resize/裁剪 → cover-xhs.png (1440×2560)
+```
+
+禁止：
+- ❌ 只生成 cover.png 不生成 wechat/xhs 版本
+- ❌ 用 Baoyu-imagine 生成一张图后手动改名
+- ❌ 跳过 generate_cover.py 直接生成 PIL 代码
+
+详见 `references/pil-cover.md`（Attrs 属性标签规范、WeChat 副标题宽度陷阱）。
 
 ### 读取记录
 

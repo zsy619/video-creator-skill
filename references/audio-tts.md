@@ -339,3 +339,64 @@ ffmpeg -y -i audio/neural_full.mp3 \
 PROJECT_DIR="{WORKSPACE_DIR}/{project}"
 cp "$PROJECT_DIR/audio/neural_1_2x.m4a" "$PROJECT_DIR/video-project/public/audio/"
 ```
+
+---
+
+## 8. 审计命令库（音频/字幕/渲染）
+
+> **最后更新**：2026-05-22（从 SKILL.md 迁移）
+> **配套文档**：`references/subtitle-production.md`（字幕时间轴）、`references/remotion-troubleshoot.md`（渲染验证）
+
+### A. 音频审计命令
+
+```bash
+# 检查 TOTAL_FRAMES
+grep "TOTAL_FRAMES" video-project/src/Root.tsx
+
+# 检查音频时长（atempo 后）
+ffprobe -v quiet -show_entries format=duration -of csv=p=0 video-project/public/audio/neural.mp3
+
+# 验证视频实际时长
+ffprobe -i video-project/out/final.mp4 -show_entries format=duration -v quiet -of csv="p=0"
+```
+
+**Root.tsx TOTAL_FRAMES 计算**：
+```
+TOTAL_FRAMES = ⌊实际音频时长(atempo后) × 60⌋
+例：57.33s × 60 = 3440
+禁止：TOTAL_FRAMES = 35 * 60（硬编码）
+```
+
+**captions.json 缩放公式**：
+```
+scale_factor = atempo_value
+所有 startMs/endMs × scale_factor
+例：atempo=0.5 → scale_factor=2.0
+```
+
+### B. ⚠️ 致命陷阱
+
+Remotion 的 `durationInFrames` 来自 **Root.tsx 的 TOTAL_FRAMES**。atempo 调整音频后，帧数必须重新计算（`audio_duration × fps`），Video.tsx 的 `<Audio>` 组件**不使用** `playbackRate` prop。
+
+### C. 音频 RMS 验证
+
+```bash
+ffmpeg -i final.mp4 \
+  -af "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-" \
+  -f null - 2>&1 | grep "RMS_level" | grep -v "\-inf" | wc -l
+# 非0个样本 = 有效音频
+```
+
+### D. 音频三禁止
+
+| 禁止 | 正确做法 |
+|------|---------|
+| 禁止分段拼接配音 | 整段连续生成 |
+| 禁止跳过音频后处理 | 去静音 + atempo + AAC 256k |
+| 禁止使用旧版 ffmpeg 混流 | ✅ **Remotion Native**：`<Audio>` 直接内嵌 MP4 |
+
+### E. 语速基准修正
+
+⚠️ **feedgrab 12.05 chars/s 实为字节数，非字符数**。真实 feedgrab 中文字符语速约 **3.40 Chinese chars/s**，与 edge-tts 自然语速 3.37~3.73 完全一致。
+
+**不要按 bytes/s 计算语速**，会把正常语速的视频用 atempo=0.5 强行拉慢 50%。

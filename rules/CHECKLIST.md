@@ -111,7 +111,7 @@ ffprobe -v error -show_entries format=duration \
 ### 字幕规范
 - **格式**: ASS (Advanced Substation Alpha)
 - **文件名**: `audio/subtitles.ass`
-- **Fontsize**: 10 (标准化像素值)
+- **Fontsize**: 72 (竖屏标准像素值，ASS原始值10对应72px)
 - **Fontname**: PingFang SC
 - **Alignment**: 2 (底部居中)
 - **PrimaryColour**: &H00FFFF (黄色)

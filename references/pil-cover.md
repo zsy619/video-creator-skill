@@ -43,6 +43,30 @@ img.save('cover.png')
 - DashScope 报 `DASHSCOPE_API_KEY` 未配置
 - 任何 AI 图像 API 不可用时，自动降级 PIL
 
+## video-config.json attrs 字段规范
+
+**`attrs` 必须是数组，不是字符串。**
+
+launch.sh 中使用以下逻辑读取：
+```javascript
+COVER_ATTRS=$(node -e "console.log((require('${config_file}').cover?.attrs || require('${config_file}').attrs || []).join(','))")
+```
+
+如果 `attrs` 是字符串 `"开源免费"`，`.join(',')` 会报错：
+```
+TypeError: "开源免费".join is not a function
+```
+
+正确格式：
+```json
+"attrs": ["开源免费", "本地运行", "隐私保护"]
+```
+
+错误格式（会报错）：
+```json
+"attrs": "开源免费"   // ❌ 字符串，join() 不是函数
+```
+
 ## 相关文件
 
 - `/Users/zhushuyan/.baoyu-skills/ui-tars-desktop/pil-cover-template.md` — 原始模板（2026-05-08）
