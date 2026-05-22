@@ -52,6 +52,26 @@ launch.sh 中使用以下逻辑读取：
 COVER_ATTRS=$(node -e "console.log((require('${config_file}').cover?.attrs || require('${config_file}').attrs || []).join(','))")
 ```
 
+## inferredTheme 主题配色
+
+封面配色由 `inferredTheme` 字段控制，通过 launch.sh Step -1 自动读取：
+
+| inferredTheme | 配色方案 | 适用场景 |
+|--------------|---------|---------|
+| `cyberpunk` | 深紫+霓虹（青/洋红） | 科技/开源/工具（默认） |
+| `food-warm` | 暖橙+金色 | 美食/餐饮 |
+| `travel-vibrant` | 天蓝+橙色 | 旅游/出行 |
+| `education-calm` | 蓝绿主调 | 教育/学习 |
+| `health-fresh` | 绿色清新 | 健康/运动 |
+| `fashion-elegant` | 黑金配色 | 时尚/美妆 |
+| `finance-professional` | 深蓝金色 | 金融/商业 |
+| `gaming-neon` | 暗色霓虹 | 游戏/娱乐 |
+
+手动覆盖（在 video-config.json 中）：
+```json
+"inferredTheme": "food-warm"
+```
+
 如果 `attrs` 是字符串 `"开源免费"`，`.join(',')` 会报错：
 ```
 TypeError: "开源免费".join is not a function

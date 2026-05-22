@@ -52,6 +52,118 @@ function estimateDuration(text) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 关键词提取 & 主题推断
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 停用词列表（常见无意义词） */
+const STOP_WORDS = new Set([
+  '的', '了', '是', '在', '和', '与', '或', '以及', '等', '之', '于', '被',
+  '了', '着', '过', '把', '给', '让', '对', '为', '以', '从', '到', '由',
+  '这', '那', '这个', '那个', '它', '他', '她', '我', '你', '我们', '你们',
+  '他们', '她们', '自己', '自己', '本身', '其实', '当然', '然后', '但是',
+  '因为', '所以', '如果', '虽然', '只是', '不过', '而且', '并且', '或者',
+  '可以', '能够', '应该', '必须', '需要', '进行', '使用', '通过', '进行',
+  '一个', '一些', '什么', '怎样', '怎么', '如何', '为什么', '有没有',
+  '有没有', '是否', '不是', '不会', '可能', '已经', '正在', '现在',
+  '今天', '昨天', '明天', '这里', '那里', '这么', '那么', '非常', '特别',
+  '更', '最', '很', '都', '还', '也', '又', '再', '就', '才', '要', '会',
+  '能', '可', '将', '曾', '刚', '即将', '一直', '一下', '一点',
+]);
+
+/**
+ * 从文章内容提取核心关键词（Top N）
+ * 策略：统计正文高频词（TF），优先取标题词，去重过滤
+ * @param {string} content — article.md 原始内容
+ * @param {number} count — 返回数量（默认5）
+ * @returns {string[]} 关键词数组
+ */
+function extractKeywords(content, count = 5) {
+  // 预处理：去掉 frontmatter / 代码块 / 链接
+  const plain = content
+    .replace(/^---[\s\S]*?---\n/, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`[^`]*`/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_~>#|]/g, '')
+    .replace(/\n{3,}/g, '\n');
+
+  // 提取标题词（H1-H3，增强权重）
+  const headingWords = [];
+  const headingRegex = /^#{1,3}\s+(.+)/gm;
+  let m;
+  while ((m = headingRegex.exec(plain)) !== null) {
+    const words = m[1].match(/[\u4e00-\u9fa5]{2,}/g) || [];
+    headingWords.push(...words);
+  }
+
+  // 分词（简单按 2-4 字词切分）
+  const wordCount = {};
+  const tokenRegex = /[\u4e00-\u9fa5]{2,4}/g;
+  let tokenMatch;
+  while ((tokenMatch = tokenRegex.exec(plain)) !== null) {
+    const word = tokenMatch[0];
+    if (STOP_WORDS.has(word)) continue;
+    // 标题词权重 ×2
+    const weight = headingWords.includes(word) ? 2 : 1;
+    wordCount[word] = (wordCount[word] || 0) + weight;
+  }
+
+  // 排序取 Top N
+  const sorted = Object.entries(wordCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, count * 3)  // 取多一些再过滤相似
+    .map(([w]) => w);
+
+  // 简单去重：过滤包含已选词子串的词（保留更长的）
+  const result = [];
+  for (const w of sorted) {
+    if (result.some(r => r.includes(w) || w.includes(r))) continue;
+    result.push(w);
+    if (result.length >= count) break;
+  }
+
+  return result.length > 0 ? result : ['视频工具'];
+}
+
+/**
+ * 根据关键词推断主题配色方案
+ * @param {string[]} keywords
+ * @returns {string} theme key
+ */
+function inferTheme(keywords) {
+  const kw = keywords.join('');
+  const map = [
+    { keys: ['美食', '烹饪', '食谱', '菜谱', '吃', '餐厅', '烘焙', '甜点', '火锅', '料理'], theme: 'food-warm' },
+    { keys: ['旅游', '出行', '攻略', '旅行', '景点', '打卡', '拍照', '度假', '酒店', '机票'], theme: 'travel-vibrant' },
+    { keys: ['教育', '学习', '课程', '培训', '学校', '老师', '学生', '考试', '教学', '课堂'], theme: 'education-calm' },
+    { keys: ['健康', '健身', '养生', '运动', '减肥', '身体', '医生', '医疗', '疾病', '饮食'], theme: 'health-fresh' },
+    { keys: ['时尚', '穿搭', '美妆', '衣服', '服装', '护肤', '口红', '搭配', '潮流', '品牌'], theme: 'fashion-elegant' },
+    { keys: ['金融', '投资', '理财', '股票', '基金', '银行', '保险', '财务', '赚钱', '经济'], theme: 'finance-professional' },
+    { keys: ['游戏', '电竞', 'Steam', '游戏', '开黑', '段位', '装备', '攻略', '手游', '玩家'], theme: 'gaming-neon' },
+    // 默认：科技/开源
+    { keys: [], theme: 'cyberpunk' },
+  ];
+
+  for (const entry of map) {
+    if (entry.keys.length === 0) return entry.theme;  // 默认兜底
+    if (entry.keys.some(k => kw.includes(k))) return entry.theme;
+  }
+  return 'cyberpunk';
+}
+
+/**
+ * 根据关键词生成封面属性标签（4个）
+ * 标签完全来自关键词，不用通用填充词
+ * @param {string[]} keywords
+ * @returns {string[]}
+ */
+function generateAttrs(keywords) {
+  if (!keywords || keywords.length === 0) return ['效率工具', '实用推荐', '收藏备用', '值得一试'];
+  // 全部来自关键词，最多4个，不足时截断
+  return keywords.slice(0, 4);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 文档生成器
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -59,9 +171,10 @@ function estimateDuration(text) {
  * 从原始文章生成视频分镜脚本
  * @param {string} articleContent — article.md 原始内容
  * @param {object} config — video-config.json
- * @returns {string} video-script.md
+ * @param {string[]} keywords — 关键词数组
+ * @returns {{ markdown: string, scenes: object[] }} 返回结构化数据 + markdown文本
  */
-function generateVideoScript(articleContent, config) {
+function generateVideoScript(articleContent, config, keywords) {
   const platform = config.platform || "微信视频号";
   const duration = config.duration || 52;
   const theme = config.theme || "cyberpunk";
@@ -96,12 +209,24 @@ function generateVideoScript(articleContent, config) {
       ? Math.max(4, Math.ceil(duration - scenes.reduce((s, sc) => s + sc.duration, 0)))
       : Math.ceil(duration * 0.15);
 
+    // 各场景场景名（固定顺序）
     const sceneNames = ["开场", "痛点", "方案", "特性", "上手", "结尾"];
-    const name = sceneNames[Math.min(i, sceneNames.length - 1)];
+    const sceneSubtitles = [
+      "一分钟了解核心内容",
+      "目前面临的主要问题",
+      "解决方案是这样工作的",
+      "核心优势全面解析",
+      "快速上手指南",
+      "总结与行动号召",
+    ];
+
     scenes.push({
       id: i + 1,
-      name: `${name}（${sceneDuration}s）`,
+      name: `${sceneNames[Math.min(i, sceneNames.length - 1)]}（${sceneDuration}s）`,
+      subtitle: sceneSubtitles[Math.min(i, sceneSubtitles.length - 1)],
       content: sceneText.trim().slice(0, 200),
+      // 保存原始内容片段，供 generateSceneContent 提取关键词
+      rawContent: sceneText.trim(),
     });
   }
 
@@ -111,13 +236,134 @@ function generateVideoScript(articleContent, config) {
 
   scenes.forEach((s, i) => {
     script += `## 场景 ${i + 1}：${s.name}\n\n`;
-    script += `**时长**: ${s.duration}s\n\n`;
+    script += `**时长**: ${s.duration}s  |  **副标题**: ${s.subtitle}\n\n`;
     script += `${s.content}\n\n`;
   });
 
   script += `---\n\n`;
-  script += `*本脚本由 generate_docs.js 自动生成 | 日期: ${new Date().toLocaleDateString("zh-CN")}*\n`;
-  return script;
+  script += `*本脚本由 generate_docs.js 自动生成 | 日期: ${new Date().toLocaleDateString("zh-CN")}*`;
+  return { markdown: script, scenes };
+}
+
+/**
+ * 从文章内容 + 关键词生成动态场景内容
+ * 替换 Remotion 场景中的硬编码内容（Hysteria 代理专属）
+ * @param {string} articleContent — article.md 原始内容
+ * @param {string[]} keywords — 关键词数组
+ * @returns {{ painPoints: string[], tags: string[], features: object[], steps: object[], url: string, license: string }}
+ */
+function generateSceneContent(articleContent, keywords) {
+  const stripped = stripMarkdown(articleContent);
+  const kw = keywords || [];
+  const kwStr = kw.join('');
+
+  // ── 1. 痛点场景（3条）：从文章痛点词+关键词推断 ────────────────────────
+  // 提取含问题/困难/痛点语义的句子
+  const painPatterns = [
+    /([^。！？]{8,30}[问题|困难|麻烦|卡顿|慢|贵|难|复杂|繁琐|慢|失效|崩溃|报错|失败][^。！？]{0,20})/g,
+    /(性能|速度|延迟|成本|费用|配置|使用|学习|安装|更新|同步|备份|安全|隐私)[^。！？]{0,30}/g,
+  ];
+  const painSentences = [];
+  for (const pat of painPatterns) {
+    let m;
+    while ((m = pat.exec(stripped)) !== null && painSentences.length < 3) {
+      const s = m[1] || m[0];
+      if (s.length > 6 && !painSentences.includes(s)) {
+        painSentences.push(s.trim().slice(0, 25));
+      }
+    }
+  }
+  const defaultPains = [
+    "访问缓慢，等待时间长",
+    "配置复杂，上手困难",
+    "成本高昂，负担不起",
+  ];
+  // 用关键词合成默认痛点（基于关键词语义）
+  const painPoints = painSentences.length >= 3
+    ? painSentences.slice(0, 3)
+    : kw.slice(0, 3).map((k, i) => defaultPains[i] || `${k}相关问题`);
+
+  // ── 2. 方案场景标签（3条）：来自关键词 ────────────────────────────────
+  const tags = kw.length >= 3
+    ? kw.slice(0, 3)
+    : ["高效便捷", "稳定可靠", "简单易用"];
+
+  // ── 3. 功能场景（4项）：从文章内容提取或关键词推断 ─────────────────────
+  // 提取含功能/特性描述的句子
+  const featPatterns = [
+    /(支持|提供|具备|拥有|采用|使用|基于)[^。！？]{5,30}/g,
+    /([^。！？]{5,20}(功能|特性|优势|特点)[^。！？]{0,15})/g,
+  ];
+  const featSentences = [];
+  for (const pat of featPatterns) {
+    let m;
+    while ((m = pat.exec(stripped)) !== null && featSentences.length < 8) {
+      const s = m[1] || m[0];
+      if (s.length > 5) featSentences.push(s.trim().slice(0, 30));
+    }
+  }
+  const featIcons = ["🚀", "🛡️", "⚡", "🌐"];
+  const featNames = kw.length >= 4
+    ? kw.slice(0, 4)
+    : ["功能强大", "安全可靠", "简单易用", "高效快速"];
+  const features = featSentences.length >= 4
+    ? featSentences.slice(0, 4).map((desc, i) => ({
+        icon: featIcons[i] || "✨",
+        name: featNames[i] || `特性${i + 1}`,
+        desc: desc.slice(0, 20),
+      }))
+    : featNames.map((name, i) => ({
+        icon: featIcons[i] || "✨",
+        name,
+        desc: `基于${kw[0] || '本项目'}的核心优势`,
+      }));
+
+  // ── 4. 上手指南步骤：从文章提取安装/使用相关命令 ───────────────────────
+  // 提取命令行、URL、配置相关句子
+  const cmdPatterns = [
+    /(`[^`]+`)/g,                          // `命令` 格式
+    /(npm |pip |brew |yarn |cargo )[^\n]{0,40}/g,  // 包管理命令
+    /(git clone|curl|wget)[^\n]{0,40}/g,   // 常用命令
+    /(https?:\/\/[^\s。！？]{10,50})/g,     // URL
+  ];
+  const cmds = [];
+  for (const pat of cmdPatterns) {
+    let m;
+    while ((m = pat.exec(stripped)) !== null) {
+      const s = m[1] || m[0];
+      if (s.length > 3) cmds.push(s.trim().slice(0, 50));
+    }
+  }
+  // 去重并保留前3个
+  const uniqueCmds = [];
+  for (const c of cmds) {
+    if (!uniqueCmds.includes(c) && uniqueCmds.length < 3) uniqueCmds.push(c);
+  }
+  const defaultSteps = [
+    { cmd: `git clone ${kw[0] || '项目地址'}`, desc: "克隆项目" },
+    { cmd: "cd 项目目录 && 安装依赖", desc: "安装依赖" },
+    { cmd: "运行启动命令", desc: "启动使用" },
+  ];
+  const steps = uniqueCmds.length >= 2
+    ? uniqueCmds.map((cmd, i) => ({ cmd, desc: `步骤${i + 1}` }))
+    : defaultSteps;
+
+  // ── 5. URL：从文章提取第一个 https URL ────────────────────────────────
+  const urlMatch = stripped.match(/(https?:\/\/[^\s。！？)）]{10,60})/);
+  const url = urlMatch ? urlMatch[1].replace(/[。！？)）]$/, '') : `https://github.com/${kw[0] || 'project'}`;
+
+  // ── 6. 许可证：检测开源许可证关键词 ───────────────────────────────────
+  const licenseMatch = stripped.match(/(MIT|Apache|GPL|BSD|Mozilla|CC0)[- ]?[Ll]icense/i);
+  const license = licenseMatch ? licenseMatch[0] : "Open Source";
+
+  return {
+    painPoints,
+    tags,
+    features,
+    steps,
+    url,
+    license,
+  };
 }
 
 /**
@@ -187,17 +433,19 @@ function extractNarration(scriptContent, maxChineseChars) {
 /**
  * 生成小红书营销文案
  */
-function generateCopy(articleContent, config) {
+function generateCopy(articleContent, config, keywords) {
   const title = extractTitle(articleContent);
   const stripped = stripMarkdown(articleContent);
-  const theme = config.theme || "cyberpunk";
+  const kw = keywords || [];
 
-  const hashtags = [
-    "#科技工具", "#开源项目", "#网络加速", "#GitHub",
-    "#数码科技", "#效率神器", "#种草推荐", "#好物分享",
-  ].slice(0, 6).join(" ");
+  // 从关键词生成 hashtag（最多6个）
+  const topicHashtags = kw.slice(0, 4).map(k => `#${k}`).join(' ');
+  const genericHashtags = '#效率神器 #种草推荐 #好物分享';
+  const hashtags = [topicHashtags, genericHashtags].filter(Boolean).join(' ');
 
-  const teaser = stripped.slice(0, 150).trim();
+  // 从关键词生成摘要语
+  const teaser = stripped.slice(0, 120).trim();
+  const keywordHighlight = kw.length > 0 ? `本期聚焦：${kw.slice(0, 2).join('、')}。` : '';
 
   return `# 小红书文案
 
@@ -214,7 +462,7 @@ GitHub热榜！这个项目让网络延迟直接消失 🔥
 
 ## 正文
 
-${teaser}...
+${keywordHighlight}${teaser}...
 
 👉 点击下方视频了解详情
 👉 关注我，获取更多科技工具推荐
@@ -383,13 +631,20 @@ function generateSessionLog(config, docNames) {
 
 /**
  * 生成执行报告
+ * @param {object} config — video-config.json
+ * @param {string[]} docNames — 生成的文件列表
+ * @param {object} extra — { keywords, inferredTheme, attrs, sceneContent }
  */
-function generateReport(config, docNames) {
+function generateReport(config, docNames, extra = {}) {
   return JSON.stringify({
     project: config.name || "video-project",
     generated: new Date().toISOString(),
     docs: docNames,
-    status: "generated"
+    status: "generated",
+    keywords: extra.keywords || [],
+    inferredTheme: extra.inferredTheme || "cyberpunk",
+    attrs: extra.attrs || [],
+    sceneContent: extra.sceneContent || null,
   }, null, 2);
 }
 
@@ -429,16 +684,43 @@ function generateDocs(projectDir) {
     fs.writeFileSync(articlePath, articleContent);
   }
 
-  // 2. video-script.md
-  const scriptContent = generateVideoScript(articleContent, config);
+  // 0.5 关键词提取（用于 attrs 生成、hashtag、主题推断）
+  const keywords = extractKeywords(articleContent, 5);
+  const inferredTheme = inferTheme(keywords);
+  const attrs = generateAttrs(keywords);
+  const sceneContent = generateSceneContent(articleContent, keywords);
+
+  // 打印关键词供调试
+  console.log(`   关键词: ${keywords.join(', ')}`);
+  console.log(`   推断主题: ${inferredTheme}`);
+  console.log(`   属性标签: ${attrs.join(', ')}`);
+  console.log(`   痛点: ${sceneContent.painPoints.join(', ')}`);
+  console.log(`   功能: ${sceneContent.features.map(f => f.name).join(', ')}`);
+  console.log(`   步骤: ${sceneContent.steps.map(s => s.cmd).join(', ')}`);
+
+  // 回写 video-config.json（注入 keywords / inferredTheme / cover.attrs）
+  const updatedConfig = {
+    ...config,
+    keywords,
+    inferredTheme,
+    cover: {
+      ...(config.cover || {}),
+      attrs,
+    },
+  };
+  fs.writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2), "utf8");
+  console.log(`   video-config.json 已更新（keywords / inferredTheme / cover.attrs）`);
+
+  // 2. video-script.md（generateVideoScript 返回 { markdown, scenes }）
+  const { markdown: scriptContent, scenes } = generateVideoScript(articleContent, config, keywords);
   fs.writeFileSync(path.join(docsDir, "video-script.md"), scriptContent, "utf8");
 
-  // 3. narration.txt
+  // 3. narration.txt（从 video-script.md 提取）
   const narration = extractNarration(scriptContent, maxNarrationChars);
   fs.writeFileSync(path.join(docsDir, "narration.txt"), narration, "utf8");
 
-  // 4. copy.md
-  fs.writeFileSync(path.join(docsDir, "copy.md"), generateCopy(articleContent, config), "utf8");
+  // 4. copy.md（传入 keywords 生成 hashtag）
+  fs.writeFileSync(path.join(docsDir, "copy.md"), generateCopy(articleContent, config, keywords), "utf8");
 
   // 5. wechat-copy.md
   fs.writeFileSync(path.join(docsDir, "wechat-copy.md"), generateWechatCopy(articleContent, config), "utf8");
@@ -458,14 +740,19 @@ function generateDocs(projectDir) {
   // 10. wechat-page.html
   fs.writeFileSync(path.join(docsDir, "wechat-page.html"), generateWechatPage(articleContent, config), "utf8");
 
-  // 11. report.json
+  // 11. report.json（含 sceneContent，供 create-remotion-project.js 读取）
   const docNames = [
     "article.md", "video-script.md", "narration.txt",
     "copy.md", "wechat-copy.md", "posting-guide.md",
     "session-log.md", "landing-page.html", "article-page.html",
     "wechat-page.html", "report.json"
   ];
-  fs.writeFileSync(path.join(docsDir, "report.json"), generateReport(config, docNames), "utf8");
+  fs.writeFileSync(path.join(docsDir, "report.json"), generateReport(config, docNames, {
+    keywords,
+    inferredTheme,
+    attrs,
+    sceneContent,
+  }), "utf8");
 
   console.log("✅ 文档生成完成:");
   docNames.forEach(name => {
@@ -563,4 +850,13 @@ if (require.main === module) {
   validateDocs(projectDir);
 }
 
-module.exports = { generateDocs, stripMarkdown, extractNarration, generateVideoScript };
+module.exports = {
+  generateDocs,
+  stripMarkdown,
+  extractNarration,
+  generateVideoScript,
+  extractKeywords,
+  inferTheme,
+  generateAttrs,
+  generateSceneContent,
+};

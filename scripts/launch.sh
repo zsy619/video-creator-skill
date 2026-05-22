@@ -379,6 +379,8 @@ print(count)
   COVER_SUBTITLE=$(node -e "console.log(require('${config_file}').cover?.subtitle || require('${config_file}').subtitle || '')")
   local COVER_ATTRS
   COVER_ATTRS=$(node -e "console.log((require('${config_file}').cover?.attrs || require('${config_file}').attrs || []).join(','))")
+  local COVER_THEME
+  COVER_THEME=$(node -e "console.log(require('${config_file}').inferredTheme || require('${config_file}').theme || 'cyberpunk')")
   local cover_out="${proj_dir}/docs/assets"
 
   for canvas in vertical wechat xhs; do
@@ -388,6 +390,7 @@ print(count)
       "$cover_out" \
       "$canvas" \
       "$COVER_ATTRS" \
+      "$COVER_THEME" \
       >> /tmp/cover.$$.out 2>&1
     [ $? -eq 0 ] && ok "✅ $canvas 封面生成完成" || warn "⚠️ $canvas 封面生成失败"
   done

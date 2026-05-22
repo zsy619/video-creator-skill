@@ -56,12 +56,12 @@ const THEMES = {
 };
 
 const DEFAULT_SCENES = [
-  { id: 1, name: "Cover",     duration: 3,  title: "视频标题",    subtitle: "副标题" },
-  { id: 2, name: "PainPoint", duration: 10, title: "痛点场景",    subtitle: "" },
+  { id: 1, name: "Cover",     duration: 3,  title: "视频标题",    subtitle: "一分钟了解核心内容" },
+  { id: 2, name: "PainPoint", duration: 10, title: "痛点场景",    subtitle: "目前面临的主要问题" },
   { id: 3, name: "Solution",  duration: 12, title: "解决方案",    subtitle: "高速 · 稳定 · 低延迟" },
-  { id: 4, name: "Features",  duration: 15, title: "核心功能",    subtitle: "" },
-  { id: 5, name: "Start",     duration: 8,  title: "快速上手",    subtitle: "" },
-  { id: 6, name: "Ending",   duration: 4,  title: "行动号召",    subtitle: "" },
+  { id: 4, name: "Features",  duration: 15, title: "核心功能",    subtitle: "核心优势全面解析" },
+  { id: 5, name: "Start",     duration: 8,  title: "快速上手",    subtitle: "快速上手指南" },
+  { id: 6, name: "Ending",   duration: 4,  title: "行动号召",    subtitle: "总结与行动号召" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,6 +79,44 @@ function createProject(projectDir, config) {
   for (const d of [srcDir, compDir, scenesDir, themesDir, pubAudio]) {
     fs.mkdirSync(d, { recursive: true });
   }
+
+  // ── 从 report.json 读取 sceneContent（动态场景内容） ───────────────────
+  const reportPath = path.join(projectDir, "docs", "report.json");
+  let sceneContent = null;
+  if (fs.existsSync(reportPath)) {
+    try {
+      const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+      sceneContent = report.sceneContent || null;
+      if (sceneContent) {
+        console.log(`   [create-remotion] 读取 sceneContent:`);
+        console.log(`     painPoints: ${sceneContent.painPoints.join(', ')}`);
+        console.log(`     tags: ${sceneContent.tags.join(', ')}`);
+        console.log(`     features: ${sceneContent.features.map(f => f.name).join(', ')}`);
+        console.log(`     steps: ${sceneContent.steps.map(s => s.cmd).join(', ')}`);
+        console.log(`     url: ${sceneContent.url}`);
+        console.log(`     license: ${sceneContent.license}`);
+      }
+    } catch (e) {
+      console.warn(`   [create-remotion] report.json 读取失败，使用硬编码兜底: ${e.message}`);
+    }
+  }
+
+  // ── 动态场景内容（无 report.json 时使用硬编码兜底） ───────────────────
+  const PAIN_POINTS = sceneContent?.painPoints || ["网络延迟高，游戏卡顿", "视频缓冲，转圈圈", "访问缓慢，工作效率低"];
+  const TAGS = sceneContent?.tags || ["QUIC 协议", "智能加速", "多平台支持"];
+  const FEATURES = sceneContent?.features || [
+    { icon: "🚀", name: "极致速度", desc: "QUIC 协议优化" },
+    { icon: "🛡️", name: "安全加密", desc: "端到端传输加密" },
+    { icon: "⚡", name: "低延迟", desc: "智能路由选择" },
+    { icon: "🌐", name: "全球节点", desc: "覆盖 50+ 地区" },
+  ];
+  const STEPS = sceneContent?.steps || [
+    { cmd: "brew install hysteria", desc: "一键安装" },
+    { cmd: "hysteria server -c config.yaml", desc: "启动服务" },
+    { cmd: "配置客户端连接", desc: "开始使用" },
+  ];
+  const SCENE_URL = sceneContent?.url || (config && config.repo) || "https://github.com/project";
+  const SCENE_LICENSE = sceneContent?.license || "Open Source · Free Forever";
 
   // ── package.json ──────────────────────────────────────────────────────────
   fs.writeFileSync(path.join(vpDir, "package.json"), JSON.stringify({
@@ -316,9 +354,7 @@ function createProject(projectDir, config) {
     "};\n");
 
   // ── Scene2_PainPoint.tsx ─────────────────────────────────────────────────
-  const PAIN_POINTS = ["网络延迟高，游戏卡顿", "视频缓冲，转圈圈", "访问缓慢，工作效率低"];
   fs.writeFileSync(path.join(scenesDir, "Scene2_PainPoint.tsx"),
-    'import React from "react";\n' +
     'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
     "const GridLines = () => {\n" +
     "  const hLines = [];\n" +
@@ -392,7 +428,7 @@ function createProject(projectDir, config) {
     "  }\n" +
     "  return <>{hLines}{vLines}</>;\n" +
     "};\n\n" +
-    "const TAGS = [\"QUIC 协议\", \"智能加速\", \"多平台支持\"];\n\n" +
+    "const TAGS = " + JSON.stringify(TAGS) + ";\n\n" +
     "export const Scene3_Solution = ({ title, subtitle, theme }) => {\n" +
     "  const frame = useCurrentFrame();\n" +
     "  const primary = String(theme.primary || \"#00FF88\");\n" +
@@ -433,12 +469,7 @@ function createProject(projectDir, config) {
     "};\n");
 
   // ── Scene4_Features.tsx ───────────────────────────────────────────────────
-  const FEATURES = [
-    { icon: "🚀", name: "极致速度", desc: "QUIC 协议优化" },
-    { icon: "🛡️", name: "安全加密", desc: "端到端传输加密" },
-    { icon: "⚡", name: "低延迟", desc: "智能路由选择" },
-    { icon: "🌐", name: "全球节点", desc: "覆盖 50+ 地区" },
-  ];
+  // FEATURES 已在上方从 sceneContent 读取
   fs.writeFileSync(path.join(scenesDir, "Scene4_Features.tsx"),
     'import React from "react";\n' +
     'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
@@ -497,11 +528,7 @@ function createProject(projectDir, config) {
     "};\n");
 
   // ── Scene5_Start.tsx ─────────────────────────────────────────────────────
-  const STEPS = [
-    { cmd: "brew install hysteria", desc: "一键安装" },
-    { cmd: "hysteria server -c config.yaml", desc: "启动服务" },
-    { cmd: "配置客户端连接", desc: "开始使用" },
-  ];
+  // STEPS 已在上方从 sceneContent 读取
   fs.writeFileSync(path.join(scenesDir, "Scene5_Start.tsx"),
     'import React from "react";\n' +
     'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
@@ -558,7 +585,7 @@ function createProject(projectDir, config) {
     "          </div>\n" +
     "        </div>\n" +
     '        <div style={{ marginTop: 32, padding: "10px 28px", background: `${secondary}22`, border: `1px solid ${secondary}50`, borderRadius: 8, fontSize: 24, color: secondary, fontFamily: font, fontWeight: 600, boxShadow: `0 0 16px ${secondary}30` }}>\n' +
-    "          github.com/apernet/hysteria\n" +
+    `          ${SCENE_URL.replace('https://', '')}\n` +
     "        </div>\n" +
     "        {subtitle && (\n" +
     '          <div style={{ fontSize: 28, color: "rgba(255,255,255,0.5)", fontFamily: font, textAlign: "center", marginTop: 24 }}>\n' +
@@ -615,7 +642,7 @@ function createProject(projectDir, config) {
     "          立即开始 →\n" +
     "        </div>\n" +
     '        <div style={{ position: "absolute", bottom: 60, fontSize: 20, color: "rgba(255,255,255,0.3)", fontFamily: font, textAlign: "center" }}>\n' +
-    "          Open Source · Free Forever\n" +
+    `          ${SCENE_LICENSE}\n` +
     "        </div>\n" +
     "      </div>\n" +
     '      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${accent}, ${primary}, ${secondary})` }} />\n' +

@@ -301,7 +301,94 @@ def hex_to_rgb(hex_color):
     return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
 
-def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical'):
+# ═══════════════════════════════════════════════════════════════════════════
+# 主题配色方案（8种主题，封面背景/光晕/文字颜色由此定义）
+# ═══════════════════════════════════════════════════════════════════════════
+THEME_STYLES = {
+    # 科技/开源 — 深紫+霓虹
+    'cyberpunk': {
+        'bg_primary':  '#0D0221',
+        'bg_grid':     '#150828',
+        'glow_colors': ['#00FFFF', '#FF00FF', '#9D00FF', '#00FFFF'],
+        'glow_pcts':   [(0.1, 0.1, 0.35), (0.9, 0.1, 0.25), (0.1, 0.9, 0.25), (0.9, 0.9, 0.20)],
+        'title_glow':  '#00CCCC',
+        'subtitle_color': '#00FFFF',
+        'attr_colors': ['#00FFFF', '#FF00FF', '#9D00FF', '#00FF88', '#FF6600', '#FFD700', '#FF3366', '#33CCFF'],
+    },
+    # 美食 — 暖橙+金色
+    'food-warm': {
+        'bg_primary':  '#1A0A00',
+        'bg_grid':     '#2D1500',
+        'glow_colors': ['#FF6600', '#FFD700', '#FF3300', '#FF6600'],
+        'glow_pcts':   [(0.1, 0.1, 0.30), (0.9, 0.1, 0.25), (0.5, 0.9, 0.20), (0.9, 0.9, 0.15)],
+        'title_glow':  '#FF9900',
+        'subtitle_color': '#FFD700',
+        'attr_colors': ['#FF6600', '#FFD700', '#FF3300', '#FF9933', '#FFCC00', '#FF5500', '#CC6600', '#FFB300'],
+    },
+    # 旅游 — 天蓝+橙色
+    'travel-vibrant': {
+        'bg_primary':  '#001A2D',
+        'bg_grid':     '#002040',
+        'glow_colors': ['#33CCFF', '#FF6600', '#00CCFF', '#FF9933'],
+        'glow_pcts':   [(0.1, 0.1, 0.30), (0.9, 0.1, 0.25), (0.1, 0.9, 0.20), (0.9, 0.9, 0.15)],
+        'title_glow':  '#00AAFF',
+        'subtitle_color': '#33CCFF',
+        'attr_colors': ['#33CCFF', '#FF6600', '#00CCFF', '#FFCC00', '#0099FF', '#FF9933', '#00AAEE', '#FF7744'],
+    },
+    # 教育 — 蓝绿主调
+    'education-calm': {
+        'bg_primary':  '#001A1A',
+        'bg_grid':     '#002626',
+        'glow_colors': ['#00CC99', '#0099FF', '#00CC99', '#0066CC'],
+        'glow_pcts':   [(0.1, 0.1, 0.28), (0.9, 0.1, 0.22), (0.1, 0.9, 0.22), (0.9, 0.9, 0.18)],
+        'title_glow':  '#00DDAA',
+        'subtitle_color': '#00CC99',
+        'attr_colors': ['#00CC99', '#0099FF', '#00DDAA', '#66CCFF', '#00BB88', '#0088DD', '#00EEBB', '#3399FF'],
+    },
+    # 健康 — 绿色清新
+    'health-fresh': {
+        'bg_primary':  '#001A00',
+        'bg_grid':     '#002600',
+        'glow_colors': ['#00DD44', '#88FF00', '#00CC33', '#AAFF00'],
+        'glow_pcts':   [(0.1, 0.1, 0.28), (0.9, 0.1, 0.22), (0.1, 0.9, 0.22), (0.9, 0.9, 0.18)],
+        'title_glow':  '#00FF55',
+        'subtitle_color': '#00DD44',
+        'attr_colors': ['#00DD44', '#88FF00', '#00CC33', '#AAFF00', '#33FF66', '#CCFF00', '#00FF88', '#66FF33'],
+    },
+    # 时尚 — 黑金配色
+    'fashion-elegant': {
+        'bg_primary':  '#0A0A0A',
+        'bg_grid':     '#1A1A1A',
+        'glow_colors': ['#FFD700', '#FFB300', '#FF9900', '#FFD700'],
+        'glow_pcts':   [(0.1, 0.1, 0.25), (0.9, 0.1, 0.20), (0.5, 0.9, 0.18), (0.9, 0.9, 0.15)],
+        'title_glow':  '#FFCC00',
+        'subtitle_color': '#FFD700',
+        'attr_colors': ['#FFD700', '#FFB300', '#FF9900', '#FFAA00', '#FFE033', '#CC9900', '#FFCC33', '#DDAA00'],
+    },
+    # 金融 — 深蓝金色
+    'finance-professional': {
+        'bg_primary':  '#000D1A',
+        'bg_grid':     '#001429',
+        'glow_colors': ['#0066CC', '#FFD700', '#004499', '#FFAA00'],
+        'glow_pcts':   [(0.1, 0.1, 0.28), (0.9, 0.1, 0.22), (0.1, 0.9, 0.22), (0.9, 0.9, 0.18)],
+        'title_glow':  '#0088DD',
+        'subtitle_color': '#FFD700',
+        'attr_colors': ['#0066CC', '#FFD700', '#004499', '#FFAA00', '#0077DD', '#FFCC00', '#0055AA', '#FFBB00'],
+    },
+    # 游戏 — 暗色霓虹
+    'gaming-neon': {
+        'bg_primary':  '#0D0015',
+        'bg_grid':     '#1A0025',
+        'glow_colors': ['#FF0066', '#9900FF', '#00FF88', '#FF3300'],
+        'glow_pcts':   [(0.1, 0.1, 0.32), (0.9, 0.1, 0.28), (0.1, 0.9, 0.22), (0.9, 0.9, 0.18)],
+        'title_glow':  '#FF0088',
+        'subtitle_color': '#FF0066',
+        'attr_colors': ['#FF0066', '#9900FF', '#00FF88', '#FF3300', '#FF00CC', '#6600FF', '#00FF44', '#FF5500'],
+    },
+}
+
+
+def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical', theme='cyberpunk'):
     """
     生成封面图。使用 smart_resize_text() 自动处理长标题。
 
@@ -311,28 +398,35 @@ def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical'):
         attrs:       属性标签列表（4-8个偶数，渲染在副标题下方；空列表则跳过）
         output_path: 输出文件路径
         canvas_type: 'vertical' | 'wechat' | 'xhs'
+        theme:       主题配色方案，支持: cyberpunk / food-warm / travel-vibrant /
+                    education-calm / health-fresh / fashion-elegant /
+                    finance-professional / gaming-neon（默认 cyberpunk）
     """
     if canvas_type not in CANVAS_SIZES:
         raise ValueError(f"未知 canvas_type: {canvas_type}，可选: {list(CANVAS_SIZES.keys())}")
 
+    # 主题配色（未知 key 降级为 cyberpunk）
+    style = THEME_STYLES.get(theme, THEME_STYLES['cyberpunk'])
+    bg_primary  = style['bg_primary']
+    bg_grid     = style['bg_grid']
+    glow_colors = style['glow_colors']
+    glow_pcts   = style['glow_pcts']
+    title_glow  = style['title_glow']
+    subtitle_color = style['subtitle_color']
+
     w, h = CANVAS_SIZES[canvas_type]
-    img = Image.new('RGB', (w, h), '#0D0221')
+    img = Image.new('RGB', (w, h), bg_primary)
     draw = ImageDraw.Draw(img)
 
-    # ========== 背景 ==========
-    # 网格线
+    # ========== 背景网格线 ==========
     for i in range(0, h, max(20, h // 30)):
-        draw.line([(0, i), (w, i)], fill='#150828', width=1)
+        draw.line([(0, i), (w, i)], fill=bg_grid, width=1)
     for i in range(0, w, max(20, w // 30)):
-        draw.line([(i, 0), (i, h)], fill='#150828', width=1)
+        draw.line([(i, 0), (i, h)], fill=bg_grid, width=1)
 
-    # 四角光晕
-    for cx_pct, cy_pct, r_pct, color in [
-        (0.1, 0.1,  0.35, '#00FFFF'),
-        (0.9, 0.1,  0.25, '#FF00FF'),
-        (0.1, 0.9,  0.25, '#9D00FF'),
-        (0.9, 0.9,  0.20, '#00FFFF'),
-    ]:
+    # ========== 四角光晕（使用主题配色）==========
+    for idx, (cx_pct, cy_pct, r_pct) in enumerate(glow_pcts):
+        color = glow_colors[idx % len(glow_colors)]
         cx = int(w * cx_pct)
         cy = int(h * cy_pct)
         r = int(min(w, h) * r_pct)
@@ -361,22 +455,28 @@ def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical'):
     start_y = (h - total_height) // 2
     title_y = start_y
 
-    # ---- 主标题（多层霓虹发光）----
-    for glow_px, glow_hex in [
-        (int(safe_max * 0.08), '#004444'),
-        (int(safe_max * 0.05), '#006666'),
-        (int(safe_max * 0.03), '#008888'),
-        (int(safe_max * 0.015), '#00CCCC'),
-    ]:
+    # ---- 主标题（多层发光，使用主题色）----
+    # 基于 title_glow 动态计算发光层级
+    glow_base_rgb = hex_to_rgb(title_glow)
+    for layer in range(4):
+        ratio = [0.08, 0.05, 0.03, 0.015][layer]
+        # 逐层变亮：第0层最暗，第3层最接近 title_glow
+        intensity = [0.15, 0.35, 0.65, 1.0][layer]
+        glow_hex = '#{:02X}{:02X}{:02X}'.format(
+            int(glow_base_rgb[0] * intensity),
+            int(glow_base_rgb[1] * intensity),
+            int(glow_base_rgb[2] * intensity),
+        )
+        glow_px = int(safe_max * ratio)
         for dx, dy in [(0, -glow_px), (0, glow_px), (-glow_px, 0), (glow_px, 0)]:
             draw.text((X + dx, title_y + dy), title,
                        fill=glow_hex, font=font_title, anchor='mm')
     draw.text((X, title_y), title, fill='#FFFFFF', font=font_title, anchor='mm')
 
-    # ---- 副标题 ----
+    # ---- 副标题（使用主题配色）----
     sub_y = title_y + title_h + gap
     if subtitle:
-        draw.text((X, sub_y), subtitle, fill='#00FFFF', font=font_sub, anchor='mm')
+        draw.text((X, sub_y), subtitle, fill=subtitle_color, font=font_sub, anchor='mm')
 
     # ---- 属性标签（偶数个，4-8个，双行棋盘格排版）----
     attrs_y = sub_y + sub_h + gap if subtitle else title_y + title_h + gap
@@ -426,7 +526,8 @@ def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical'):
             row = idx // 2
             ax = start_x + col * (tag_w + attr_gap)
             ay = start_y + row * row_h
-            color = ATTR_BG_COLORS[idx % len(ATTR_BG_COLORS)]
+            attr_colors = style['attr_colors']
+            color = attr_colors[idx % len(attr_colors)]
             rgb = hex_to_rgb(color)
 
             # 实心白底圆角矩形
@@ -467,6 +568,7 @@ def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical'):
     size_kb = os.path.getsize(output_path) / 1024
     print(f"✅ {output_path}")
     print(f"   画布: {CANVAS_NAMES[canvas_type]}")
+    print(f"   主题: {theme}")
     print(f"   标题: {title_h}px高 / {title_w}px宽")
     print(f"   文件: {size_kb:.0f}KB")
     return True
@@ -476,9 +578,11 @@ def create_cover(title, subtitle, attrs, output_path, canvas_type='vertical'):
 if __name__ == '__main__':
     argc = len(sys.argv)
     if argc < 4:
-        print(f"用法: {sys.argv[0]} \"主标题\" \"副标题\" output_dir [canvas_type] [attrs]")
+        print(f"用法: {sys.argv[0]} \"主标题\" \"副标题\" output_dir [canvas_type] [attrs] [theme]")
         print(f"canvas_type: vertical(默认) | wechat | xhs")
         print(f"attrs: 逗号分隔的属性标签（4-8个偶数，如 \"开源,免费,跨平台\"）")
+        print(f"theme: cyberpunk(默认) | food-warm | travel-vibrant | education-calm |")
+        print(f"       health-fresh | fashion-elegant | finance-professional | gaming-neon")
         sys.exit(1)
 
     title       = sys.argv[1]
@@ -486,6 +590,7 @@ if __name__ == '__main__':
     output_dir  = sys.argv[3]
     canvas_type = sys.argv[4] if argc > 4 else 'vertical'
     attrs_str   = sys.argv[5] if argc > 5 else ''
+    theme       = sys.argv[6] if argc > 6 else 'cyberpunk'
 
     # 解析 attrs（逗号分隔，丢弃空串）
     attrs = [a.strip() for a in attrs_str.split(',') if a.strip()] if attrs_str else []
@@ -500,7 +605,7 @@ if __name__ == '__main__':
     output_path = os.path.join(output_dir, filenames[canvas_type])
 
     try:
-        create_cover(title, subtitle, attrs, output_path, canvas_type)
+        create_cover(title, subtitle, attrs, output_path, canvas_type, theme)
     except ValueError as e:
         print(f"❌ 封面生成失败: {e}")
         sys.exit(1)
