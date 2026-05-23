@@ -639,6 +639,57 @@ function generatePostingGuide(config) {
 }
 
 /**
+ * 生成 README 页面
+ */
+function generateReadme(config) {
+  const title = config.cover?.title || config.title || '项目名称';
+  const subtitle = config.cover?.subtitle || config.subtitle || '';
+  const theme = config.theme || 'cyberpunk';
+  const platform = config.platform || '微信视频号';
+  const duration = config.duration || 52;
+  const date = new Date().toLocaleDateString('zh-CN');
+
+  return `# ${title}
+
+${subtitle}
+
+## 项目信息
+
+- **平台**: ${platform}
+- **主题**: ${theme}
+- **时长**: ${duration}秒
+- **创建日期**: ${date}
+
+## 目录结构
+
+\`\`\`
+├── docs/                  # 项目文档
+│   ├── assets/            # 静态资源（封面图）
+│   ├── article.md         # 原文内容
+│   ├── video-script.md    # 视频脚本
+│   ├── narration.txt      # 配音文本
+│   └── ...
+├── audio/                 # 音频文件
+│   ├── neural_1_2x.m4a    # 配音音频
+│   └── captions.json      # 字幕数据
+├── video-project/         # Remotion 项目
+│   └── out/final.mp4     # 最终视频
+└── video-config.json      # 项目配置
+\`\`\`
+
+## 快速开始
+
+\`\`\`bash
+# 1. 安装依赖
+npm install
+
+# 2. 生成视频
+bash launch.sh all
+\`\`\`
+`;
+}
+
+/**
  * 生成会话日志
  */
 function generateSessionLog(config, docNames) {
@@ -813,12 +864,15 @@ function generateDocs(projectDir) {
   // 10. wechat-page.html
   fs.writeFileSync(path.join(docsDir, "wechat-page.html"), generateWechatPage(articleContent, config), "utf8");
 
-  // 11. report.json（含 sceneContent，供 create-remotion-project.js 读取）
+  // 11. README.md
+  fs.writeFileSync(path.join(docsDir, "README.md"), generateReadme(config), "utf8");
+
+  // 12. report.json（含 sceneContent，供 create-remotion-project.js 读取）
   const docNames = [
     "article.md", "video-script.md", "narration.txt",
     "copy.md", "wechat-copy.md", "posting-guide.md",
     "session-log.md", "landing-page.html", "article-page.html",
-    "wechat-page.html", "report.json"
+    "wechat-page.html", "README.md", "report.json"
   ];
   fs.writeFileSync(path.join(docsDir, "report.json"), generateReport(config, docNames, {
     keywords,
@@ -895,12 +949,12 @@ function generateWechatPage(articleContent, config) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 11 文件完整性校验
+// 12 文件完整性校验
 // ─────────────────────────────────────────────────────────────────────────────
 const REQUIRED_FILES = [
   'article.md', 'video-script.md', 'narration.txt', 'copy.md',
   'wechat-copy.md', 'posting-guide.md', 'session-log.md', 'report.json',
-  'landing-page.html', 'article-page.html', 'wechat-page.html'
+  'landing-page.html', 'article-page.html', 'wechat-page.html', 'README.md'
 ];
 
 function validateDocs(projectDir) {
@@ -910,7 +964,7 @@ function validateDocs(projectDir) {
     console.error('❌ 缺少文件: ' + missing.join(', '));
     process.exit(1);
   }
-  console.log('✅ 11个文件全部生成: ' + REQUIRED_FILES.join(', '));
+  console.log('✅ 12个文件全部生成: ' + REQUIRED_FILES.join(', '));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

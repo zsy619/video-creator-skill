@@ -36,11 +36,12 @@ usage() {
 
 命令:
   init <项目名>   创建新项目目录结构
+  docs           生成文档（Step 0，12个文档）
   gate [节点]     运行质量门禁检查
   audio          生成音频（Step 7）
   subtitle       生成字幕（Step 8）
   render         渲染视频（Step 10）
-  all            完整流程（init → audio → subtitle → render）
+  all            完整流程（docs → audio → subtitle → render）
   help           显示此帮助
 
 节点 (gate 子命令):
@@ -52,10 +53,60 @@ usage() {
 
 示例:
   $0 init my-video-project
+  $0 docs
   $0 gate audio
   $0 gate all
   $0 all
 EOF
+}
+
+# ── Step 0 门禁：检查12个文档是否全部存在 ───────────────────────────────
+check_step0_docs() {
+  local proj_dir="${1:-.}"
+  local REQUIRED_DOCS="README.md article.md video-script.md copy.md wechat-copy.md posting-guide.md landing-page.html article-page.html wechat-page.html session-log.md report.json narration.txt"
+  local missing=""
+  for f in $REQUIRED_DOCS; do
+    if [ ! -f "${proj_dir}/docs/${f}" ]; then
+      missing="${missing} ${f}"
+    fi
+  done
+  if [ -n "$missing" ]; then
+    err "Step 0 未完成，缺失文档: ${missing}"
+    return 1
+  fi
+  ok "Step 0 门禁通过（12个文档全部存在）"
+  return 0
+}
+
+# ── 子命令: docs ──────────────────────────────────────────────────────────
+cmd_docs() {
+  local proj_dir="${1:-.}"
+  local GEN_DOCS="${SCRIPT_DIR}/generate_docs.js"
+
+  log "生成文档（Step 0）..."
+  echo ""
+
+  if ! check_step0_docs "$proj_dir"; then
+    log "调用 generate_docs.js 生成文档..."
+    if [ ! -f "$GEN_DOCS" ]; then
+      err "找不到 generate_docs.js: ${GEN_DOCS}"
+      exit 1
+    fi
+    node "$GEN_DOCS" "$proj_dir" || {
+      err "generate_docs.js 执行失败"
+      exit 1
+    }
+    ok "文档生成完成"
+    echo ""
+    # 验证生成结果
+    if ! check_step0_docs "$proj_dir"; then
+      err "文档生成不完整，请检查 generate_docs.js 输出"
+      exit 1
+    fi
+  else
+    ok "所有12个文档已存在，跳过生成"
+    log "（如需重新生成，请先删除 docs/ 目录）"
+  fi
 }
 
 # ── 子命令: init ──────────────────────────────────────────────────────────────
@@ -172,6 +223,12 @@ cmd_audio() {
   local proj_dir="${PROJECT_DIR:-$(pwd)}"
   local GATE="${SCRIPT_DIR}/video-quality-gate.js"
 
+  # ⚠️ Step 0 门禁：必须全部12个文档存在
+  if ! check_step0_docs "$proj_dir"; then
+    err "请先运行: bash launch.sh docs"
+    exit 1
+  fi
+
   log "生成音频（Step 2-3）..."
 
   # 检查配音文本
@@ -222,6 +279,17 @@ cmd_render() {
   local CREATE_REMOTION="${SCRIPT_DIR}/create-remotion-project.js"
 
   log "Remotion Native 渲染流程..."
+
+  # ⚠️ Step 0 门禁：必须全部12个文档存在
+  if ! check_step0_docs "$proj_dir"; then
+    err "请先运行: bash launch.sh docs"
+    exit 1
+  fi
+
+  # ── 读取配置（从 video-config.json）─────────────────────────────────────
+  local config_file="${proj_dir}/video-config.json"
+  local THEME
+  THEME=$(node -e "console.log(require('${config_file}').theme || 'cyberpunk')")
 
   # 前置检查：音频和字幕
   if [ ! -d "${proj_dir}/audio" ]; then
@@ -318,16 +386,8 @@ cmd_all() {
   log "开始一键视频生成流程..."
   echo ""
 
-  # ── Step 0: 生成文档（11个）────────────────────────────────────────────
-  echo "=== Step 0: 生成文档 ==="
-  if [ ! -f "${proj_dir}/docs/narration.txt" ]; then
-    log "narration.txt 不存在，调用 generate_docs.js..."
-    node "${GEN_DOCS}" "${proj_dir}"
-    ok "文档生成完成"
-  else
-    ok "narration.txt 已存在，跳过文档生成"
-    log "（如需重新生成，请先删除 docs/ 目录）"
-  fi
+  # ── Step 0: 生成文档（12个）───────────────────────────────────────────
+  cmd_docs "$proj_dir"
 
   # ── 读取配置 ────────────────────────────────────────────────────────────────
   local config_file="${proj_dir}/video-config.json"
@@ -561,32 +621,38 @@ print(f'CAPTION_OK:{len(captions)} captions ({AUDIO_DURATION:.3f}s total)')
   echo ""
   echo "=== Step 7: Remotion 渲染（60fps / 1080×1920 / ${TOTAL_FRAMES}帧）==="
 
-  # 生成 scenes JSON（6个场景对应字幕中的内容主题）
-  # 根据 narration 7句分配：Cover=句1, PainPoint=句2, Solution=句3+4, Features=句5+6, Start=句7, Ending=句7
+  # 生成 scenes JSON（动态 N 场景：根据 caption 段落数自动推断场景类型和数量）
+  # 场景类型映射规则（由少到多）：
+  #   2-3段 → Cover + Ending（首尾）
+  #   4-6段 → Cover + PainPoint + Solution + Ending
+  #   7-9段 → Cover + PainPoint + Solution + Features + Ending
+  #   10+段 → Cover + PainPoint + Solution + Features + Start + Ending
+  # 时间分配：按百分比等分（避免 caption 数量不足导致末场景越界）
   local SCENES_JSON
   SCENES_JSON=$(node -e "
-const d=parseFloat('${AUDIO_DURATION}');
 const captions=require('${proj_dir}/audio/captions.json');
-const total=captions.length;
-const map=[
-  {id:1,name:'Cover',     range:[0,1]},
-  {id:2,name:'PainPoint', range:[1,2]},
-  {id:3,name:'Solution',  range:[2,3]},
-  {id:4,name:'Features',  range:[3,5]},
-  {id:5,name:'Start',     range:[5,6]},
-  {id:6,name:'Ending',    range:[6,total]},
-];
-const scenes=map.map(function(m){
-  const startMs=m.range[0]<total?captions[m.range[0]].startMs:0;
-  const endMs=m.range[1]<total?captions[m.range[1]].startMs:d*1000;
-  const dur=(endMs-startMs)/1000;
-  const titleText=m.range[0]<total?captions[m.range[0]].text.slice(0,15):'';
-  return {id:m.id,name:m.name,duration:Math.max(dur,1),title:titleText,subtitle:''};
+const n=captions.length;
+const totalMs=captions[n-1]?captions[n-1].startMs:0;
+const safeMs=Math.max(totalMs,1000); // 防御：totalMs=0 时保证首场景至少1s
+let types;
+if(n<=3)       types=['Cover','Ending'];
+else if(n<=6)  types=['Cover','PainPoint','Solution','Ending'];
+else if(n<=9)  types=['Cover','PainPoint','Solution','Features','Ending'];
+else           types=['Cover','PainPoint','Solution','Features','Start','Ending'];
+const scenes=types.map(function(t,i){
+  const pctStart=i/types.length;
+  const pctEnd=(i+1)/types.length;
+  const startMs=Math.round(pctStart*safeMs);
+  const endMs=Math.round(pctEnd*safeMs);
+  const dur=Math.max((endMs-startMs)/1000,0.5);
+  const startIdx=Math.round(pctStart*(n-1));
+  const titleText=captions[startIdx]?captions[startIdx].text.slice(0,15).replace(/\"/g,''):t;
+  return {id:i+1,name:t,duration:Number(dur.toFixed(2)),title:titleText,subtitle:''};
 });
 console.log(JSON.stringify(scenes));
 ")
 
-  node -e "var s=JSON.parse('${SCENES_JSON}');s.forEach(function(x){console.log('  Scene'+x.id+': '+x.duration.toFixed(1)+'s | '+x.title);});" 2>/dev/null
+  node -e "var s=JSON.parse('${SCENES_JSON}');s.forEach(function(x){console.log('  Scene'+x.id+' ['+x.name+']: '+x.duration.toFixed(1)+'s | '+x.title);});" 2>/dev/null
 
   local PROPS
   PROPS=$(node -e "
@@ -692,6 +758,7 @@ shift 2>/dev/null || true
 
 case "$COMMAND" in
   init)   cmd_init "$@";;
+  docs)   cmd_docs "$@";;
   gate)   cmd_gate "$@";;
   audio)  cmd_audio "$@";;
   subtitle) cmd_subtitle "$@";;

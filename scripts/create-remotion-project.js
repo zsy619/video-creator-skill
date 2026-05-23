@@ -55,13 +55,36 @@ const THEMES = {
   "luxury-elegant":    { primary: "#B8860B", secondary: "#D97706", accent: "#FFFFFF", bg: "#1C1917", font: "Playfair Display", particleCount: 45 },
 };
 
+// 场景类型枚举（用于 DynamicScene 渲染逻辑）
+const SCENE_TYPES = {
+  COVER: "Cover",
+  PAIN_POINT: "PainPoint",
+  SOLUTION: "Solution",
+  FEATURES: "Features",
+  START: "Start",
+  ENDING: "Ending",
+  GENERIC: "Generic", // 动态 N 场景时的兜底类型
+};
+
+// 根据 sceneIndex 和 total 推断场景名称（用于 launch.sh SCENES_JSON 生成）
+// 策略：首尾固定，中间按索引均分
+function inferSceneName(sceneIndex, total) {
+  if (total === 1) return SCENE_TYPES.COVER;
+  if (sceneIndex === 0) return SCENE_TYPES.COVER;
+  if (sceneIndex === total - 1) return SCENE_TYPES.ENDING;
+  const middleTypes = [SCENE_TYPES.PAIN_POINT, SCENE_TYPES.SOLUTION, SCENE_TYPES.FEATURES, SCENE_TYPES.START];
+  const ratio = sceneIndex / (total - 1);
+  const typeIndex = Math.floor(ratio * (middleTypes.length - 1));
+  return middleTypes[typeIndex];
+}
+
 const DEFAULT_SCENES = [
-  { id: 1, name: "Cover",     duration: 3,  title: "视频标题",    subtitle: "一分钟了解核心内容" },
+  { id: 1, name: "Cover",      duration: 3,  title: "视频标题",    subtitle: "一分钟了解核心内容" },
   { id: 2, name: "PainPoint", duration: 10, title: "痛点场景",    subtitle: "目前面临的主要问题" },
-  { id: 3, name: "Solution",  duration: 12, title: "解决方案",    subtitle: "高速 · 稳定 · 低延迟" },
-  { id: 4, name: "Features",  duration: 15, title: "核心功能",    subtitle: "核心优势全面解析" },
+  { id: 3, name: "Solution",   duration: 12, title: "解决方案",    subtitle: "高速 · 稳定 · 低延迟" },
+  { id: 4, name: "Features",   duration: 15, title: "核心功能",    subtitle: "核心优势全面解析" },
   { id: 5, name: "Start",     duration: 8,  title: "快速上手",    subtitle: "快速上手指南" },
-  { id: 6, name: "Ending",   duration: 4,  title: "行动号召",    subtitle: "总结与行动号召" },
+  { id: 6, name: "Ending",    duration: 4,  title: "行动号召",    subtitle: "总结与行动号召" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -310,384 +333,411 @@ function createProject(projectDir, config) {
     "  );\n" +
     "};\n");
 
-  // ── Scene1_Cover.tsx ─────────────────────────────────────────────────────
-  // 封面：主标题 + 副标题，居中布局，霓虹发光效果
-  fs.writeFileSync(path.join(scenesDir, "Scene1_Cover.tsx"),
-    'import React from "react";\n' +
-    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
-    "const GridLines = () => {\n" +
-    "  const hLines = [];\n" +
-    "  const vLines = [];\n" +
-    "  for (let i = 0; i < 1920; i += 60) {\n" +
-    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(0,255,255,0.06)" }} />);\n' +
-    "  }\n" +
-    "  for (let i = 0; i < 1080; i += 60) {\n" +
-    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(0,255,255,0.06)" }} />);\n' +
-    "  }\n" +
-    "  return <>{hLines}{vLines}</>;\n" +
-    "};\n\n" +
-    "export const Scene1_Cover = ({ title, subtitle, theme }) => {\n" +
-    "  const frame = useCurrentFrame();\n" +
-    "  const primary = String(theme.primary || \"#00FFFF\");\n" +
-    "  const secondary = String(theme.secondary || \"#FF00FF\");\n" +
-    "  const bg = String(theme.bg || \"#0D0221\");\n" +
-    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
-    "  const entry = interpolate(frame, [0, 30], [0, 1], { extrapolateRight: \"clamp\" });\n" +
-    "  const scale = interpolate(frame, [0, 30], [0.8, 1], { extrapolateRight: \"clamp\" });\n\n" +
-    "  return (\n" +
-    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
-    "      <GridLines />\n" +
-    '      <div style={{ position: \"absolute\", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary})`, boxShadow: `0 0 16px ${primary}` }} />\n' +
-    '      <div style={{ position: \"absolute\", inset: 0, display: \"flex\", flexDirection: \"column\", justifyContent: \"center\", alignItems: \"center\", opacity: entry, transform: `scale(${scale})` }}>\n' +
-    '        <div style={{ fontSize: 120, fontWeight: 800, color: "#FFFFFF", fontFamily: font, textAlign: "center", textShadow: `0 0 10px ${primary}, 0 0 20px ${primary}, 0 0 40px ${secondary}`, padding: "0 60px", maxWidth: "95%" }}>\n' +
-    "          {title}\n" +
-    "        </div>\n" +
-    "        {subtitle && (\n" +
-    '          <div style={{ fontSize: 48, fontWeight: 600, color: secondary, fontFamily: font, textAlign: "center", marginTop: 24, textShadow: `0 0 20px ${secondary}` }}>\n' +
-    "            {subtitle}\n" +
-    "          </div>\n" +
-    "        )}\n" +
-    "      </div>\n" +
-    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${secondary}, ${primary})`, boxShadow: `0 0 16px ${secondary}` }} />\n' +
-    "    </AbsoluteFill>\n" +
-    "  );\n" +
-    "};\n");
+  // ── DynamicScene.tsx ─────────────────────────────────────────────────────
+  // 统一动态场景组件：根据 scene.name 渲染不同类型
+  // 支持 themes.js 所有 30 个主题，颜色全部从 theme 派生
+  fs.writeFileSync(path.join(scenesDir, "DynamicScene.tsx"),
+    "import React, { useMemo } from 'react';\\n" +
+    "import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';\\n\\n" +
+    "// ── 场景类型常量 ──────────────────────────────────────────────────────\\n" +
+    "const SCENE_TYPE = {\\n" +
+    "  COVER:      'Cover',\\n" +
+    "  PAIN_POINT: 'PainPoint',\\n" +
+    "  SOLUTION:   'Solution',\\n" +
+    "  FEATURES:   'Features',\\n" +
+    "  START:       'Start',\\n" +
+    "  ENDING:      'Ending',\\n" +
+    "  GENERIC:     'Generic',\\n" +
+    "};\\n\\n" +
+    "// ── 网格背景（科技主题通用）──────────────────────────────────────────\\n" +
+    "const GridBackground = ({ color = 'rgba(0,255,255,0.06)', density = 60 }) => {\\n" +
+    "  const hLines = useMemo(() => {\\n" +
+    "    const arr = [];\\n" +
+    "    for (let i = 0; i < 1920; i += density) {\\n" +
+    "      arr.push(<div key={'h'+i} style={{ position: 'absolute', top: i, left: 0, right: 0, height: 1, backgroundColor: color }} />);\\n" +
+    "    }\\n" +
+    "    return arr;\\n" +
+    "  }, [color, density]);\\n" +
+    "  const vLines = useMemo(() => {\\n" +
+    "    const arr = [];\\n" +
+    "    for (let i = 0; i < 1080; i += density) {\\n" +
+    "      arr.push(<div key={'v'+i} style={{ position: 'absolute', left: i, top: 0, bottom: 0, width: 1, backgroundColor: color }} />);\\n" +
+    "    }\\n" +
+    "    return arr;\\n" +
+    "  }, [color, density]);\\n" +
+    "  return <>{{ hLines }}{{ vLines }}</>;\\n" +
+    "};\\n\\n" +
+    "// ── 入场动画 ──────────────────────────────────────────────────────────\\n" +
+    "const useSceneAnimation = (frame, theme) => {\\n" +
+    "  const spring = theme.spring || { damping: 15, stiffness: 150, mass: 1 };\\n" +
+    "  const fade   = theme.fade   || { duration: 12 };\\n" +
+    "  const slide  = theme.slide  || { duration: 20 };\\n\\n" +
+    "  const entry = interpolate(frame, [0, fade.duration], [0, 1], { extrapolateRight: 'clamp' });\\n" +
+    "  const scale = interpolate(frame, [0, (fade.duration || 12)],\\n" +
+    "    [(theme.scale && theme.scale.from) || 0.85, 1], { extrapolateRight: 'clamp' });\\n" +
+    "  const slideY = interpolate(frame, [0, slide.duration], [30, 0], { extrapolateRight: 'clamp' });\\n" +
+    "  return { entry, scale, slideY };\\n" +
+    "};\\n\\n" +
+    "// ── 发光条 ────────────────────────────────────────────────────────────\\n" +
+    "const GlowBar = ({ top, bottom, gradient, shadow }) => (\\n" +
+    "  <>\\n" +
+    "    {top && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3,\\n" +
+    "      background: gradient, boxShadow: shadow }} />}\\n" +
+    "    {bottom && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3,\\n" +
+    "      background: gradient }} />}\\n" +
+    "  </>\\n" +
+    ");\\n\\n" +
+    "// ── 通用居中容器 ─────────────────────────────────────────────────────\\n" +
+    "const CenterLayout = ({ entry, scale, slideY, children, padding = '0 60px' }) => (\\n" +
+    "  <div style={{\\n" +
+    "    position: 'absolute', inset: 0,\\n" +
+    "    display: 'flex', flexDirection: 'column',\\n" +
+    "    justifyContent: 'center', alignItems: 'center',\\n" +
+    "    padding,\\n" +
+    "    opacity: entry,\\n" +
+    "    transform: `scale(${scale}) translateY(${slideY}px)`,\\n" +
+    "  }}>\\n" +
+    "    {children}\\n" +
+    "  </div>\\n" +
+    ");\\n\\n" +
+    "// ── Cover 场景 ────────────────────────────────────────────────────────\\n" +
+    "const CoverScene = ({ title, subtitle, theme, frame }) => {\\n" +
+    "  const p = theme.primary, s = theme.secondary, bg = theme.bg, font = theme.font;\\n" +
+    "  const { entry, scale } = useSceneAnimation(frame, theme);\\n" +
+    "  return (\\n" +
+    "    <AbsoluteFill style={{ backgroundColor: bg }}>\\n" +
+    "      <GridBackground color={`rgba(${p},0.06)`} />\\n" +
+    "      <GlowBar top gradient={`linear-gradient(90deg, ${p}, ${s})`} shadow={`0 0 16px ${p}`} bottom />\\n" +
+    "      <CenterLayout entry={entry} scale={scale} slideY={0} padding='0 60px'>\\n" +
+    "        <div style={{\\n" +
+    "          fontSize: 120, fontWeight: 800, color: '#FFFFFF', fontFamily: font,\\n" +
+    "          textAlign: 'center', maxWidth: '95%',\\n" +
+    "          textShadow: `0 0 10px ${p}, 0 0 20px ${p}, 0 0 40px ${s}`,\\n" +
+    "          padding: '0 60px',\\n" +
+    "        }}>\\n" +
+    "          {title}\\n" +
+    "        </div>\\n" +
+    "        {subtitle && (\\n" +
+    "          <div style={{ fontSize: 48, fontWeight: 600, color: s, fontFamily: font,\\n" +
+    "            textAlign: 'center', marginTop: 24, textShadow: `0 0 20px ${s}` }}>\\n" +
+    "            {subtitle}\\n" +
+    "          </div>\\n" +
+    "        )}\\n" +
+    "      </CenterLayout>\\n" +
+    "    </AbsoluteFill>\\n" +
+    "  );\\n" +
+    "};\\n\\n" +
+    "// ── PainPoint 场景 ─────────────────────────────────────────────────────\\n" +
+    "const PainPointScene = ({ title, subtitle, theme, frame, painPoints }) => {\\n" +
+    "  const p = theme.primary, s = theme.secondary, bg = theme.bg, font = theme.font;\\n" +
+    "  const { entry, slideY } = useSceneAnimation(frame, theme);\\n" +
+    "  const PAIN_ICONS = painPoints && painPoints.length >= 3 ? ['⚠️','🔥','💀'] : ['•','•','•'];\\n" +
+    "  return (\\n" +
+    "    <AbsoluteFill style={{ backgroundColor: bg }}>\\n" +
+    "      <GridBackground color={`rgba(255,0,85,0.04)`} />\\n" +
+    "      <GlowBar top gradient='linear-gradient(90deg, #FF0055, #FF0055)' shadow='0 0 20px #FF0055' bottom />\\n" +
+    "      <CenterLayout entry={entry} scale={1} slideY={slideY} padding='0 60px'>\\n" +
+    "        <div style={{ padding: '6px 24px', borderRadius: 20, backgroundColor: 'rgba(255,0,85,0.1)',\\n" +
+    "          border: '1px solid rgba(255,0,85,0.3)', fontSize: 18, color: '#FF0055',\\n" +
+    "          fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 32,\\n" +
+    "          boxShadow: '0 0 12px rgba(255,0,85,0.2)' }}>\\n" +
+    "          痛 点\\n" +
+    "        </div>\\n" +
+    "        <div style={{ fontSize: 72, fontWeight: 800, color: '#FFFFFF', fontFamily: font,\\n" +
+    "          textAlign: 'center', marginBottom: 48, textShadow: '0 0 20px #FF0055' }}>\\n" +
+    "          {title}\\n" +
+    "        </div>\\n" +
+    "        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: 800 }}>\\n" +
+    "          {(painPoints || ['暂无痛点数据']).slice(0, 3).map((pain, i) => {\\n" +
+    "            const itemEntry = interpolate(frame, [10 + i*8, 30 + i*8], [0, 1], { extrapolateRight: 'clamp' });\\n" +
+    "            const itemSlide = interpolate(frame, [10 + i*8, 30 + i*8], [20, 0], { extrapolateRight: 'clamp' });\\n" +
+    "            return (\\n" +
+    "              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16,\\n" +
+    "                background: 'rgba(255,0,85,0.08)', border: '1px solid rgba(255,0,85,0.25)',\\n" +
+    "                borderRadius: 12, padding: '16px 24px',\\n" +
+    "                opacity: itemEntry, transform: `translateY(${itemSlide}px)` }}>\\n" +
+    "                <span style={{ fontSize: 36 }}>{PAIN_ICONS[i]}</span>\\n" +
+    "                <span style={{ fontSize: 32, fontWeight: 600, color: '#FFFFFF', fontFamily: font }}>\\n" +
+    "                  {pain}\\n" +
+    "                </span>\\n" +
+    "              </div>\\n" +
+    "            );\\n" +
+    "          })}\\n" +
+    "        </div>\\n" +
+    "        {subtitle && (\\n" +
+    "          <div style={{ fontSize: 32, fontWeight: 400, color: s, fontFamily: font,\\n" +
+    "            textAlign: 'center', marginTop: 40, opacity: 0.8 }}>\\n" +
+    "            {subtitle}\\n" +
+    "          </div>\\n" +
+    "        )}\\n" +
+    "      </CenterLayout>\\n" +
+    "    </AbsoluteFill>\\n" +
+    "  );\\n" +
+    "};\\n\\n" +
+    "// ── Solution 场景 ─────────────────────────────────────────────────────\\n" +
+    "const SolutionScene = ({ title, subtitle, theme, frame, tags }) => {\\n" +
+    "  const p = theme.primary, s = theme.secondary, a = theme.accent, bg = theme.bg, font = theme.font;\\n" +
+    "  const { entry, scale } = useSceneAnimation(frame, theme);\\n" +
+    "  return (\\n" +
+    "    <AbsoluteFill style={{ backgroundColor: bg }}>\\n" +
+    "      <GridBackground color={`rgba(${p},0.05)`} />\\n" +
+    "      <GlowBar top gradient={`linear-gradient(90deg, ${p}, ${s})`} shadow={`0 0 16px ${p}`} bottom />\\n" +
+    "      <CenterLayout entry={entry} scale={scale} slideY={0} padding='0 60px'>\\n" +
+    "        <div style={{ padding: '6px 24px', borderRadius: 20, backgroundColor: `${p}22`,\\n" +
+    "          border: `1px solid ${p}60`, fontSize: 18, color: p,\\n" +
+    "          fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 32,\\n" +
+    "          boxShadow: `${p}33` }}>\\n" +
+    "          解 决 方 案\\n" +
+    "        </div>\\n" +
+    "        <div style={{ fontSize: 100, fontWeight: 900, color: '#FFFFFF', fontFamily: font,\\n" +
+    "          textAlign: 'center', textShadow: `0 0 20px ${p}, 0 0 40px ${s}`,\\n" +
+    "          padding: '0 40px', maxWidth: '95%' }}>\\n" +
+    "          {title}\\n" +
+    "        </div>\\n" +
+    "        <div style={{ fontSize: 44, fontWeight: 600, color: s, fontFamily: font,\\n" +
+    "          textAlign: 'center', marginTop: 32, textShadow: `0 0 20px ${s}` }}>\\n" +
+    "          {subtitle || '高速 · 稳定 · 低延迟'}\\n" +
+    "        </div>\\n" +
+    "        <div style={{ display: 'flex', gap: 16, marginTop: 48, flexWrap: 'wrap', justifyContent: 'center' }}>\\n" +
+    "          {(tags || []).slice(0, 4).map((tag, i) => {\\n" +
+    "            const tagEntry = interpolate(frame, [15 + i*6, 30 + i*6], [0, 1], { extrapolateRight: 'clamp' });\\n" +
+    "            return (\\n" +
+    "              <div key={i} style={{ padding: '8px 20px', borderRadius: 8, background: `${a}22`,\\n" +
+    "                border: `1px solid ${a}60`, fontSize: 24, color: a, fontFamily: font,\\n" +
+    "                fontWeight: 500, opacity: tagEntry, boxShadow: `${a}33` }}>\\n" +
+    "                {tag}\\n" +
+    "              </div>\\n" +
+    "            );\\n" +
+    "          })}\\n" +
+    "        </div>\\n" +
+    "      </CenterLayout>\\n" +
+    "    </AbsoluteFill>\\n" +
+    "  );\\n" +
+    "};\\n\\n" +
+    "// ── Features 场景 ─────────────────────────────────────────────────────\\n" +
+    "const FeaturesScene = ({ title, subtitle, theme, frame, features }) => {\\n" +
+    "  const p = theme.primary, s = theme.secondary, bg = theme.bg, font = theme.font;\\n" +
+    "  const { entry } = useSceneAnimation(frame, theme);\\n" +
+    "  return (\\n" +
+    "    <AbsoluteFill style={{ backgroundColor: bg }}>\\n" +
+    "      <GridBackground color={`rgba(${p},0.04)`} />\\n" +
+    "      <GlowBar top gradient={`linear-gradient(90deg, ${p}, ${s})`} shadow={`0 0 16px ${p}`} bottom />\\n" +
+    "      <CenterLayout entry={entry} scale={1} slideY={0} padding='0 60px'>\\n" +
+    "        <div style={{ padding: '6px 24px', borderRadius: 20, backgroundColor: `${p}22`,\\n" +
+    "          border: `1px solid ${p}60`, fontSize: 18, color: p,\\n" +
+    "          fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 28 }}>\\n" +
+    "          核 心 功 能\\n" +
+    "        </div>\\n" +
+    "        <div style={{ fontSize: 64, fontWeight: 800, color: '#FFFFFF', fontFamily: font,\\n" +
+    "          textAlign: 'center', marginBottom: 40, textShadow: `0 0 20px ${p}` }}>\\n" +
+    "          {title}\\n" +
+    "        </div>\\n" +
+    "        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, width: '100%', maxWidth: 880 }}>\\n" +
+    "          {(features || []).slice(0, 4).map((item, i) => {\\n" +
+    "            const itemEntry = interpolate(frame, [5 + i*6, 20 + i*6], [0, 1], { extrapolateRight: 'clamp' });\\n" +
+    "            const itemScale = interpolate(frame, [5 + i*6, 20 + i*6], [0.85, 1], { extrapolateRight: 'clamp' });\\n" +
+    "            return (\\n" +
+    "              <div key={i} style={{ background: `linear-gradient(135deg, ${p}15, ${s}10)`,\\n" +
+    "                border: `1px solid ${p}40`, borderRadius: 16, padding: '28px 20px',\\n" +
+    "                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,\\n" +
+    "                opacity: itemEntry, transform: `scale(${itemScale})`, boxShadow: `${p}15` }}>\\n" +
+    "                <span style={{ fontSize: 52 }}>{item.icon || '•'}</span>\\n" +
+    "                <div style={{ fontSize: 32, fontWeight: 700, color: '#FFFFFF', fontFamily: font,\\n" +
+    "                  textAlign: 'center' }}>{item.name || item.desc || item}</div>\\n" +
+    "                <div style={{ fontSize: 22, fontWeight: 400, color: 'rgba(255,255,255,0.6)',\\n" +
+    "                  fontFamily: font, textAlign: 'center' }}>{item.desc || ''}</div>\\n" +
+    "              </div>\\n" +
+    "            );\\n" +
+    "          })}\\n" +
+    "        </div>\\n" +
+    "        {subtitle && (\\n" +
+    "          <div style={{ fontSize: 28, color: s, fontFamily: font, textAlign: 'center',\\n" +
+    "            marginTop: 32, opacity: 0.8 }}>\\n" +
+    "            {subtitle}\\n" +
+    "          </div>\\n" +
+    "        )}\\n" +
+    "      </CenterLayout>\\n" +
+    "    </AbsoluteFill>\\n" +
+    "  );\\n" +
+    "};\\n\\n" +
+    "// ── Start 场景 ─────────────────────────────────────────────────────────\\n" +
+    "const StartScene = ({ title, subtitle, theme, frame, steps, url }) => {\\n" +
+    "  const p = theme.primary, s = theme.secondary, bg = theme.bg, font = theme.font;\\n" +
+    "  const { entry } = useSceneAnimation(frame, theme);\\n" +
+    "  return (\\n" +
+    "    <AbsoluteFill style={{ backgroundColor: bg }}>\\n" +
+    "      <GridBackground color={`rgba(${p},0.04)`} />\\n" +
+    "      <GlowBar top gradient={`linear-gradient(90deg, ${p}, ${s})`} shadow={`0 0 16px ${p}`} bottom />\\n" +
+    "      <CenterLayout entry={entry} scale={1} slideY={0} padding='0 60px'>\\n" +
+    "        <div style={{ padding: '6px 24px', borderRadius: 20, backgroundColor: `${p}22`,\\n" +
+    "          border: `1px solid ${p}60`, fontSize: 18, color: p,\\n" +
+    "          fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 28 }}>\\n" +
+    "          快 速 上 手\\n" +
+    "        </div>\\n" +
+    "        <div style={{ fontSize: 64, fontWeight: 800, color: '#FFFFFF', fontFamily: font,\\n" +
+    "          textAlign: 'center', marginBottom: 40, textShadow: `0 0 20px ${p}` }}>\\n" +
+    "          {title}\\n" +
+    "        </div>\\n" +
+    "        <div style={{ width: '100%', maxWidth: 760, background: 'rgba(0,0,0,0.6)',\\n" +
+    "          border: `1px solid ${p}50`, borderRadius: 12, overflow: 'hidden',\\n" +
+    "          boxShadow: `${p}20` }}>\\n" +
+    "          <div style={{ display: 'flex', gap: 8, padding: '12px 16px',\\n" +
+    "            background: `${p}15`, borderBottom: `1px solid ${p}30` }}>\\n" +
+    "            {['#FF5F56','#FFBD2E','#27C93F'].map((c, i) => (\\n" +
+    "              <div key={i} style={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: c }} />\\n" +
+    "            ))}\\n" +
+    "            <div style={{ flex: 1, textAlign: 'center', fontSize: 14,\\n" +
+    "              color: 'rgba(255,255,255,0.4)', fontFamily: font }}>Terminal</div>\\n" +
+    "          </div>\\n" +
+    "          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>\\n" +
+    "            {(steps || []).slice(0, 4).map((item, i) => {\\n" +
+    "              const lineEntry = interpolate(frame, [8 + i*8, 25 + i*8], [0, 1], { extrapolateRight: 'clamp' });\\n" +
+    "              return (\\n" +
+    "                <div key={i} style={{ opacity: lineEntry }}>\\n" +
+    "                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>\\n" +
+    "                    <span style={{ fontSize: 24, fontFamily: font, color: p, fontWeight: 600 }}>$</span>\\n" +
+    "                    <span style={{ fontSize: 22, fontFamily: font, color: '#FFFFFF' }}>\\n" +
+    "                      {item.cmd || item.text || item}\\n" +
+    "                    </span>\\n" +
+    "                  </div>\\n" +
+    "                  <div style={{ fontSize: 18, fontFamily: font, color: 'rgba(255,255,255,0.4)',\\n" +
+    "                    marginTop: 4, paddingLeft: 36 }}># {item.desc || ''}</div>\\n" +
+    "                </div>\\n" +
+    "              );\\n" +
+    "            })}\\n" +
+    "          </div>\\n" +
+    "        </div>\\n" +
+    "        {url && (\\n" +
+    "          <div style={{ marginTop: 32, padding: '10px 28px', background: `${s}22`,\\n" +
+    "            border: `1px solid ${s}50`, borderRadius: 8, fontSize: 24, color: s,\\n" +
+    "            fontFamily: font, fontWeight: 600, boxShadow: `${s}30` }}>\\n" +
+    "            {url.replace('https://', '')}\\n" +
+    "          </div>\\n" +
+    "        )}\\n" +
+    "        {subtitle && (\\n" +
+    "          <div style={{ fontSize: 28, color: 'rgba(255,255,255,0.5)', fontFamily: font,\\n" +
+    "            textAlign: 'center', marginTop: 24 }}>\\n" +
+    "            {subtitle}\\n" +
+    "          </div>\\n" +
+    "        )}\\n" +
+    "      </CenterLayout>\\n" +
+    "    </AbsoluteFill>\\n" +
+    "  );\\n" +
+    "};\\n\\n" +
+    "// ── Ending 场景 ─────────────────────────────────────────────────────────\\n" +
+    "const EndingScene = ({ title, subtitle, theme, frame, url, license }) => {\\n" +
+    "  const p = theme.primary, s = theme.secondary, a = theme.accent, bg = theme.bg, font = theme.font;\\n" +
+    "  const { entry } = useSceneAnimation(frame, theme);\\n" +
+    "  const pulse = interpolate(frame, [0, 60], [1, 1.08], { extrapolateRight: 'clamp' });\\n" +
+    "  return (\\n" +
+    "    <AbsoluteFill style={{ backgroundColor: bg }}>\\n" +
+    "      <GridBackground color={`rgba(255,255,255,0.03)`} />\\n" +
+    "      <GlowBar top gradient={`linear-gradient(90deg, ${p}, ${s}, ${a})`}\\n" +
+    "        shadow={`0 0 20px ${p}`} bottom />\\n" +
+    "      <CenterLayout entry={entry} scale={1} slideY={0} padding='0 60px'>\\n" +
+    "        <div style={{ fontSize: 80, fontWeight: 900, color: '#FFFFFF', fontFamily: font,\\n" +
+    "          textAlign: 'center', textShadow: `0 0 20px ${p}, 0 0 40px ${s}, 0 0 60px ${a}`,\\n" +
+    "          transform: `scale(${pulse})`, marginBottom: 32 }}>\\n" +
+    "          ⚡\\n" +
+    "        </div>\\n" +
+    "        <div style={{ fontSize: 80, fontWeight: 900, color: '#FFFFFF', fontFamily: font,\\n" +
+    "          textAlign: 'center', textShadow: `0 0 15px ${p}, 0 0 30px ${s}`,\\n" +
+    "          maxWidth: '90%' }}>\\n" +
+    "          {title}\\n" +
+    "        </div>\\n" +
+    "        {subtitle && (\\n" +
+    "          <div style={{ fontSize: 44, fontWeight: 600, color: s, fontFamily: font,\\n" +
+    "            textAlign: 'center', marginTop: 24, textShadow: `0 0 20px ${s}` }}>\\n" +
+    "            {subtitle}\\n" +
+    "          </div>\\n" +
+    "        )}\\n" +
+    "        <div style={{ marginTop: 56, padding: '16px 48px',\\n" +
+    "          background: `linear-gradient(135deg, ${p}, ${s})`,\\n" +
+    "          borderRadius: 12, fontSize: 36, fontWeight: 800, color: '#000000',\\n" +
+    "          fontFamily: font, boxShadow: `${p}80` }}>\\n" +
+    "          立即开始 →\\n" +
+    "        </div>\\n" +
+    "        {(url || license) && (\\n" +
+    "          <div style={{ position: 'absolute', bottom: 60, fontSize: 20,\\n" +
+    "            color: 'rgba(255,255,255,0.3)', fontFamily: font, textAlign: 'center' }}>\\n" +
+    "            {license || (url ? url.replace('https://','') : '')}\\n" +
+    "          </div>\\n" +
+    "        )}\\n" +
+    "      </CenterLayout>\\n" +
+    "    </AbsoluteFill>\\n" +
+    "  );\\n" +
+    "};\\n\\n" +
+    "// ── Generic 场景（兜底，用于非标准 name 的场景）────────────────────────\\n" +
+    "const GenericScene = ({ title, subtitle, theme, frame }) => {\\n" +
+    "  const p = theme.primary, s = theme.secondary, bg = theme.bg, font = theme.font;\\n" +
+    "  const { entry, scale } = useSceneAnimation(frame, theme);\\n" +
+    "  return (\\n" +
+    "    <AbsoluteFill style={{ backgroundColor: bg }}>\\n" +
+    "      <GridBackground color={`rgba(${p},0.05)`} />\\n" +
+    "      <GlowBar top gradient={`linear-gradient(90deg, ${p}, ${s})`} shadow={`0 0 16px ${p}`} bottom />\\n" +
+    "      <CenterLayout entry={entry} scale={scale} slideY={0} padding='0 60px'>\\n" +
+    "        <div style={{ fontSize: 72, fontWeight: 800, color: '#FFFFFF', fontFamily: font,\\n" +
+    "          textAlign: 'center', textShadow: `0 0 20px ${p}` }}>\\n" +
+    "          {title}\\n" +
+    "        </div>\\n" +
+    "        {subtitle && (\\n" +
+    "          <div style={{ fontSize: 40, color: s, fontFamily: font, textAlign: 'center',\\n" +
+    "            marginTop: 24, opacity: 0.8 }}>\\n" +
+    "            {subtitle}\\n" +
+    "          </div>\\n" +
+    "        )}\\n" +
+    "      </CenterLayout>\\n" +
+    "    </AbsoluteFill>\\n" +
+    "  );\\n" +
+    "};\\n\\n" +
+    "// ── 主组件 DynamicScene ────────────────────────────────────────────────\\n" +
+    "// theme 由 themes.js 注入，支持所有 30 个主题\\n" +
+    "// painPoints/tags/features/steps/url/license 从 scenes props 透传\\n" +
+    "export const DynamicScene = ({ name, title, subtitle, theme, frame,\\n" +
+    "  painPoints, tags, features, steps, url, license,\\n" +
+    "}) => {\\n" +
+    "  switch (name) {\\n" +
+    "    case SCENE_TYPE.COVER:      return <CoverScene      title={title} subtitle={subtitle} theme={theme} frame={frame} />;\\n" +
+    "    case SCENE_TYPE.PAIN_POINT: return <PainPointScene  title={title} subtitle={subtitle} theme={theme} frame={frame} painPoints={painPoints} />;\\n" +
+    "    case SCENE_TYPE.SOLUTION:   return <SolutionScene   title={title} subtitle={subtitle} theme={theme} frame={frame} tags={tags} />;\\n" +
+    "    case SCENE_TYPE.FEATURES:   return <FeaturesScene   title={title} subtitle={subtitle} theme={theme} frame={frame} features={features} />;\\n" +
+    "    case SCENE_TYPE.START:      return <StartScene      title={title} subtitle={subtitle} theme={theme} frame={frame} steps={steps} url={url} />;\\n" +
+    "    case SCENE_TYPE.ENDING:     return <EndingScene     title={title} subtitle={subtitle} theme={theme} frame={frame} url={url} license={license} />;\\n" +
+    "    default:                    return <GenericScene    title={title} subtitle={subtitle} theme={theme} frame={frame} />;\\n" +
+    "  }\\n" +
+    "};\\n"
+  );
+  console.log("DynamicScene.tsx written");
 
-  // ── Scene2_PainPoint.tsx ─────────────────────────────────────────────────
-  fs.writeFileSync(path.join(scenesDir, "Scene2_PainPoint.tsx"),
-    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
-    "const GridLines = () => {\n" +
-    "  const hLines = [];\n" +
-    "  const vLines = [];\n" +
-    "  for (let i = 0; i < 1920; i += 60) {\n" +
-    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(255,0,85,0.04)" }} />);\n' +
-    "  }\n" +
-    "  for (let i = 0; i < 1080; i += 60) {\n" +
-    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(255,0,85,0.04)" }} />);\n' +
-    "  }\n" +
-    "  return <>{hLines}{vLines}</>;\n" +
-    "};\n\n" +
-    "const PAINS = " + JSON.stringify(PAIN_POINTS) + ";\n" +
-    "const PAIN_ICONS = [\"⚠️\", \"🔥\", \"💀\"];\n\n" +
-    "export const Scene2_PainPoint = ({ title, subtitle, theme }) => {\n" +
-    "  const frame = useCurrentFrame();\n" +
-    "  const primary = String(theme.primary || \"#FF00FF\");\n" +
-    "  const secondary = String(theme.secondary || \"#FFFF00\");\n" +
-    "  const bg = String(theme.bg || \"#0D0221\");\n" +
-    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
-    "  const entry = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: \"clamp\" });\n" +
-    "  const slideY = interpolate(frame, [0, 20], [30, 0], { extrapolateRight: \"clamp\" });\n\n" +
-    "  return (\n" +
-    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
-    "      <GridLines />\n" +
-    '      <div style={{ position: \"absolute\", top: 0, left: 0, right: 0, height: 4, background: "linear-gradient(90deg, #FF0055, " + "#{primary})", boxShadow: "0 0 20px #FF0055" }} />\n' +
-    '      <div style={{ position: \"absolute\", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "0 60px", opacity: entry, transform: `translateY(${slideY}px)` }}>\n' +
-    '        <div style={{ padding: "6px 24px", borderRadius: 20, backgroundColor: "rgba(255,0,85,0.1)", border: "1px solid rgba(255,0,85,0.3)", fontSize: 18, color: "#FF0055", fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 32, boxShadow: "0 0 12px rgba(255,0,85,0.2)" }}>\n' +
-    "          痛 点\n" +
-    "        </div>\n" +
-    '        <div style={{ fontSize: 72, fontWeight: 800, color: "#FFFFFF", fontFamily: font, textAlign: "center", marginBottom: 48, textShadow: "0 0 20px #FF0055" }}>\n' +
-    "          {title}\n" +
-    "        </div>\n" +
-    '        <div style={{ display: "flex", flexDirection: "column", gap: 20, width: "100%", maxWidth: 800 }}>\n' +
-    "          {PAINS.map((pain, i) => {\n" +
-    "            const itemEntry = interpolate(frame, [10 + i * 8, 30 + i * 8], [0, 1], { extrapolateRight: \"clamp\" });\n" +
-    "            const itemSlide = interpolate(frame, [10 + i * 8, 30 + i * 8], [20, 0], { extrapolateRight: \"clamp\" });\n" +
-    '            return (\n' +
-    '              <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, background: "rgba(255,0,85,0.08)", border: "1px solid rgba(255,0,85,0.25)", borderRadius: 12, padding: "16px 24px", opacity: itemEntry, transform: `translateY(${itemSlide}px)` }}>\n' +
-    '                <span style={{ fontSize: 36 }}>{PAIN_ICONS[i]}</span>\n' +
-    '                <span style={{ fontSize: 32, fontWeight: 600, color: "#FFFFFF", fontFamily: font }}>\n' +
-    "                  {pain}\n" +
-    "                </span>\n" +
-    "              </div>\n" +
-    "            );\n" +
-    "          })}\n" +
-    "        </div>\n" +
-    "        {subtitle && (\n" +
-    '          <div style={{ fontSize: 32, fontWeight: 400, color: secondary, fontFamily: font, textAlign: "center", marginTop: 40, opacity: 0.8 }}>\n' +
-    "            {subtitle}\n" +
-    "          </div>\n" +
-    "        )}\n" +
-    "      </div>\n" +
-    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, #FF0055)` }} />\n' +
-    "    </AbsoluteFill>\n" +
-    "  );\n" +
-    "};\n");
-
-  // ── Scene3_Solution.tsx ───────────────────────────────────────────────────
-  fs.writeFileSync(path.join(scenesDir, "Scene3_Solution.tsx"),
-    'import React from "react";\n' +
-    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
-    "const GridLines = () => {\n" +
-    "  const hLines = [];\n" +
-    "  const vLines = [];\n" +
-    "  for (let i = 0; i < 1920; i += 60) {\n" +
-    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(0,255,136,0.05)" }} />);\n' +
-    "  }\n" +
-    "  for (let i = 0; i < 1080; i += 60) {\n" +
-    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(0,255,136,0.05)" }} />);\n' +
-    "  }\n" +
-    "  return <>{hLines}{vLines}</>;\n" +
-    "};\n\n" +
-    "const TAGS = " + JSON.stringify(TAGS) + ";\n\n" +
-    "export const Scene3_Solution = ({ title, subtitle, theme }) => {\n" +
-    "  const frame = useCurrentFrame();\n" +
-    "  const primary = String(theme.primary || \"#00FF88\");\n" +
-    "  const secondary = String(theme.secondary || \"#00FFFF\");\n" +
-    "  const accent = String(theme.accent || \"#FFFF00\");\n" +
-    "  const bg = String(theme.bg || \"#0D0221\");\n" +
-    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
-    "  const entry = interpolate(frame, [0, 25], [0, 1], { extrapolateRight: \"clamp\" });\n" +
-    "  const scale = interpolate(frame, [0, 25], [0.85, 1], { extrapolateRight: \"clamp\" });\n\n" +
-    "  return (\n" +
-    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
-    "      <GridLines />\n" +
-    '      <div style={{ position: \"absolute\", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary})`, boxShadow: `0 0 16px ${primary}` }} />\n' +
-    '      <div style={{ position: \"absolute\", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", opacity: entry, transform: `scale(${scale})` }}>\n' +
-    '        <div style={{ padding: "6px 24px", borderRadius: 20, backgroundColor: `${primary}22`, border: `1px solid ${primary}60`, fontSize: 18, color: primary, fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 32, boxShadow: `0 0 12px ${primary}33` }}>\n' +
-    "          解 决 方 案\n" +
-    "        </div>\n" +
-    '        <div style={{ fontSize: 100, fontWeight: 900, color: "#FFFFFF", fontFamily: font, textAlign: "center", textShadow: `0 0 20px ${primary}, 0 0 40px ${secondary}`, padding: "0 40px", maxWidth: "95%" }}>\n' +
-    "          {title}\n" +
-    "        </div>\n" +
-    '        <div style={{ fontSize: 44, fontWeight: 600, color: secondary, fontFamily: font, textAlign: "center", marginTop: 32, textShadow: `0 0 20px ${secondary}` }}>\n' +
-    "          {subtitle || \"高速 · 稳定 · 低延迟\"}\n" +
-    "        </div>\n" +
-    '        <div style={{ display: "flex", gap: 16, marginTop: 48, flexWrap: "wrap", justifyContent: "center" }}>\n' +
-    "          {TAGS.map((tag, i) => {\n" +
-    "            const tagEntry = interpolate(frame, [15 + i * 6, 30 + i * 6], [0, 1], { extrapolateRight: \"clamp\" });\n" +
-    '            return (\n' +
-    '              <div key={i} style={{ padding: "8px 20px", borderRadius: 8, background: `${accent}22`, border: `1px solid ${accent}60`, fontSize: 24, color: accent, fontFamily: font, fontWeight: 500, opacity: tagEntry, boxShadow: `0 0 12px ${accent}33` }}>\n' +
-    "                {tag}\n" +
-    "              </div>\n" +
-    "            );\n" +
-    "          })}\n" +
-    "        </div>\n" +
-    "      </div>\n" +
-    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${secondary}, ${primary})` }} />\n' +
-    "    </AbsoluteFill>\n" +
-    "  );\n" +
-    "};\n");
-
-  // ── Scene4_Features.tsx ───────────────────────────────────────────────────
-  // FEATURES 已在上方从 sceneContent 读取
-  fs.writeFileSync(path.join(scenesDir, "Scene4_Features.tsx"),
-    'import React from "react";\n' +
-    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
-    "const GridLines = () => {\n" +
-    "  const hLines = [];\n" +
-    "  const vLines = [];\n" +
-    "  for (let i = 0; i < 1920; i += 60) {\n" +
-    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(0,255,255,0.04)" }} />);\n' +
-    "  }\n" +
-    "  for (let i = 0; i < 1080; i += 60) {\n" +
-    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(0,255,255,0.04)" }} />);\n' +
-    "  }\n" +
-    "  return <>{hLines}{vLines}</>;\n" +
-    "};\n\n" +
-    "const FEATS = " + JSON.stringify(FEATURES) + ";\n\n" +
-    "export const Scene4_Features = ({ title, subtitle, theme }) => {\n" +
-    "  const frame = useCurrentFrame();\n" +
-    "  const primary = String(theme.primary || \"#00FFFF\");\n" +
-    "  const secondary = String(theme.secondary || \"#FF00FF\");\n" +
-    "  const bg = String(theme.bg || \"#0D0221\");\n" +
-    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
-    "  const entry = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: \"clamp\" });\n\n" +
-    "  return (\n" +
-    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
-    "      <GridLines />\n" +
-    '      <div style={{ position: \"absolute\", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary})`, boxShadow: `0 0 16px ${primary}` }} />\n' +
-    '      <div style={{ position: \"absolute\", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "0 60px", opacity: entry }}>\n' +
-    '        <div style={{ padding: "6px 24px", borderRadius: 20, backgroundColor: `${primary}22`, border: `1px solid ${primary}60`, fontSize: 18, color: primary, fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 28 }}>\n' +
-    "          核 心 功 能\n" +
-    "        </div>\n" +
-    '        <div style={{ fontSize: 64, fontWeight: 800, color: "#FFFFFF", fontFamily: font, textAlign: "center", marginBottom: 40, textShadow: `0 0 20px ${primary}` }}>\n' +
-    "          {title}\n" +
-    "        </div>\n" +
-    '        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, width: "100%", maxWidth: 880 }}>\n' +
-    "          {FEATS.map((item, i) => {\n" +
-    "            const itemEntry = interpolate(frame, [5 + i * 6, 20 + i * 6], [0, 1], { extrapolateRight: \"clamp\" });\n" +
-    "            const itemScale = interpolate(frame, [5 + i * 6, 20 + i * 6], [0.85, 1], { extrapolateRight: \"clamp\" });\n" +
-    '            return (\n' +
-    '              <div key={i} style={{ background: `linear-gradient(135deg, ${primary}15, ${secondary}10)`, border: `1px solid ${primary}40`, borderRadius: 16, padding: "28px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, opacity: itemEntry, transform: `scale(${itemScale})`, boxShadow: `0 0 30px ${primary}15` }}>\n' +
-    '                <span style={{ fontSize: 52 }}>{item.icon}</span>\n' +
-    '                <div style={{ fontSize: 32, fontWeight: 700, color: "#FFFFFF", fontFamily: font, textAlign: "center" }}>{item.name}</div>\n' +
-    '                <div style={{ fontSize: 22, fontWeight: 400, color: "rgba(255,255,255,0.6)", fontFamily: font, textAlign: "center" }}>{item.desc}</div>\n' +
-    "              </div>\n" +
-    "            );\n" +
-    "          })}\n" +
-    "        </div>\n" +
-    "        {subtitle && (\n" +
-    '          <div style={{ fontSize: 28, color: secondary, fontFamily: font, textAlign: "center", marginTop: 32, opacity: 0.8 }}>\n' +
-    "            {subtitle}\n" +
-    "          </div>\n" +
-    "        )}\n" +
-    "      </div>\n" +
-    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${secondary}, ${primary})` }} />\n' +
-    "    </AbsoluteFill>\n" +
-    "  );\n" +
-    "};\n");
-
-  // ── Scene5_Start.tsx ─────────────────────────────────────────────────────
-  // STEPS 已在上方从 sceneContent 读取
-  fs.writeFileSync(path.join(scenesDir, "Scene5_Start.tsx"),
-    'import React from "react";\n' +
-    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
-    "const GridLines = () => {\n" +
-    "  const hLines = [];\n" +
-    "  const vLines = [];\n" +
-    "  for (let i = 0; i < 1920; i += 60) {\n" +
-    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(0,255,136,0.04)" }} />);\n' +
-    "  }\n" +
-    "  for (let i = 0; i < 1080; i += 60) {\n" +
-    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(0,255,136,0.04)" }} />);\n' +
-    "  }\n" +
-    "  return <>{hLines}{vLines}</>;\n" +
-    "};\n\n" +
-    "const CMDS = " + JSON.stringify(STEPS) + ";\n\n" +
-    "export const Scene5_Start = ({ title, subtitle, theme }) => {\n" +
-    "  const frame = useCurrentFrame();\n" +
-    "  const primary = String(theme.primary || \"#00FF88\");\n" +
-    "  const secondary = String(theme.secondary || \"#00FFFF\");\n" +
-    "  const bg = String(theme.bg || \"#0D0221\");\n" +
-    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
-    "  const entry = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: \"clamp\" });\n\n" +
-    "  return (\n" +
-    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
-    "      <GridLines />\n" +
-    '      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary})`, boxShadow: `0 0 16px ${primary}` }} />\n' +
-    '      <div style={{ position: "absolute\", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "0 60px", opacity: entry }}>\n' +
-    '        <div style={{ padding: "6px 24px", borderRadius: 20, backgroundColor: `${primary}22`, border: `1px solid ${primary}60`, fontSize: 18, color: primary, fontFamily: font, fontWeight: 600, letterSpacing: 3, marginBottom: 28 }}>\n' +
-    "          快 速 上 手\n" +
-    "        </div>\n" +
-    '        <div style={{ fontSize: 64, fontWeight: 800, color: "#FFFFFF", fontFamily: font, textAlign: "center", marginBottom: 40, textShadow: `0 0 20px ${primary}` }}>\n' +
-    "          {title}\n" +
-    "        </div>\n" +
-    '        <div style={{ width: "100%", maxWidth: 760, background: "rgba(0,0,0,0.6)", border: `1px solid ${primary}50`, borderRadius: 12, overflow: "hidden", boxShadow: `0 0 40px ${primary}20` }}>\n' +
-    '          <div style={{ display: "flex", gap: 8, padding: "12px 16px", background: `${primary}15`, borderBottom: `1px solid ${primary}30` }}>\n' +
-    "            {[\"#FF5F56\", \"#FFBD2E\", \"#27C93F\"].map((c, i) => (\n" +
-    '              <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", backgroundColor: c }} />\n' +
-    "            ))}\n" +
-    '            <div style={{ flex: 1, textAlign: "center", fontSize: 14, color: "rgba(255,255,255,0.4)", fontFamily: font }}>Terminal</div>\n' +
-    "          </div>\n" +
-    '          <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>\n' +
-    "            {CMDS.map((item, i) => {\n" +
-    "              const lineEntry = interpolate(frame, [8 + i * 8, 25 + i * 8], [0, 1], { extrapolateRight: \"clamp\" });\n" +
-    '              return (\n' +
-    '                <div key={i} style={{ opacity: lineEntry }}>\n' +
-    '                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>\n' +
-    '                    <span style={{ fontSize: 24, fontFamily: font, color: primary, fontWeight: 600 }}>$</span>\n' +
-    '                    <span style={{ fontSize: 22, fontFamily: font, color: "#FFFFFF" }}>{item.cmd}</span>\n' +
-    "                  </div>\n" +
-    '                  <div style={{ fontSize: 18, fontFamily: font, color: "rgba(255,255,255,0.4)", marginTop: 4, paddingLeft: 36 }}># {item.desc}</div>\n' +
-    "                </div>\n" +
-    "              );\n" +
-    "            })}\n" +
-    "          </div>\n" +
-    "        </div>\n" +
-    '        <div style={{ marginTop: 32, padding: "10px 28px", background: `${secondary}22`, border: `1px solid ${secondary}50`, borderRadius: 8, fontSize: 24, color: secondary, fontFamily: font, fontWeight: 600, boxShadow: `0 0 16px ${secondary}30` }}>\n' +
-    `          ${SCENE_URL.replace('https://', '')}\n` +
-    "        </div>\n" +
-    "        {subtitle && (\n" +
-    '          <div style={{ fontSize: 28, color: "rgba(255,255,255,0.5)", fontFamily: font, textAlign: "center", marginTop: 24 }}>\n' +
-    "            {subtitle}\n" +
-    "          </div>\n" +
-    "        )}\n" +
-    "      </div>\n" +
-    '      <div style={{ position: \"absolute\", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${secondary}, ${primary})` }} />\n' +
-    "    </AbsoluteFill>\n" +
-    "  );\n" +
-    "};\n");
-
-  // ── Scene6_Ending.tsx ────────────────────────────────────────────────────
-  fs.writeFileSync(path.join(scenesDir, "Scene6_Ending.tsx"),
-    'import React from "react";\n' +
-    'import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";\n\n' +
-    "const GridLines = () => {\n" +
-    "  const hLines = [];\n" +
-    "  const vLines = [];\n" +
-    "  for (let i = 0; i < 1920; i += 60) {\n" +
-    '    hLines.push(<div key={"h" + i} style={{ position: "absolute", top: i, left: 0, right: 0, height: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />);\n' +
-    "  }\n" +
-    "  for (let i = 0; i < 1080; i += 60) {\n" +
-    '    vLines.push(<div key={"v" + i} style={{ position: "absolute", left: i, top: 0, bottom: 0, width: 1, backgroundColor: "rgba(255,255,255,0.03)" }} />);\n' +
-    "  }\n" +
-    "  return <>{hLines}{vLines}</>;\n" +
-    "};\n\n" +
-    "export const Scene6_Ending = ({ title, subtitle, theme }) => {\n" +
-    "  const frame = useCurrentFrame();\n" +
-    "  const primary = String(theme.primary || \"#00FFFF\");\n" +
-    "  const secondary = String(theme.secondary || \"#FF00FF\");\n" +
-    "  const accent = String(theme.accent || \"#FFFF00\");\n" +
-    "  const bg = String(theme.bg || \"#0D0221\");\n" +
-    "  const font = String(theme.font || \"JetBrains Mono\");\n\n" +
-    "  const entry = interpolate(frame, [0, 25], [0, 1], { extrapolateRight: \"clamp\" });\n" +
-    "  const pulse = interpolate(frame, [0, 60], [1, 1.08], { extrapolateRight: \"clamp\" });\n\n" +
-    "  return (\n" +
-    '    <AbsoluteFill style={{ backgroundColor: bg }}>\n' +
-    "      <GridLines />\n" +
-    '      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${primary}, ${secondary}, ${accent})`, boxShadow: `0 0 20px ${primary}` }} />\n' +
-    '      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", opacity: entry }}>\n' +
-    '        <div style={{ fontSize: 80, fontWeight: 900, color: "#FFFFFF", fontFamily: font, textAlign: "center", textShadow: `0 0 20px ${primary}, 0 0 40px ${secondary}, 0 0 60px ${accent}`, transform: `scale(${pulse})`, marginBottom: 32 }}>\n' +
-    "          ⚡\n" +
-    "        </div>\n" +
-    '        <div style={{ fontSize: 80, fontWeight: 900, color: "#FFFFFF", fontFamily: font, textAlign: "center", textShadow: `0 0 15px ${primary}, 0 0 30px ${secondary}`, maxWidth: "90%" }}>\n' +
-    "          {title}\n" +
-    "        </div>\n" +
-    "        {subtitle && (\n" +
-    '          <div style={{ fontSize: 44, fontWeight: 600, color: secondary, fontFamily: font, textAlign: "center", marginTop: 24, textShadow: `0 0 20px ${secondary}` }}>\n' +
-    "            {subtitle}\n" +
-    "          </div>\n" +
-    "        )}\n" +
-    '        <div style={{ marginTop: 56, padding: "16px 48px", background: `linear-gradient(135deg, ${primary}, ${secondary})`, borderRadius: 12, fontSize: 36, fontWeight: 800, color: "#000000", fontFamily: font, boxShadow: `0 0 40px ${primary}80` }}>\n' +
-    "          立即开始 →\n" +
-    "        </div>\n" +
-    '        <div style={{ position: "absolute", bottom: 60, fontSize: 20, color: "rgba(255,255,255,0.3)", fontFamily: font, textAlign: "center" }}>\n' +
-    `          ${SCENE_LICENSE}\n` +
-    "        </div>\n" +
-    "      </div>\n" +
-    '      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${accent}, ${primary}, ${secondary})` }} />\n' +
-    "    </AbsoluteFill>\n" +
-    "  );\n" +
-    "};\n");
-
-  // ── scenes/index.ts ───────────────────────────────────────────────────────
+  // ── Root.tsx ──────────────────────────────────────────────────────────────
+  // 只导出 DynamicScene（统一动态场景组件，支持任意 N 场景）
   fs.writeFileSync(path.join(scenesDir, "index.ts"),
-    'export { Scene1_Cover } from "./Scene1_Cover";\n' +
-    'export { Scene2_PainPoint } from "./Scene2_PainPoint";\n' +
-    'export { Scene3_Solution } from "./Scene3_Solution";\n' +
-    'export { Scene4_Features } from "./Scene4_Features";\n' +
-    'export { Scene5_Start } from "./Scene5_Start";\n' +
-    'export { Scene6_Ending } from "./Scene6_Ending";\n');
+    'export { DynamicScene } from "./DynamicScene";\n');
 
   // ── Video.tsx ─────────────────────────────────────────────────────────────
   // 关键：音频通过 <Audio> 内嵌，Remotion 渲染的 MP4 直接含音频
+  // 关键：只使用 DynamicScene 组件，通过 scene.name 动态路由到不同场景类型
   fs.writeFileSync(path.join(srcDir, "Video.tsx"),
     'import React from "react";\n' +
-    'import { AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig } from "remotion";\n' +
+    'import { AbsoluteFill, Audio, Sequence, staticFile, useCurrentFrame, useVideoConfig } from "remotion";\n' +
     'import { CaptionOverlay } from "./components/CaptionOverlay";\n' +
     'import { THEMES } from "./themes";\n' +
-    'import { Scene1_Cover, Scene2_PainPoint, Scene3_Solution, Scene4_Features, Scene5_Start, Scene6_Ending } from "./scenes";\n\n' +
+    'import { DynamicScene } from "./scenes";\n\n' +
     "export interface VideoProps {\n" +
     "  title: string;\n" +
     "  subtitle: string;\n" +
     "  theme: string;\n" +
-    "  scenes: Array<{ id: number; title: string; subtitle: string; duration: number }>;\n" +
+    "  scenes: Array<{ id: number; name: string; title: string; subtitle: string; duration: number;\n" +
+    "    painPoints?: string[]; tags?: string[]; features?: Array<{icon?:string; name?:string; desc?:string}>;\n" +
+    "    steps?: Array<{cmd?:string; text?:string; desc?:string}>; url?: string; license?: string }>;\n" +
     "  audioFile: string;\n" +
     "  captionsFile: string;\n" +
     "}\n\n" +
-    "const SceneComponents = [\n" +
-    "  Scene1_Cover,\n" +
-    "  Scene2_PainPoint,\n" +
-    "  Scene3_Solution,\n" +
-    "  Scene4_Features,\n" +
-    "  Scene5_Start,\n" +
-    "  Scene6_Ending,\n" +
-    "];\n\n" +
     "const DEFAULT_SCENES = " + JSON.stringify(DEFAULT_SCENES) + ";\n\n" +
     "export const VerticalVideo = ({ title, subtitle, theme: themeId, scenes, audioFile, captionsFile }) => {\n" +
     "  const theme = THEMES[themeId] || THEMES[\"cyberpunk\"];\n" +
     "  const { fps } = useVideoConfig();\n\n" +
-    "  // 合并场景配置\n" +
+    "  // 合并场景配置（scene.name 决定渲染类型）\n" +
     "  const sceneList = scenes.length > 0 ? scenes : DEFAULT_SCENES.map(s => ({\n" +
     "    ...s,\n" +
     "    title: title || s.title,\n" +
@@ -705,26 +755,41 @@ function createProject(projectDir, config) {
     '    <AbsoluteFill style={{ backgroundColor: String(theme.bg) }}>\n' +
     "      {/* 音频：内嵌 Remotion，MP4 直接含音频 */}\n" +
     "      <Audio src={staticFile(audioFile)} />\n\n" +
-    "      {/* 场景序列 */}\n" +
+    "      {/* 场景序列：统一使用 DynamicScene，按 scene.name 动态路由 */}\n" +
     "      {timings.map((s, i) => {\n" +
-    "        const SceneComp = SceneComponents[i] || Scene1_Cover;\n" +
     "        return (\n" +
     "          <Sequence\n" +
     "            key={s.id}\n" +
     "            from={s.startFrame}\n" +
     "            durationInFrames={s.durationInFrames}\n" +
     "          >\n" +
-    "            <SceneComp\n" +
-    "              title={s.title}\n" +
-    "              subtitle={s.subtitle}\n" +
-    "              theme={theme}\n" +
-    "            />\n" +
+    "            <SceneWrapper scene={s} theme={theme} />\n" +
     "          </Sequence>\n" +
     "        );\n" +
     "      })}\n\n" +
     "      {/* 字幕叠加 */}\n" +
     "      <CaptionOverlay captionsFile={captionsFile} />\n" +
     "    </AbsoluteFill>\n" +
+    "  );\n" +
+    "};\n\n" +
+    "// 场景包装器：提取 scene 字段并传给 DynamicScene\n" +
+    "// 同时注入 frame（从 useCurrentFrame 获取当前帧）\n" +
+    "const SceneWrapper = ({ scene, theme }) => {\n" +
+    "  const frame = useCurrentFrame();\n" +
+    "  return (\n" +
+    "    <DynamicScene\n" +
+    "      name={scene.name}\n" +
+    "      title={scene.title}\n" +
+    "      subtitle={scene.subtitle}\n" +
+    "      theme={theme}\n" +
+    "      frame={frame}\n" +
+    "      painPoints={scene.painPoints}\n" +
+    "      tags={scene.tags}\n" +
+    "      features={scene.features}\n" +
+    "      steps={scene.steps}\n" +
+    "      url={scene.url}\n" +
+    "      license={scene.license}\n" +
+    "    />\n" +
     "  );\n" +
     "};\n");
 
@@ -807,18 +872,14 @@ function createProject(projectDir, config) {
   console.log("  tsconfig.json             (bundler, strict)");
   console.log("  src/");
   console.log("    index.ts               (registerRoot)");
-  console.log("    Root.tsx               (Composition)");
-  console.log("    Video.tsx              (Audio + Sequence + CaptionOverlay)");
+  console.log("    Root.tsx               (Composition, dynamic duration from audio)");
+  console.log("    Video.tsx              (Audio + Sequence + DynamicScene)");
   console.log("    components/");
   console.log("      CaptionOverlay.tsx   (TikTok 逐字高亮)");
   console.log("    scenes/");
-  console.log("      Scene1_Cover.tsx     (封面)");
-  console.log("      Scene2_PainPoint.tsx (痛点)");
-  console.log("      Scene3_Solution.tsx  (方案)");
-  console.log("      Scene4_Features.tsx  (功能)");
-  console.log("      Scene5_Start.tsx     (上手)");
-  console.log("      Scene6_Ending.tsx    (结尾)");
-  console.log("    themes/index.ts        (30主题)");
+  console.log("      DynamicScene.tsx     (统一动态场景，支持任意 N 场景类型)");
+  console.log("      index.ts             (只导出 DynamicScene)");
+  console.log("    themes/index.ts       (30 主题)");
   console.log("  public/audio/");
   console.log("    neural_1_2x.m4a");
   console.log("    captions.json");

@@ -1,6 +1,6 @@
 # 内容获取与文档生成工作流
 
-> **最后更新**：2026-05-18（合并 content-workflow + generate-docs-html-table-bug + generate-docs-known-issues + captions-json-python-generation）
+> **最后更新**：2026-05-23（12 文档、README.md、cmd_docs 强制门禁）
 > **配套文档**：`audio-tts.md`（音频生产）、`subtitle-production.md`（字幕生成）
 
 ---
@@ -89,9 +89,9 @@ find "$PROJECT_DIR/$REPO_DIR" -maxdepth 2 -name "*.md" -not -path "*/node_module
 
 ## 2. generate_docs.js 完整工作流
 
-`generate_docs.js` 是 video-creator 技能的文档生成核心脚本，负责从 article.md 生成 11 个必需文档。
+`generate_docs.js` 是 video-creator 技能的文档生成核心脚本，负责从 article.md 生成 12 个必需文档。
 
-### 11 个文档必须全部生成（Step 0 铁律）
+### 12 个文档必须全部生成（Step 0 铁律）
 
 | # | 文件 | 说明 |
 |---|------|------|
@@ -105,7 +105,35 @@ find "$PROJECT_DIR/$REPO_DIR" -maxdepth 2 -name "*.md" -not -path "*/node_module
 | 8 | `landing-page.html` | 落地页 |
 | 9 | `article-page.html` | 文章阅读页 |
 | 10 | `wechat-page.html` | 公众号适配页 |
-| 11 | `report.json` | 执行报告 |
+| 11 | `README.md` | 项目说明页 |
+| 12 | `report.json` | 执行报告 |
+
+### 文档清单维护规范（新增/删除时必须同步修改 3 处）
+
+> ⚠️ `generate_docs.js` 中文档清单分散在 3 个位置，添加或删除文档时必须同时修改全部 3 处，否则会出现"生成成功但门禁失败"的静默错误：
+>
+> 1. **函数定义**：新增 `generateXxx()` 函数（对应 `generateCopy`、`generateWechatCopy` 等）
+> 2. **写入调用**：找到 `// 11. report.json` 附近的 `fs.writeFileSync()` 块，在对应位置插入新文件的写入调用
+> 3. **`docNames` 数组**：在 `docNames` 数组中添加文件名（决定 `report.json` 中的文件列表）
+> 4. **`REQUIRED_FILES` 数组**：在 `validateDocs()` 上方的 `REQUIRED_FILES` 中添加文件名（决定 `launch.sh docs` 的门禁检查）
+> 5. **`validateDocs()` 成功消息**：将"✅ X个文件全部生成"中的数字更新
+>
+> 本次教训（2026-05-23）：添加 `README.md` 时只修改了 docNames 和 REQUIRED_FILES，但遗漏了写入调用（`fs.writeFileSync`），导致 `launch.sh docs` 的 `check_step0_docs()` 门禁持续失败。
+
+### generate_docs.js 维护检查清单（每次修改后必查）
+
+```bash
+# 1. 语法检查
+node -c {SKILL_DIR}/scripts/generate_docs.js
+
+# 2. 门禁验证（用已有12个文档的项目测试）
+cd {WORKSPACE_DIR}/<已有项目>-video
+bash {SKILL_DIR}/scripts/launch.sh docs
+# 期望输出：[✓] Step 0 门禁通过（12个文档全部存在）
+
+# 3. 确认 README.md 存在
+ls docs/README.md
+```
 
 ### video-config.json 路径要求
 
@@ -336,11 +364,8 @@ Step 0 完成后必执行：
 
 ```bash
 PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
-for f in article.md video-script.md narration.txt copy.md wechat-copy.md posting-guide.md session-log.md landing-page.html article-page.html wechat-page.html report.json; do
-  if [ ! -f "$PROJECT_DIR/docs/$f" ]; then
-    echo "❌ 缺失: $f"
-  fi
-done
+# 12 个文档门禁（使用 launch.sh 内置检查最可靠）
+bash {SKILL_DIR}/scripts/launch.sh docs "$PROJECT_DIR"
 
 # narration.txt 字数验证（目标秒数 × 3.37）
 python3 -c "
@@ -352,6 +377,8 @@ assert chinese <= max_chars, f'字数超限: {chinese} > {max_chars}'
 print('✅ 字数检查通过')
 "
 ```
+
+> **首选方法**：使用 `bash launch.sh docs` 而不是手动 for 循环——它内置了 `check_step0_docs()` 强制检查全部 12 个文档。
 
 ---
 

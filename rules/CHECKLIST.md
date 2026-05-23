@@ -1,7 +1,7 @@
 # Video Creator 执行清单 (CHECKLIST)
 
 > 所属模块：video-creator / SKILL.md → 执行检查清单
-> **最后更新**：2026-05-08
+> **最后更新**：2026-05-23（动态 N 场景 + Remotion Native 方案）
 
 ## ⚠️ 重要说明
 
@@ -14,18 +14,19 @@
 ### 验证命令
 ```bash
 PROJECT_DIR="{WORKSPACE_DIR}/{project-name}"
-for f in README.md article.md video-script.md copy.md wechat-copy.md posting-guide.md landing-page.html article-page.html wechat-page.html session-log.md report.json; do
+for f in README.md article.md video-script.md copy.md wechat-copy.md posting-guide.md landing-page.html article-page.html wechat-page.html session-log.md report.json narration.txt; do
   if [ ! -f "$PROJECT_DIR/docs/$f" ]; then
     echo "❌ 缺失: $f"
     exit 1
   fi
 done
-echo "✅ Step 0 完成，所有11个文档已创建"
+echo "✅ Step 0 完成，所有12个文档已创建"
 ```
 
 ### 检查项
 - [ ] README.md 存在
 - [ ] article.md 存在
+- [ ] narration.txt 存在（内容干净，无控制字符/乱码）
 - [ ] video-script.md 存在
 - [ ] copy.md 存在
 - [ ] wechat-copy.md 存在
@@ -109,33 +110,27 @@ ffprobe -v error -show_entries format=duration \
 ## Step 8: 生成字幕
 
 ### 字幕规范
-- **格式**: ASS (Advanced Substation Alpha)
-- **文件名**: `audio/subtitles.ass`
-- **Fontsize**: 72 (竖屏标准像素值，ASS原始值10对应72px)
-- **Fontname**: PingFang SC
-- **Alignment**: 2 (底部居中)
-- **PrimaryColour**: &H00FFFF (黄色)
-- **MarginV**: 30
-- **禁止使用**: PlayResX/PlayResY
-- **禁止使用**: `\\N` 换行（应用 `\N`）
+> ⚠️ **已迁移至 Remotion Native 方案**：不再使用 ASS 文件，改用 `audio/captions.json` + `@remotion/captions`
+
+- **格式**: JSON（Remotion Native）
+- **文件名**: `audio/captions.json`（同步备份至 `video-project/public/audio/captions.json`）
+- **结构**: `[{startMs, endMs, text}]`
+- **末段 endMs**: 必须等于视频实际时长（毫秒），由 launch.sh Step 7.5 自动同步
+- **禁止**: `audio/subtitles.ass`（旧 ASS 方案已废弃）
 
 ### 验证命令
 ```bash
-# 使用 check-subtitle.js 验证字幕质量
-node {SKILL_DIR}/scripts/check-subtitle.js \
-  "$PROJECT_DIR/audio/subtitles.ass"
+# 验证 captions.json 格式
+node -e "var c=require('$PROJECT_DIR/audio/captions.json');console.log('段落数:',c.length,'末段endMs:',c[c.length-1].endMs);"
+# 验证视频时长一致性
+python3 -c "import subprocess; v=float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0','$PROJECT_DIR/video-project/out/final.mp4']).strip()); print(f'视频: {v*1000:.0f}ms / 字幕末段: {float(open('$PROJECT_DIR/audio/captions.json').read().split()[-2]) if False else 0}ms')"
 ```
 
 ### 检查项
-- [ ] `audio/subtitles.ass` 存在（不是 .srt）
-- [ ] Fontsize=72
-- [ ] Fontname=PingFang SC
-- [ ] Alignment=2 (底部居中)
-- [ ] PrimaryColour=&H00FFFF (黄色)
-- [ ] Format 行字段数=10
-- [ ] Dialogue 行字段数=10
-- [ ] 无 `\\N` 换行（应用 `\N`）
-- [ ] 无 PlayResX/PlayResY
+- [ ] `audio/captions.json` 存在
+- [ ] 末段 `endMs` 等于视频实际时长（毫秒）
+- [ ] 每段 `startMs < endMs`
+- [ ] 无重复段落
 
 ---
 
@@ -146,7 +141,7 @@ node {SKILL_DIR}/scripts/check-subtitle.js \
 - **帧率**: 60fps
 - **编码**: H.264
 - **音频**: AAC
-- **文件名**: `video-project/out/final-with-subs.mp4`
+- **文件名**: `video-project/out/final.mp4`（Remotion Native 方案，音频内嵌，无需 ffmpeg 混流）
 
 ### 验证命令
 ```bash
@@ -154,11 +149,10 @@ node {SKILL_DIR}/scripts/check-subtitle.js \
 ffprobe -v error -select_streams v:0,a:0 \
   -show_entries stream=codec_name,width,height \
   -show_entries format=duration,size \
-  -of default=noprint_wrappers=1 "$PROJECT_DIR/video-project/out/final-with-subs.mp4"
+  -of default=noprint_wrappers=1 "$PROJECT_DIR/video-project/out/final.mp4"
 ```
-
-### 检查项
-- [ ] `video-project/out/final-with-subs.mp4` 存在
+...
+- [ ] `video-project/out/final.mp4` 存在
 - [ ] 视频编码为 H.264
 - [ ] 分辨率为 1080×1920
 - [ ] 帧率为 60fps

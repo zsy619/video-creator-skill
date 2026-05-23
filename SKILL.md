@@ -78,7 +78,16 @@ metadata:
   ```json
   {"scenes":[{"id":1,"name":"Cover","duration":7.4,"title":"真实标题","subtitle":""},...],"title":"MiaoYan","subtitle":"副标题","theme":"cyberpunk"}
   ```
-  scenes 从 captions.json 的7句 narration 等比分配到6个场景；title/subtitle 从 video-config.json 的 cover.title / cover.subtitle 读取
+  scenes 从 captions.json 的 N 句 narration 等比分配到动态数量的场景（规则见下）；title/subtitle 从 video-config.json 的 cover.title / cover.subtitle 读取
+
+**动态 N 场景规则（launch.sh Step 7 自动推断）：**
+- 2-3 句 → Cover + Ending（首尾）
+- 4-6 句 → Cover + PainPoint + Solution + Ending
+- 7-9 句 → Cover + PainPoint + Solution + Features + Ending
+- 10+ 句 → Cover + PainPoint + Solution + Features + Start + Ending
+
+**场景类型（scene.name）决定 DynamicScene.tsx 渲染组件：**
+- `Cover` / `PainPoint` / `Solution` / `Features` / `Start` / `Ending` / `Generic`（兜底）
 
 ### 清理铁律
 - **渲染成功后必须立即清理** `*-repo/` 目录：`rm -rf "${PROJECT_DIR}/*-repo"`
@@ -176,6 +185,7 @@ print(f'中文字数: {cn}')
 | `audio-tts.md` | edge-tts规范、atempo动态计算、审计命令库 |
 | `subtitle-production.md` | captions.json格式、TikTokCaptionOverlay、ASS规范 |
 | `documentation-consistency.md` | 文档一致性检查（死链已修复）、Fontsize修复记录 |
+| `dynamic-scenes-architecture.md` | DynamicScene.tsx 统一架构（2026-05-23）：枚举常量序列化bug、百分比等分、Video.tsx name路由、维护三处修改原则 |
 | `refactoring-log.md` | 重构记录（本次维护参考） |
 | `git-workflow.md` | 目录分离、launch.sh init隔离逻辑、Git清理规范 |
 | `video-visual.md` | 视觉规范、主题动画 |
