@@ -66,14 +66,19 @@ metadata:
 - **禁止分段拼接配音**：必须整段连续生成
 - **禁止跳过音频后处理**：必须执行去静音 + atempo + AAC 256k
 - **禁止使用旧版 ffmpeg 混流**：Remotion Native 方案（`<Audio>` 直接内嵌 MP4）
-- **禁止 edge-tts rate=+20% + atempo=1.2x 叠加**：仅使用 `--rate +0%` + atempo 动态计算
+- **禁止 edge-tts rate=+20% + atempo=1.2x 叠加**：使用 `--rate +0%` + `voice.atempo` 配置值（优先从 video-config.json 读取，不再动态计算）
 - **音频文件命名**：`audio/neural_full.mp3`（原始）→ `audio/neural_1_2x.m4a`（atempo后）
 
 ### 渲染铁律
-- **Root.tsx TOTAL_FRAMES** 必须从实际音频时长计算：`⌊audio_duration × 60⌋`，禁止硬编码（如 35×60）
+- **Root.tsx TOTAL_FRAMES**：必须用 `calculateMetadata` 动态计算（`getAudioDuration(staticFile("audio/neural_1_2x.m4a")) × fps`），禁止在 JSX 中硬编码帧数（硬编码值会覆盖 CLI 的 `--duration-in-frames` 参数）
 - **caption.json 末段 endMs** 必须等于视频实际时长（毫秒），而非音频时长
 - **video-config.json** 必须在项目根目录（不是 `docs/`）
 - **所有 .json 配置文件**必须符合 JSON 语法，禁止重复键名
+- **⚠️ `--props` 必须传入 scenes/title/subtitle/theme**：不传则 `scenes: []`，触发 `DEFAULT_SCENES` 回退，全部场景显示"视频标题/痛点场景/解决方案"等占位符。props 对象结构：
+  ```json
+  {"scenes":[{"id":1,"name":"Cover","duration":7.4,"title":"真实标题","subtitle":""},...],"title":"MiaoYan","subtitle":"副标题","theme":"cyberpunk"}
+  ```
+  scenes 从 captions.json 的7句 narration 等比分配到6个场景；title/subtitle 从 video-config.json 的 cover.title / cover.subtitle 读取
 
 ### 清理铁律
 - **渲染成功后必须立即清理** `*-repo/` 目录：`rm -rf "${PROJECT_DIR}/*-repo"`
@@ -101,6 +106,33 @@ metadata:
 - `launch.sh audio` 和 `launch.sh render` 现已内置 `check_step0_docs()` 门禁，12 个文档不全则拒绝执行
 - 任何 subagent 任务在 Remotion 渲染前必须调用 `bash launch.sh docs` 生成完整文档集
 - narration.txt 存在 ≠ Step 0 完成；必须全部 12 个文档存在
+
+### ⚠️ 已确认失败模式：Session Compaction 导致 narration.txt 内容损坏
+**症状**：narration.txt 文件存在，但内容是乱码/乱字符。Subagent 报告 status=completed，主进程看到文件存在即假定内容正确，直接进入音频步骤，生成的音频是乱码文本的配音。
+
+**根因**：Subagent 会话压缩时，上下文窗口内的变量内容被压缩为摘要，但磁盘上的文件状态未必同步。Subagent 认为"已写入 narration.txt"，实际上写入的是压缩前残留在内存中的破损文本。
+
+**验证方法**（每次重建项目时必做）：
+```bash
+# 检查 narration.txt 是否为干净文本（无控制字符、无乱码）
+python3 -c "
+text = open('docs/narration.txt', encoding='utf-8').read()
+# 乱码特征：含控制字符（\x00-\x08\x0b\x0c\x0e-\x1f）或异常多的符号
+bad = sum(1 for c in text if ord(c) < 32 and c not in '\n\r\t')
+print(f'控制字符数: {bad}')
+if bad > 0: exit(1)
+# 中文字数门禁
+cn = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+print(f'中文字数: {cn}')
+"
+```
+如果控制字符数 > 0 或中文字数为 0，立即重新生成 narration.txt。
+
+**防护**：
+- narration.txt 写入后立即用上述脚本验证内容完整性
+- 乱码特征还包括：内容含反引号、`|`、`---` 等 Markdown 残留字符
+- 重新生成 narration.txt 后，同步重新生成音频和字幕（避免级联错误）
+- `launch.sh docs` 生成的 narration.txt 质量高于 subagent 手动写入的版本，优先使用 `node generate_docs.js`
 
 ---
 
@@ -138,6 +170,8 @@ metadata:
 | `video-workflow-failures.md` | 6个实测 subagent 失败模式 |
 | `generate-docs-failures.md` | generate_docs.js 失败模式 + extractNarration() 根因补丁 |
 | `remotion-troubleshoot.md` | Remotion错误根因：Composition ID陷阱、Text组件、字幕、CaptionOverlay |
+| `remotion-render-gotchas.md` | **新增** Remotion 渲染三陷阱：`durationInFrames`硬编码覆盖CLI、`staticFile()`路径404、`voice.atempo`被动态计算覆盖 |
+| `remotion-props.md` | `--props` 传递 scenes/title/subtitle、Bash 引号嵌套陷阱、scenes 等比分配算法 |
 | `subagent-timeout.md` | launch.sh路径陷阱、subagent超时策略 |
 | `audio-tts.md` | edge-tts规范、atempo动态计算、审计命令库 |
 | `subtitle-production.md` | captions.json格式、TikTokCaptionOverlay、ASS规范 |

@@ -343,7 +343,11 @@ cmd_all() {
   THEME=$(node -e "console.log(require('${config_file}').theme || 'cyberpunk')")
   local VOICE_NAME
   VOICE_NAME=$(node -e "console.log(require('${config_file}').voice?.name || 'zh-CN-YunjianNeural')")
-  ok "配置: ${TARGET_DURATION}s / ${THEME} / ${VOICE_NAME}"
+  local VOICE_RATE
+  VOICE_RATE=$(node -e "console.log(require('${config_file}').voice?.rate || '+0%')")
+  local VOICE_ATEMPO
+  VOICE_ATEMPO=$(node -e "console.log(require('${config_file}').voice?.atempo || 1.2)")
+  ok "配置: ${TARGET_DURATION}s / ${THEME} / ${VOICE_NAME} / rate=${VOICE_RATE} / atempo=${VOICE_ATEMPO}"
 
   local narration_file="${proj_dir}/docs/narration.txt"
   if [ ! -f "$narration_file" ]; then
@@ -398,13 +402,13 @@ print(count)
 
   # ── Step 1: edge-tts 配音 ───────────────────────────────────────────────
   echo ""
-  echo "=== Step 1: edge-tts 配音（--rate +0%）==="
+  echo "=== Step 1: edge-tts 配音（--rate ${VOICE_RATE}）==="
 
   mkdir -p "${proj_dir}/audio" "${VP_DIR}/audio" "${VP_DIR}/out"
 
   edge-tts \
     --voice "${VOICE_NAME}" \
-    --rate "+0%" \
+    --rate "${VOICE_RATE}" \
     --text "$(cat "$narration_file")" \
     --write-media "${proj_dir}/audio/neural_full.mp3" \
     > /tmp/edge_tts.$$.out 2>&1
@@ -422,17 +426,16 @@ print(count)
   echo ""
   echo "=== Step 2: ffmpeg 后处理（去静音 + 动态 atempo + AAC 256k）==="
 
-  # 动态计算 atempo：不是固定 1.2，而是根据 source 时长 / 目标时长计算
+  # atempo 使用 voice.atempo 配置值，不再动态计算
+  # VOICE_ATEMPO 决定最终语速倍率（如 1.2 = 1.2x 速度）
   local SOURCE_DURATION
   SOURCE_DURATION=$(ffprobe -v error -show_entries format=duration \
     -of csv=p=0 "${proj_dir}/audio/neural_full.mp3" 2>/dev/null || echo "0")
-  local ATEMPO
-  ATEMPO=$(python3 -c "import math; print(round(min(max(${SOURCE_DURATION} / ${TARGET_DURATION}, 0.5), 2.0), 4))")
-  log "atempo计算: ${SOURCE_DURATION}s / ${TARGET_DURATION}s = ${ATEMPO}"
+  log "atempo=${VOICE_ATEMPO}（使用配置值）"
 
   ffmpeg -y \
     -i "${proj_dir}/audio/neural_full.mp3" \
-    -af "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.3,atempo=${ATEMPO}" \
+    -af "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.3,atempo=${VOICE_ATEMPO}" \
     -c:a aac -b:a 256k \
     "${proj_dir}/audio/neural_1_2x.m4a" \
     > /dev/null 2>&1
@@ -558,8 +561,43 @@ print(f'CAPTION_OK:{len(captions)} captions ({AUDIO_DURATION:.3f}s total)')
   echo ""
   echo "=== Step 7: Remotion 渲染（60fps / 1080×1920 / ${TOTAL_FRAMES}帧）==="
 
+  # 生成 scenes JSON（6个场景对应字幕中的内容主题）
+  # 根据 narration 7句分配：Cover=句1, PainPoint=句2, Solution=句3+4, Features=句5+6, Start=句7, Ending=句7
+  local SCENES_JSON
+  SCENES_JSON=$(node -e "
+const d=parseFloat('${AUDIO_DURATION}');
+const captions=require('${proj_dir}/audio/captions.json');
+const total=captions.length;
+const map=[
+  {id:1,name:'Cover',     range:[0,1]},
+  {id:2,name:'PainPoint', range:[1,2]},
+  {id:3,name:'Solution',  range:[2,3]},
+  {id:4,name:'Features',  range:[3,5]},
+  {id:5,name:'Start',     range:[5,6]},
+  {id:6,name:'Ending',    range:[6,total]},
+];
+const scenes=map.map(function(m){
+  const startMs=m.range[0]<total?captions[m.range[0]].startMs:0;
+  const endMs=m.range[1]<total?captions[m.range[1]].startMs:d*1000;
+  const dur=(endMs-startMs)/1000;
+  const titleText=m.range[0]<total?captions[m.range[0]].text.slice(0,15):'';
+  return {id:m.id,name:m.name,duration:Math.max(dur,1),title:titleText,subtitle:''};
+});
+console.log(JSON.stringify(scenes));
+")
+
+  node -e "var s=JSON.parse('${SCENES_JSON}');s.forEach(function(x){console.log('  Scene'+x.id+': '+x.duration.toFixed(1)+'s | '+x.title);});" 2>/dev/null
+
+  local PROPS
+  PROPS=$(node -e "
+var c=require('${config_file}');
+var t=c.cover&&c.cover.title||c.title||'MiaoYan';
+var sub=c.cover&&c.cover.subtitle||c.subtitle||'';
+console.log(JSON.stringify({scenes:JSON.parse('${SCENES_JSON}'),title:t,subtitle:sub,theme:'${THEME}'}));
+")
   cd "${VP_DIR}" && npx remotion render VerticalVideo \
     out/final.mp4 \
+    --props="${PROPS}" \
     --concurrency=4 \
     --fps=60 \
     --duration-in-frames=${TOTAL_FRAMES} \
