@@ -89,6 +89,19 @@ metadata:
 - **Step 0 后强制检查**：narration.txt 必须干净（无 `---`、`|`、反引号），中文字数 ≥20
 - 仅 `article.md`、`report.json`、HTML 三件套可直接使用
 
+### ⚠️ 已确认失败模式：Subagent Step 0 Bypass
+**症状**：Subagent 创建了 narration.txt + 音频 + 视频，但 docs/ 下缺少其余 10 个文档（README.md、video-script.md、copy.md、wechat-copy.md、posting-guide.md、session-log.md、landing-page.html、article-page.html、wechat-page.html、report.json），导致发布流程不完整。
+
+**根因**：
+1. Subagent 认为"只要有 narration.txt 就能做视频"，跳过了 generate_docs.js
+2. `session_status` 在 Step 0 未完成时被误报为 completed
+3. 主进程验证依赖 session_status 而非实际文件存在性
+
+**防护**：
+- `launch.sh audio` 和 `launch.sh render` 现已内置 `check_step0_docs()` 门禁，12 个文档不全则拒绝执行
+- 任何 subagent 任务在 Remotion 渲染前必须调用 `bash launch.sh docs` 生成完整文档集
+- narration.txt 存在 ≠ Step 0 完成；必须全部 12 个文档存在
+
 ---
 
 ## 📋 规则索引
@@ -225,3 +238,8 @@ EOF
 > ⚠️ **文档一致性陷阱**：references/ 文档间存在交叉引用。创建新文档或重命名文件后，必须检查：
 > - `documentation-consistency.md`：检查所有对其他 references/ 文件的引用是否仍然有效
 > - `subagent-timeout.md`：launch.sh 命令引用路径是否正确
+
+> ⚠️ **CHECKLIST.md 已知问题**（2026-05-23）：rules/CHECKLIST.md 有两处过时内容需手动修复：
+> 1. 验证脚本的 for 循环缺少 `narration.txt`（当前列出11个，应为12个，含 README.md 和 narration.txt）
+> 2. 字幕/视频文件名过时：文档写 `subtitles.ass` + `final-with-subs.mp4`，实际应使用 `captions.json` + `final.mp4`（Remotion Native 方案）
+> 修复方法：用文本编辑器打开 `~/.hermes/skills/video-creator/rules/CHECKLIST.md` 搜索上述字符串并替换。
