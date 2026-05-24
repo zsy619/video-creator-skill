@@ -1,7 +1,7 @@
 # Subagent 超时恢复指南
 
 > **最后更新**：2026-05-18（整合 launch-sh-reference、feishu-base-补全流程、remotion-render-output-filename）
-> **配套文档**：`content-document-generation.md`（Step 0 文档生成）、`subtitle-production.md`（字幕生成）
+> **配套文档**：`C-CONTENT/content-document-generation.md`（Step 0 文档生成）、`C-CONTENT/subtitle-production.md`（字幕生成）
 
 ---
 

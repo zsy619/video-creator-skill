@@ -56,7 +56,7 @@ COVER_ATTRS=$(node -e "console.log((require('${config_file}').cover?.attrs || re
 
 封面配色由 `inferredTheme` 字段控制，通过 launch.sh Step -1 自动读取。
 
-> **完整 30 套配色方案**见 [references/theme-palette.md](theme-palette.md)，以下为核心速查表：
+> **完整 30 套配色方案**见 [E-VISUAL/theme-palette.md](../E-VISUAL/theme-palette.md)，以下为核心速查表：
 
 || inferredTheme | 配色主调 | 适用场景 |
 ||--------------|---------|---------|

@@ -161,9 +161,9 @@ async function runTests() {
   console.log('\n6. 测试配置文件...');
   try {
     const configFiles = [
-      'references/baoyu-config.json',
-      'references/tailwind-config.json',
-      'references/cdn-mapping.json'
+      'references/H-CONFIG/baoyu-config.json',
+      'references/H-CONFIG/tailwind-config.json',
+      'references/H-CONFIG/cdn-mapping.json'
     ];
     
     const missingFiles = [];

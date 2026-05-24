@@ -1,7 +1,7 @@
 # Feishu Base 批量视频处理知识库
 
 > **最后更新**：2026-05-18
-> **配套文档**：`references/subagent-timeout.md`（超时恢复）、`references/audio-tts.md`（atempo 计算）
+> **配套文档**：`D-SUBAGENT/subagent-timeout.md`（超时恢复）、`C-CONTENT/audio-tts.md`（atempo 计算）
 
 ---
 
@@ -180,7 +180,7 @@ else
 fi
 ```
 
-完整 Git 隔离规范见 `references/git-workflow.md`。
+完整 Git 隔离规范见 `G-WORKFLOW/git-workflow.md`。
 
 ---
 
@@ -199,7 +199,7 @@ Step 6.3 PIL resize/裁剪 → cover-xhs.png (1440×2560)
 - ❌ 用 Baoyu-imagine 生成一张图后手动改名
 - ❌ 跳过 generate_cover.py 直接生成 PIL 代码
 
-详见 `references/pil-cover.md`（Attrs 属性标签规范、WeChat 副标题宽度陷阱）。
+详见 `E-VISUAL/pil-cover.md`（Attrs 属性标签规范、WeChat 副标题宽度陷阱）。
 
 ### 读取记录
 

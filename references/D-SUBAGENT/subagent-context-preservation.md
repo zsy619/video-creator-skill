@@ -20,17 +20,17 @@ subagent 执行了以下工作：
 
 ## 解决方案
 
-**任何涉及多步骤分析 + 后续执行的工作，必须将分析结论写入 `references/` 文件**：
+**任何涉及多步骤分析 + 后续执行的工作，必须将分析结论写入 `references/` 目录下的相应分类子目录`：
 
 ```
-references/subagent-context-preservation.md  ← 分析结论写入这里
+- `D-SUBAGENT/subagent-context-preservation.md`  ← 分析结论写入这里
 ```
 
 文件路径写入 [CONTEXT COMPACTION] 摘要的 "Relevant Files" 节，这样压缩后新会话可以 `read_file` 恢复完整上下文。
 
 ## 最佳实践
 
-1. **分析阶段完成时**：立即将分析结论写入 `references/<topic>.md`
+1. **分析阶段完成时**：立即将分析结论写入 `D-SUBAGENT/<topic>.md`
 2. **Relevant Files 节**：写入所有中间文件的绝对路径，新会话可以 read_file 恢复
 3. **TODO 列表路径化**：TODO 写入文件而非仅内存，这样压缩后仍可读取
 4. **patch 规划**：多步骤 patch 应先规划修改顺序，避免后续 patch 依赖已删除的 old_string
@@ -59,5 +59,5 @@ if bad > 0 or cn == 0: exit(1)
 4. 优先使用 `node generate_docs.js` 而非 subagent 手动写入
 
 ## 相关文件
-- `~/.hermes/skills/video-creator/references/generate-docs-deep-analysis.md` — generate_docs.js 深度分析
-- `~/.hermes/skills/video-creator/references/theme-matching.md` — sceneContent 动态化完整数据流
+- `F-GENDOCS/generate-docs-deep-analysis.md` — generate_docs.js 深度分析
+- `E-VISUAL/theme-matching.md` — sceneContent 动态化完整数据流

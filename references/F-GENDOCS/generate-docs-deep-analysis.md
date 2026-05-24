@@ -1,7 +1,7 @@
 # generate_docs.js 深度知识库
 
 > **最后更新**：2026-05-18
-> **配套文档**：`references/generate-docs-failures.md`（失败模式）、`references/content-document-generation.md`（Step 0 完整流程）
+> **配套文档**：`F-GENDOCS/generate-docs-failures.md`（失败模式）、`C-CONTENT/content-document-generation.md`（Step 0 完整流程）
 
 ---
 

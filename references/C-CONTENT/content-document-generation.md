@@ -216,6 +216,17 @@ PYEOF
 
 ## 5. narration.txt 重写策略
 
+### narration.txt 重写必须在 `launch.sh docs` 之后
+
+> **关键发现（2026-05-23）**：`launch.sh docs` 内部调用 `generate_docs.js`，会**自动覆盖** `docs/narration.txt`。
+> 如果你先手动写好 narration.txt 再运行 `launch.sh docs`，内容会被覆盖。
+>
+> **正确顺序**：
+> 1. `bash launch.sh docs` — 生成12个文档（含自动生成的 narration.txt）
+> 2. **手动重写** `docs/narration.txt`（150-200字，口语化）
+> 3. 验证字数和内容
+> 4. 继续 edge-tts 音频生成
+
 ### 观察到的规律：3次循环
 
 自动生成的 `narration.txt` 几乎无法首次落在 100-175 字范围内，重写循环遵循固定模式：

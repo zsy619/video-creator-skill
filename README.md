@@ -9,10 +9,13 @@
 ### 1. 初始化项目
 
 ```bash
-cd "{WORKSPACE_DIR}"
-node ~/.hermes/skills/video-creator/scripts/generate_docs.js <项目名>
+# 创建项目目录骨架 + video-config.json
+bash ~/.hermes/skills/video-creator/scripts/launch.sh init <项目名>
+
+# 编辑配置文件（必填）
 cd <项目名>
-# 编辑 video-config.json 和 docs/narration.txt（需手动重写，见下方警告）
+vim video-config.json   # 设置 platform / duration / theme / voice 等
+vim docs/article.md     # 粘贴原始文章内容
 ```
 
 ### 2. 一键生成
@@ -30,19 +33,42 @@ bash ~/.hermes/skills/video-creator/scripts/launch.sh all
 | `docs/assets/cover-wechat.png` | 公众号封面 900×383 |
 | `docs/assets/cover-xhs.png` | 小红书封面 1440×1920 |
 | `docs/narration.txt` | 配音文本（**需手动验证并重写**） |
-| `audio/neural_1_2x.m4a` | 处理后音频（约 52 秒） |
+| `audio/neural_1_2x.m4a` | 处理后音频 |
 | `audio/captions.json` | 字幕时间轴（sentence-level） |
-| `video-project/out/final.mp4` | 最终视频（52-53 秒 / 1080×1920 / 60fps） |
+| `video-project/out/final.mp4` | 最终视频（60fps / 1080×1920 / H.264+AAC） |
 
 ---
 
-## ⚠️ generate_docs.js 警告（必读）
+## launch.sh 命令
 
-> `generate_docs.js` 输出的 `narration.txt` **几乎每次都需要手动重写**，无一例外。
+```bash
+bash launch.sh <命令>
 
-**原因**：`extractNarration()` 使用 `stripMarkdown()`，对中文内容解析能力极弱，几乎每次都生成字数不足或含 markdown 残留字符的版本。
+命令:
+  init <项目名>   创建项目目录骨架（不含 Remotion 代码）
+  docs            生成12个文档（Step 0，调用 generate_docs.js）
+  audio           生成音频（edge-tts + atempo）
+  subtitle        生成字幕（captions.json）
+  render          渲染视频（Remotion Native）
+  gate [节点]     运行质量门禁检查
+  all             完整流程（docs → audio → subtitle → render）
+  help            显示帮助
+```
 
-**Step 0 后自动检查 + 智能修复**（不再硬终止）：
+> ⚠️ **`init` 不生成 Remotion 项目代码**：仅创建目录骨架。Remotion 代码由 `launch.sh all` 中的 `create-remotion-project.js` 在渲染前自动生成。
+
+---
+
+## ⚠️ narration.txt 强制重写
+
+> `generate_docs.js` 输出的 `narration.txt` **每次都需要手动重写**，无一例外。
+
+**原因**：`extractNarration()` 使用 `stripMarkdown()`，对中文内容解析能力极弱，生成字数不足或含 markdown 残留字符的版本。
+
+**字数上限**：`⌊目标时长 × 3.37⌋` 中文字符（实测 3.73 字/秒 × 0.9 安全系数）。
+
+**验证脚本**：
+
 ```bash
 python3 -c "
 text = open('docs/narration.txt').read()
@@ -60,30 +86,24 @@ else:
 "
 ```
 
-**自动修复逻辑**（launch.sh `cmd_all` 中内嵌）：
-1. **markdown 残留清理** — `\|`、`---`、`![]()` 等自动过滤
-2. **超长截断** — 超过 `max_chars` 字自动截断至上限
-3. **严重失败重写** — < 10 字时调用 `generate_docs.js` 重新生成
-
-**警告条件**（不终止，仅提示）：
-- 10~20 字：内容偏少，建议补充至 100 字以上
-- > `max_chars` 字：可能会超出目标时长
-
 ---
 
-## 命令参考
+## 完整流程（launch.sh all）
 
-```bash
-bash launch.sh <命令>
-
-命令:
-  init <项目名>   初始化项目结构
-  all             完整流程（Step 0-11）
-  audio           仅生成音频（edge-tts + ffmpeg 后处理）
-  subtitle        仅生成字幕（captions.json）
-  render          仅渲染视频（Remotion）
-  gate [节点]     运行质量门禁
-  help            显示帮助
+```
+Step -1    PIL 封面图生成（3个尺寸）
+Step 1     edge-tts 配音（--rate +0%，禁止叠速）
+Step 2     ffmpeg 去静音 + atempo + AAC 256k
+Step 3     captions.json 生成（sentence-level 等比分配）
+Gate A     音频有效性验证（ffprobe）
+Step 4     create-remotion-project.js 生成 Remotion 项目
+Step 4b    fix-remotion-project.js 修复（themes key 双引号等）
+Step 5     npm install
+Step 6     pre-render-check.js 渲染前检查
+Step 7     Remotion 渲染（VerticalVideo / 60fps / --props）
+Step 7.5   captions.json 末段 endMs 同步为视频实际时长
+Gate D     最终视频验证
+Step 8     PIL 三平台正式封面（覆盖 Step -1）
 ```
 
 ---
@@ -96,27 +116,26 @@ bash launch.sh <命令>
 |------|-----|
 | 分辨率 | 1080×1920（竖屏 9:16） |
 | 帧率 | 60fps |
-| 时长 | 52-53 秒 |
 | 编码 | H.264 / AAC 256k |
-| 渲染方案 | Remotion Native（captions.json + TikTokCaptionOverlay） |
+| 渲染方案 | Remotion Native（音频内嵌 MP4 + CaptionOverlay 字幕） |
 
 ### 音频规格
 
 | 参数 | 值 |
 |------|-----|
-| 生成工具 | edge-tts（zh-CN-YunjianNeural） |
+| 生成工具 | edge-tts（默认 zh-CN-YunjianNeural） |
 | 原始速率 | `--rate +0%`（禁止叠速） |
-| 后处理 | `atempo` 动态计算（source_duration / target_duration）+ AAC 256k |
-| **配音字数** | **上限 = ⌊目标时长 × 3.37⌋ 中文字符**（实测 3.73 字/秒 × 0.9 安全系数） |
+| atempo | 来自 `video-config.json` 的 `voice.atempo` 配置值 |
+| **配音字数上限** | `⌊目标时长 × 3.37⌋` 中文字符 |
 
 ### 字幕规格
 
 | 参数 | 值 |
 |------|-----|
-| 格式 | `captions.json`（sentence-level）+ TikTokCaptionOverlay 渲染 |
+| 格式 | `captions.json`（sentence-level） + TikTokCaptionOverlay |
 | ASS Fontsize | 72（视觉约 40px） |
-| 逐字高亮 | interpolate 插值模拟（无需 word-level timing） |
-| 末段 endMs | 必须与**视频实际时长**同步（不是音频时长） |
+| 逐字高亮 | interpolate 插值模拟 |
+| 末段 endMs | 同步为视频实际时长（不是音频时长） |
 
 ---
 
@@ -124,73 +143,45 @@ bash launch.sh <命令>
 
 ```
 video-creator/
-├── README.md                      # 本文件
-├── SKILL.md                       # 技能主文档（30+ 参考文档索引）
+├── SKILL.md                       # 技能主文档（铁律 / 规则索引 / references 分类）
 │
 ├── scripts/                       # 核心脚本
 │   ├── launch.sh                  # 主入口（一键 / 分步命令）
-│   ├── generate_docs.js           # 生成 11 个文档
-│   ├── generate_cover.py          # PIL 封面图生成（首选）
-│   ├── subtitle-generator.js      # 字幕生成
-│   ├── pre-render-check.js       # 渲染前检查
+│   ├── generate_docs.js           # 生成12个文档
 │   ├── create-remotion-project.js # Remotion 项目生成器
-│   ├── video-quality-gate.js      # 质量门禁
-│   └── [其他工具脚本]
+│   ├── fix-remotion-project.js    # 项目修复（themes key 双引号等）
+│   ├── subtitle-generator.js      # 字幕生成
+│   ├── pre-render-check.js        # 渲染前检查
+│   ├── generate_cover.py          # PIL 封面图生成
+│   └── video-quality-gate.js      # 质量门禁
 │
-├── rules/                         # 规范文档（8 个）
+├── rules/                         # 规范文档（15个）
 │   ├── UNIFIED_RULES.md           # ⚠️ 最高优先级：视频创作铁律清单
 │   ├── VOICE.md                  # 语音规范（YunjianNeural/YunxiNeural）
-│   ├── SUBTITLES.md              # 字幕规范（Fontsize=72）
-│   ├── WORKFLOW.md               # 11 步完整工作流程
-│   ├── THEMES.md                 # 20 种主题风格
-│   ├── PLATFORM.md              # 平台规格（小红书/视频号/抖音）
-│   └── TROUBLESHOOTING.md       # 常见问题解决方案
+│   ├── SUBTITLES.md              # 字幕规范（Fontsize=72 / MarginV=50）
+│   ├── WORKFLOW.md               # 完整工作流程
+│   ├── THEMES.md                 # 30种主题风格
+│   ├── PLATFORM.md               # 平台规格（小红书/视频号/抖音）
+│   ├── QUALITY.md                # 质量标准
+│   ├── CHECKLIST.md              # 检查清单
+│   ├── SESSION_LOG.md            # Session 追踪规范
+│   ├── TROUBLESHOOTING.md        # 问题排查
+│   ├── SCRIPTS.md                # 脚本说明
+│   ├── INTEGRATION.md            # 集成说明
+│   ├── LAYOUT.md                 # 布局规范
+│   ├── FONTS.md                  # 字体规范
+│   └── COVER_GENERATE.md         # 封面生成规范
 │
-└── references/                    # 参考文档（18 个主文件 + archived/）
-    ├── content-document-generation.md  # 内容获取 + generate_docs.js 问题
-    ├── audio-tts.md         # 音频/TTS 生产完整流程
-    ├── subtitle-production.md         # 字幕生产 + TikTokCaptionOverlay
-    ├── remotion-troubleshoot.md     # Remotion 问题排查
-    ├── subagent-timeout.md   # Subagent 超时恢复
-    └── archived/                       # 废弃文件（仅供历史参考）
-```
-
----
-
-## 核心工作流（Step 0-11）
-
-### 完整流程（推荐）
-
-```bash
-cd <项目目录>
-bash ~/.hermes/skills/video-creator/scripts/launch.sh all
-```
-
-`launch.sh all` 执行：
-
-| 步骤 | 内容 | 门禁 |
-|------|------|------|
-| Step 0 | `generate_docs.js` 生成 11 个文档 | — |
-| **Step 0.1** | **手动重写 narration.txt（强制，必须）** | **字数验证** |
-| Step 1 | edge-tts 配音（`--rate +0%`） | — |
-| Step 2 | ffmpeg（去静音 + **atempo 动态计算** + AAC 256k） | Gate A |
-| Step 3 | Python 生成 `captions.json`（heredoc 安全方式） | Gate B |
-| Step 4 | `create-remotion-project.js`（Remotion 项目骨架） | — |
-| Step 5 | `npm install`（Remotion 依赖） | — |
-| Step 6 | PIL 封面图（3 个尺寸） | — |
-| Step 7 | `npx remotion render`（60fps / 1080×1920） | Gate D |
-
-### ⚠️ atempo 动态计算（禁止固定 1.2）
-
-```bash
-# ✅ 正确（动态计算）
-SOURCE_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_full.mp3)
-TARGET_DUR=52
-ATEMPO=$(python3 -c "print(round($SOURCE_DUR / $TARGET_DUR, 4))")
-ffmpeg -y -i audio/neural_full.mp3 -af "atempo=${ATEMPO}" -c:a aac -b:a 256k audio/neural_1_2x.m4a
-
-# ❌ 错误（固定 1.2 仅适用于 source≈40-45s）
-ffmpeg ... -af "atempo=1.2" ...
+└── references/                    # 参考文档（8个子目录，37个文件）
+    ├── A-ARCHIVED/               # 已废弃（请勿使用）
+    ├── B-REMOTION/               # Remotion 渲染核心（9文件）
+    ├── C-CONTENT/                # 内容获取与音频字幕（6文件）
+    ├── D-SUBAGENT/               # Subagent 管理（2文件）
+    ├── E-VISUAL/                 # 视觉设计与封面图（6文件）
+    ├── F-GENDOCS/                # generate_docs.js 分析（2文件）
+    ├── G-WORKFLOW/               # 工作流与集成（5文件）
+    ├── H-CONFIG/                 # 配置文件（3文件）
+    └── index.md                  # 总索引
 ```
 
 ---
@@ -200,26 +191,9 @@ ffmpeg ... -af "atempo=1.2" ...
 | 门禁 | 检查内容 | 失败行为 |
 |------|---------|---------|
 | **Gate A** | 音频有效性（ffprobe 验证 m4a） | 终止 |
-| **Gate B** | 字幕质量（captions.json / 末段 endMs 同步） | 终止 |
-| **Gate C** | 渲染前检查（内联，无退出码） | 警告继续 |
+| **Gate B** | 字幕质量（captions.json 格式 / 末段 endMs） | 终止 |
+| **Gate C** | 渲染前检查（pre-render-check.js） | 警告继续 |
 | **Gate D** | 最终视频（ffprobe 验证 mp4 属性） | 警告继续 |
-
----
-
-## 主题风格（20 种）
-
-`cyberpunk` / `neon-future` / `minimal-tech` / `gradient-wave` / `particle-tech` / `glass-morphism` / `holographic` / `data-stream` / `quantum-tech` / `tech-modern` 等，详见 `rules/THEMES.md`
-
----
-
-## 目标平台
-
-| 平台 | 分辨率 | 帧率 | 时长 |
-|------|--------|------|------|
-| 微信视频号 | 1080×1920 | 60fps | 10-60s |
-| 小红书 | 1080×1920 / 1440×1920 | 60fps | 15-60s |
-| 抖音 | 1080×1920 | 60fps | 15s-3min |
-| YouTube Shorts | 1080×1920 | 60fps | 最长 60s |
 
 ---
 
@@ -229,13 +203,7 @@ ffmpeg ... -af "atempo=1.2" ...
 
 `re.split(r'[.,。；、]+', text)` 中的 ASCII `.` 会把 `Claude4.5` 切断为 `Claude4` + `5`。**只用中文标点** `。，；、` 作为分割符。
 
-详见：`references/subtitle-production.md`（第4节 ASS 规范）
-
-### ⚠️ narration.txt 手动重写（100% 失败率）
-
-本 session 9 个项目（claude-hud、tegaki、OpenViking 等）**全部**需要手动重写 narration.txt，无一例外。
-
-详见：`references/content-document-generation.md`（第4-5节）
+详见：`references/C-CONTENT/subtitle-production.md`（第4节 ASS 规范）
 
 ### ⚠️ video-config.json 必须在项目根目录
 
@@ -247,15 +215,18 @@ ffmpeg ... -af "atempo=1.2" ...
 
 | 文档 | 内容 |
 |------|------|
-| **SKILL.md** | 技能完整说明（快速启动 / 规则 / 18个参考文档索引） |
+| **SKILL.md** | 技能完整说明（铁律 / 规则索引 / references 分类索引） |
 | **rules/UNIFIED_RULES.md** | ⚠️ 最高优先级：视频创作铁律清单 |
 | **rules/VOICE.md** | 语音规范（YunjianNeural/YunxiNeural/YunyangNeural） |
 | **rules/SUBTITLES.md** | 字幕规范（Fontsize=72 / MarginV=50 / Outline=2） |
-| **references/audio-tts.md** | 音频/TTS 生产完整流程 |
-| **references/subtitle-production.md** | 字幕生产 + TikTokCaptionOverlay 完整实现 |
-| **references/remotion-troubleshoot.md** | Remotion 问题排查（compilation/rendering/Sequence） |
-| **references/content-document-generation.md** | 内容获取 + generate_docs.js 问题 + narration 重写 |
+| **C-CONTENT/audio-tts.md** | 音频/TTS 生产完整流程 |
+| **C-CONTENT/subtitle-production.md** | 字幕生产 + TikTokCaptionOverlay 完整实现 |
+| **B-REMOTION/remotion-troubleshoot.md** | Remotion 问题排查（compilation/rendering/Sequence） |
+| **C-CONTENT/content-document-generation.md** | 内容获取 + generate_docs.js 问题 + narration 重写 |
+| **G-WORKFLOW/feishu-base-batch.md** | Feishu Base 批量处理（record_id 查询/更新） |
+| **D-SUBAGENT/subagent-timeout.md** | Subagent 超时恢复指南 |
+| **G-WORKFLOW/video-optimization.md** | 4项预检（narration质量/英文句点/叠速/CaptionOverlay） |
 
 ---
 
-**最后更新**: 2026-05-18
+**最后更新**: 2026-05-24

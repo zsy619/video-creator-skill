@@ -1,7 +1,43 @@
 # 音频生产与 TTS 语音生成完整流程
 
-> **最后更新**：2026-05-18（合并 tts-production + audio-production）
+> **最后更新**：2026-05-23（`launch.sh audio` 是空壳，必须手动执行 edge-tts）
 > **配套文档**：`subtitle-production.md`（字幕生成）、`content-document-generation.md`（narration.txt 生成规范）
+
+---
+
+## ⚠️ 关键发现：`launch.sh audio` 不生成音频
+
+`launch.sh audio` 内部只打印提示信息，**不实际调用 edge-tts**。无法用它自动完成音频生成。
+
+**正确做法：手动执行以下命令**（在 `launch.sh docs` 之后，在手动重写 narration.txt 之后）：
+
+```bash
+cd ~/.hermes/workspace/<project>/   # 项目根目录
+mkdir -p audio
+
+# Step 1: edge-tts 生成原始音频（--rate +0%，不用 --rate +20%）
+edge-tts \
+  --voice zh-CN-YunjianNeural \
+  --rate "+0%" \
+  --text "$(cat docs/narration.txt)" \
+  --write-media audio/neural_full.mp3
+
+# Step 2: 动态 atempo 调整到目标时长
+SOURCE_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_full.mp3)
+TARGET_DUR=50   # 从 video-config.json 的 duration 字段读取
+ATEMPO=$(python3 -c "print(round($SOURCE_DUR / $TARGET_DUR, 4))")
+
+ffmpeg -y -i audio/neural_full.mp3 \
+  -af "atempo=${ATEMPO}" \
+  -c:a aac -b:a 256k \
+  audio/neural_1_2x.m4a
+```
+
+**工作流顺序**（与文档描述相反）：
+1. `bash launch.sh docs` — 生成12个文档（**会覆盖 narration.txt**）
+2. **手动重写** `docs/narration.txt`（150-200字，口语化，每句完整）
+3. 执行上面的 edge-tts + ffmpeg 命令生成音频
+4. 用 Python heredoc 生成 `audio/captions.json`（Node.js heredoc 对中文/反引号有致命缺陷）
 
 ---
 
@@ -345,7 +381,7 @@ cp "$PROJECT_DIR/audio/neural_1_2x.m4a" "$PROJECT_DIR/video-project/public/audio
 ## 8. 审计命令库（音频/字幕/渲染）
 
 > **最后更新**：2026-05-22（从 SKILL.md 迁移）
-> **配套文档**：`references/subtitle-production.md`（字幕时间轴）、`references/remotion-troubleshoot.md`（渲染验证）
+> **配套文档**：`C-CONTENT/subtitle-production.md`（字幕时间轴）、`B-REMOTION/remotion-troubleshoot.md`（渲染验证）
 
 ### A. 音频审计命令
 
