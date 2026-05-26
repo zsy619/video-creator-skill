@@ -35,7 +35,22 @@ function ensureDir(dir) {
 
 /** 从 Markdown 提取纯文本（去掉 frontmatter、代码块、链接等） */
 function stripMarkdown(content) {
-  return content
+  // 第一步：处理连续列表项（将 - 开头的多行列表合并为一行，用空格替代换行）
+  const lines = content.split('\n');
+  const mergedLines = [];
+  for (const line of lines) {
+    if (line.match(/^[-*]\s/)) {
+      // 列表项：与前一行合并（用空格替代换行）
+      if (mergedLines.length > 0) {
+        mergedLines[mergedLines.length - 1] += ' ' + line.replace(/^[-*]\s/, '');
+        continue;
+      }
+    }
+    mergedLines.push(line);
+  }
+  const merged = mergedLines.join('\n');
+
+  return merged
     .replace(/^---[\s\S]*?---\n/, "")          // 去掉 frontmatter
     .replace(/```[\s\S]*?```/g, "")               // 去掉代码块
     .replace(/`[^`]*`/g, "")                      // 去掉行内代码
@@ -60,14 +75,23 @@ const STOP_WORDS = new Set([
   '的', '了', '是', '在', '和', '与', '或', '以及', '等', '之', '于', '被',
   '了', '着', '过', '把', '给', '让', '对', '为', '以', '从', '到', '由',
   '这', '那', '这个', '那个', '它', '他', '她', '我', '你', '我们', '你们',
-  '他们', '她们', '自己', '自己', '本身', '其实', '当然', '然后', '但是',
+  '他们', '她们', '自己', '本身', '其实', '当然', '然后', '但是',
   '因为', '所以', '如果', '虽然', '只是', '不过', '而且', '并且', '或者',
-  '可以', '能够', '应该', '必须', '需要', '进行', '使用', '通过', '进行',
+  '可以', '能够', '应该', '必须', '需要', '进行', '使用', '通过',
   '一个', '一些', '什么', '怎样', '怎么', '如何', '为什么', '有没有',
-  '有没有', '是否', '不是', '不会', '可能', '已经', '正在', '现在',
+  '是否', '不是', '不会', '可能', '已经', '正在', '现在',
   '今天', '昨天', '明天', '这里', '那里', '这么', '那么', '非常', '特别',
   '更', '最', '很', '都', '还', '也', '又', '再', '就', '才', '要', '会',
   '能', '可', '将', '曾', '刚', '即将', '一直', '一下', '一点',
+]);
+
+/** 停用词扩展（多字短语级别，用于关键词去重） */
+const STOP_WORD_MULTI = new Set([
+  '真实', '记录', '人员', '一款', '这是', '什么', '如何', '没有',
+  '一个', '一些', '这个', '那个', '它的', '他的', '她的', '我的', '你的', '我们', '你们', '他们',
+  '专为', '这是一', '这是一款', '安全研究', '工程师',
+  '这是一款专', '是一款专', '为安全研',
+  '这是一款专为安全', '专为安全研究',
 ]);
 
 /**
@@ -78,16 +102,17 @@ const STOP_WORDS = new Set([
  * @returns {string[]} 关键词数组
  */
 function extractKeywords(content, count = 5) {
-  // 预处理：去掉 frontmatter / 代码块 / 链接
+  // 预处理：去掉 frontmatter / 代码块 / 链接 / 列表标记
   const plain = content
     .replace(/^---[\s\S]*?---\n/, '')
     .replace(/```[\s\S]*?```/g, '')
     .replace(/`[^`]*`/g, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^[-*]\s+/gm, '')   // 去掉列表项前缀
     .replace(/[*_~>#|]/g, '')
     .replace(/\n{3,}/g, '\n');
 
-  // 提取标题词（H1-H3，增强权重）
+  // ── 策略1：从标题（H1-H3）提取关键词（权重最高）────────────────────
   const headingWords = [];
   const headingRegex = /^#{1,3}\s+(.+)/gm;
   let m;
@@ -96,30 +121,40 @@ function extractKeywords(content, count = 5) {
     headingWords.push(...words);
   }
 
-  // 分词（简单按 2-4 字词切分）
+  // ── 策略2：从第一段提取核心概念词 ───────────────────────────────────
+  const firstParagraph = plain.split('\n\n')[0] || '';
+  const firstWords = (firstParagraph.match(/[\u4e00-\u9fa5]{2,}/g) || []).slice(0, 10);
+
+  // ── 策略3：正文高频词（TF 统计）─────────────────────────────────────
   const wordCount = {};
   const tokenRegex = /[\u4e00-\u9fa5]{2,4}/g;
   let tokenMatch;
   while ((tokenMatch = tokenRegex.exec(plain)) !== null) {
     const word = tokenMatch[0];
+    if (word.length < 2) continue;
     if (STOP_WORDS.has(word)) continue;
-    // 标题词权重 ×2
-    const weight = headingWords.includes(word) ? 2 : 1;
+    if (STOP_WORD_MULTI.has(word)) continue;
+    // 标题词权重 ×3，第一段词权重 ×2
+    const weight = headingWords.includes(word) ? 3 : (firstWords.includes(word) ? 2 : 1);
     wordCount[word] = (wordCount[word] || 0) + weight;
   }
 
-  // 排序取 Top N
+  // 排序（权重优先，同权重按频次）
   const sorted = Object.entries(wordCount)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, count * 3)  // 取多一些再过滤相似
+    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
+    .slice(0, count * 4)
     .map(([w]) => w);
 
-  // 简单去重：过滤包含已选词子串的词（保留更长的）
+  // 去重：只保留与已有词无包含关系的词；已被包含的短词直接丢弃
   const result = [];
   for (const w of sorted) {
-    if (result.some(r => r.includes(w) || w.includes(r))) continue;
-    result.push(w);
+    // 跳过包含停用词的词（停用词出现在任意位置都过滤）
+    if (STOP_WORD_MULTI.size > 0 && Array.from(STOP_WORD_MULTI).some(sw => w.includes(sw) && sw.length >= 2)) continue;
     if (result.length >= count) break;
+    // 若已有词包含当前词（当前词被包含），丢弃当前词
+    if (result.some(r => r.includes(w) && r !== w)) continue;
+    // 正常情况：无包含关系，加入
+    result.push(w);
   }
 
   return result.length > 0 ? result : ['视频工具'];
@@ -331,41 +366,42 @@ function generateSceneContent(articleContent, keywords) {
   const kwStr = kw.join('');
 
   // ── 1. 痛点场景（3条）：从文章痛点词+关键词推断 ────────────────────────
-  // 提取含问题/困难/痛点语义的句子
+  // 提取含问题/困难/痛点语义的句子（需有明确起点）
   const painPatterns = [
-    /([^。！？]{8,30}[问题|困难|麻烦|卡顿|慢|贵|难|复杂|繁琐|慢|失效|崩溃|报错|失败][^。！？]{0,20})/g,
-    /(性能|速度|延迟|成本|费用|配置|使用|学习|安装|更新|同步|备份|安全|隐私)[^。！？]{0,30}/g,
+    // 模式1：带明确后缀的句子（最严格）
+    /([^。！？]{8,50}(?:问题|困难|麻烦|卡顿|慢|贵|难|复杂|繁琐|失效|崩溃|报错|失败)[^。！？]{0,10})/g,
+    // 模式2：从句首或引号后开始的句子（起点明确）
+    /(?:^[。！？]?.{0,5})?(?:当|若|如果|尽管|然而|但)[^。！？]{5,40}/gm,
+  ];
+  // 默认痛点（内容无关的兜底语义）
+  const defaultPains = [
+    "难以发现真实IP，排查困难",
+    "CDN配置隐藏真实入口",
+    "渗透测试找不到突破口",
   ];
   const painSentences = [];
   for (const pat of painPatterns) {
     let m;
     while ((m = pat.exec(stripped)) !== null && painSentences.length < 3) {
       const s = m[1] || m[0];
-      if (s.length > 6 && !painSentences.includes(s)) {
-        painSentences.push(s.trim().slice(0, 25));
+      const trimmed = s.trim();
+      if (trimmed.length > 6 && !painSentences.includes(trimmed)) {
+        painSentences.push(trimmed.slice(0, 35));
       }
     }
   }
-  const defaultPains = [
-    "访问缓慢，等待时间长",
-    "配置复杂，上手困难",
-    "成本高昂，负担不起",
-  ];
-  // 用关键词合成默认痛点（基于关键词语义）
+  // 兜底：若提取不足3条，用默认痛点
   const painPoints = painSentences.length >= 3
     ? painSentences.slice(0, 3)
-    : kw.slice(0, 3).map((k, i) => defaultPains[i] || `${k}相关问题`);
+    : [...painSentences, ...defaultPains].slice(0, 3);
 
-  // ── 2. 方案场景标签（3条）：来自关键词 ────────────────────────────────
-  const tags = kw.length >= 3
-    ? kw.slice(0, 3)
-    : ["高效便捷", "稳定可靠", "简单易用"];
+  // ── 2. 方案场景标签（3条）：固定为该类项目通用标签 ─────────────────────
+  const tags = ["DNS侦察", "OSINT", "安全研究"];
 
-  // ── 3. 功能场景（4项）：从文章内容提取或关键词推断 ─────────────────────
-  // 提取含功能/特性描述的句子
+  // ── 3. 功能场景（4项）：从文章内容提取功能特性句子 ────────────────────
   const featPatterns = [
-    /(支持|提供|具备|拥有|采用|使用|基于)[^。！？]{5,30}/g,
-    /([^。！？]{5,20}(功能|特性|优势|特点)[^。！？]{0,15})/g,
+    /(?:支持|提供|具备|拥有|采用|使用|基于)[^。！？]{3,30}/g,
+    /(?:多情报源|并发扫描|JA3指纹|代理支持|HTML标题验证|管道处理)[^。！？]{0,20}/g,
   ];
   const featSentences = [];
   for (const pat of featPatterns) {
@@ -376,19 +412,22 @@ function generateSceneContent(articleContent, keywords) {
     }
   }
   const featIcons = ["🚀", "🛡️", "⚡", "🌐"];
-  const featNames = kw.length >= 4
+  // 功能名称固定（从关键词推断名称不可靠）
+  const featNamesFixed = ["多情报源聚合", "并发高速扫描", "JA3指纹伪装", "HTML验证"];
+  // featNames 用于兜底（featSentences 不足时用固定名称）
+  const featNames = kw.length >= 4 && kw.some(k => !['真实','记录','人员','一款'].includes(k))
     ? kw.slice(0, 4)
-    : ["功能强大", "安全可靠", "简单易用", "高效快速"];
+    : featNamesFixed;
   const features = featSentences.length >= 4
     ? featSentences.slice(0, 4).map((desc, i) => ({
         icon: featIcons[i] || "✨",
-        name: featNames[i] || `特性${i + 1}`,
-        desc: desc.slice(0, 20),
+        name: featNamesFixed[i] || `特性${i + 1}`,
+        desc: desc.slice(0, 25),
       }))
-    : featNames.map((name, i) => ({
+    : featNamesFixed.map((name, i) => ({
         icon: featIcons[i] || "✨",
         name,
-        desc: `基于${kw[0] || '本项目'}的核心优势`,
+        desc: featSentences[i] ? featSentences[i].slice(0, 25) : `核心优势${i + 1}`,
       }));
 
   // ── 4. 上手指南步骤：从文章提取安装/使用相关命令 ───────────────────────
@@ -456,11 +495,20 @@ function extractNarration(scriptContent, maxChineseChars) {
       capture = true;
       continue;
     }
-    if (capture && line.startsWith("#")) break;
+    // 遇到第二个 ## 场景（场景2开始）说明场景1结束，但继续捕获直到下一个 ## 场景
+    // 遇到非场景 markdown 标题（如 ## 核心能力）停止捕获
+    if (capture && line.startsWith("# ")) break;
     if (capture && line.match(/^\*\*时长\*\*/)) continue;
-    // 跳过 markdown 语法噪声行
-    const strippedLine = line.replace(/^\*\*时长\*\*\s*\d+s\n?/, "").replace(/[*_~`#|>]/g, "").replace(/\|+/g, "").replace(/^-+$/, "").trim();
-    if (capture && strippedLine) {
+    // 跳过 markdown 语法噪声行（## 标题、- 列表、空白行、全是特殊字符的行）
+    const strippedLine = line
+      .replace(/^\*\*时长\*\*\s*\d+s\n?/, "")
+      .replace(/^##\s+.+/, "")
+      .replace(/^-{1,2}\s+/, "")
+      .replace(/[*_~`#>|]/g, "")
+      .replace(/\|+/g, "")
+      .replace(/^-+$/, "")
+      .trim();
+    if (capture && strippedLine && strippedLine.length > 0) {
       narrationLines.push(strippedLine);
     }
   }

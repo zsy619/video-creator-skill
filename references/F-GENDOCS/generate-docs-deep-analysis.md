@@ -1,101 +1,154 @@
-# generate_docs.js 深度知识库
+# generate_docs.js 深度分析（2026-05-26 修订）
 
-> **最后更新**：2026-05-18
-> **配套文档**：`F-GENDOCS/generate-docs-failures.md`（失败模式）、`C-CONTENT/content-document-generation.md`（Step 0 完整流程）
+## 4个已确认致命 Bug
 
----
-
-## 1. 输出质量总览（2026-05-18 实测）
-
-> MeiGen-AI-Design-MCP 项目测试表明，11 个生成文件中 7 个存在严重质量问题，**全部需要人工重写**：
-
-| 文件 | 问题 | 必须重写？ |
-| --- | --- | --- |
-| `narration.txt` | 中文字数 479（上限 175），含 `` ` ``、`---` 等 markdown 噪声 | ✅ 100% |
-| `video-script.md` | 场景时长全部 `undefineds`，内容被 markdown 表格污染 | ✅ 100% |
-| `copy.md` | 使用通用模板（"开源代理方案"），内容与项目不符 | ✅ 100% |
-| `wechat-copy.md` | 同上，摘要描述错误 | ✅ 100% |
-| `posting-guide.md` | 标题模板示例未替换（`【Hysteria】`、neon 等残留） | ✅ 100% |
-| `session-log.md` | 含未完成的 checkbox，实际使用时需更新 | ⚠️ 建议检查 |
-| `landing-page.html` / `article-page.html` / `wechat-page.html` | 结构简单，可接受自动生成版本 | ❌ 可用 |
-| `report.json` | 纯数据，无内容质量问题 | ❌ 可用 |
-| `article.md` | 原始输入文件，无生成逻辑 | ❌ 可用 |
-
-**结论**：generate_docs.js 生成的 11 个文件中，仅 `article.md`（原始输入）、`report.json`（纯数据）、HTML 三件套可接受自动生成版本；其余 7 个文件**全部需要人工审核和重写**。
+以下 bug 会导致内容全链路损坏 — 必须按顺序全部修复。
 
 ---
 
-## 2. 根因分析
+### Bug 1：`[字符类]` 内 `|` 是字面字符非或运算
 
-### A. `stripMarkdown()` 对中文内容提取能力极弱
+**位置**：`generate_docs.js` 第 359 行附近，`generateSceneContent()` 内的 painPatterns
 
-**文件**：`scripts/generate_docs.js`
-
-**根因**：`extractNarration()` 行 141-146 使用 `line.trim()` 直接 push，不过滤任何 markdown 标记。场景内容中的 `**粗体**` 、`|表格|`、`---` 分隔线等会原样进入 `narration.txt`。
-
-**症状**：
-- 字数远超高限（如 1478字 vs 175字上限），需极端截断
-- 截断后的文本含 `:---:`、`|`、`[![]()` 等 markdown 噪声，无法用于配音
-- 即使 narration.txt 显示"字数检查通过"，生成的音频内容实际已被 markdown 字符破坏
-
-**修复**（2026-05-18）：行 143 改为过滤 markdown 噪声：
+**错误代码**：
 ```javascript
-const strippedLine = line
-  .replace(/^\*\*时长\*\*\s*\d+s\n?/, "")
-  .replace(/[*_~`#|>]/g, "")
-  .replace(/\|+/g, "")
-  .replace(/^-+$/, "")
-  .trim();
+// 错误：[] 字符类内的 | 是字面字符，不是或运算
+/([^.！？]{8,30}[问题|困难|麻烦|障碍|痛点][^.！？]{0,20})/g
 ```
 
-### B. `sceneDuration` 计算逻辑 bug
+**现象**：正则几乎无法匹配任何中文句子，painPoints 全靠兜底数据
 
-**根因**：`sceneDuration` 计算时 `isLast` 判断逻辑有误，`Math.ceil(duration * 0.15)` 在 `isLast` 前执行导致 `undefined`。
-
-**症状**：`video-script.md` 场景时长全部显示 `undefineds`，内容被 markdown 表格结构污染（`| 工具 | 描述 |`、`:---:` 混入场景正文）。
-
-### C. 文案生成使用通用占位符模板
-
-**根因**：`copy.md` / `wechat-copy.md` 使用通用模板（"开源代理方案"、"告别卡顿"等），内容与实际项目完全不符，100% 需人工重写。
-
-**根因**：`posting-guide.md` 标题模板示例未替换（如 `【Hysteria】`、`neon达人` 等模板残留），需适配实际项目名。
+**修复**：
+```javascript
+// 修复：使用 (?:...) 非捕获组
+/([^。！？]{8,30}(?:问题|困难|麻烦|障碍|痛点|挑战)[^。！？]{0,20})/g
+```
 
 ---
 
-## 3. Step 0 后强制检查与重写规程
+### Bug 2：关键词去重优先保留短词
 
-1. `generate_docs.js` 执行完毕后，**立即**统计 narration.txt 中文字符数：
-   ```bash
-   python3 -c "
-   text = open('docs/narration.txt').read()
-   chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
-   print(f'中文字数: {chinese_chars}')
-   # 若 < 20 字，或含 '---'、'|'、'[' 等 markdown 残留字符 → 立即重写
-   "
-   ```
-2. **触发重写条件（满足任一）**：
-   - 中文字数 < 20（严重提取失败）
-   - 文本含 `---`、`|`、`[![]()`、`|:---` 等 markdown 噪声字符
-   - 中文字数 > 上限的 2 倍（175 × 2 = 350 字，说明大量英文/符号被混入）
+**位置**：`generate_docs.js` `extractKeywords()` 函数（约第 158-166 行）
+
+**错误逻辑**：
+```javascript
+// 原逻辑：短词先加入，长词被 includes 过滤掉
+for (const w of words) {
+  if (!r.some(existing => existing.includes(w))) {  // 短词先命中
+    r.push(w);  // 短词加入
+  }
+}
+```
+
+**现象**：关键词中出现"发现"（被"发现工具"包含），长词反而被丢弃
+
+**修复**：对排序后的数组反向迭代，已有词包含当前词则丢弃当前词：
+```javascript
+for (const w of sorted) {
+  if (!r.some(existing => w.includes(existing))) {
+    r.push(w);
+  }
+}
+```
 
 ---
 
-## 4. narration.txt 门禁降级（v2.5.0+：硬终止→自动修复循环）
+### Bug 3：`STOP_WORD_MULTI` 使用 `startsWith` 而非 `includes`
 
-**旧行为**：检查失败时 `exit 1` 硬终止，导致工作流中断。
+**位置**：`extractKeywords()` 函数的停用词过滤段
 
-**新行为**：检查失败后进入自动修复循环，最多 2 次重试，始终不终止工作流。
+**错误代码**：
+```javascript
+// 错误：仅过滤词首匹配，"为安全研"出现在中间时不过滤
+if (w.startsWith(sw)) { continue; }
+```
 
-| 失败类型 | 旧行为 | 新行为 |
-| --- | --- | --- |
-| 含 markdown 残留（`\|`、`---`） | `exit 1` | sed 自动清理，继续 |
-| 超长（> max_chars） | `exit 1` | Python 截断至 max_chars，继续 |
-| 严重提取失败（< 10 字） | `exit 1` | 调用 generate_docs.js 重写（最多 2 次） |
-| 内容偏少（10~20 字） | `exit 1` | 警告（建议补充），不终止 |
-| > max_chars 字 | `exit 1` | 警告（可能超出时长），不终止 |
+**修复**：
+```javascript
+// 修复：停用词出现在任意位置都过滤
+if (sw.includes(w) || w.includes(sw)) { continue; }
+```
 
-**自动修复循环逻辑**（嵌入 `launch.sh cmd_all`）：
-1. 检测字数 < 10 → 调用 generate_docs.js 重写 → 重新检查
-2. 循环最多 2 次，仍失败仅警告不终止
+---
 
-**重写方法**：基于 `article.md` 内容，手动撰写 100~175 字的中文配音文本，涵盖项目名、功能、亮点、使用方式。重写后复检字数，确认在 100~175 字安全区间内，再进入 Step 1。
+### Bug 4：`extractNarration()` 字节/字符边界混淆
+
+**位置**：`generate_docs.js` `extractNarration()` 函数
+
+**错误代码**：
+```javascript
+acc++;  // 按 UTF-8 字符计数
+const breakIdx = Math.min(i + 20, chars.length);
+const chunk = chars.slice(0, breakIdx).join('');  // slice 按字节截断
+```
+
+**现象**：中文句子在字符边界被切断，产生乱码 narration
+
+**修复**：使用字符感知的截断方式：
+```javascript
+// 方法：将字符串转为数组（Unicode 码点）后按字符计数和截断
+const chars = Array.from(text);
+let acc = 0;
+for (let i = 0; i < chars.length; i++) {
+  acc++;
+  if (acc >= targetLen) {
+    // 按字符截断（非字节）
+    const chunk = chars.slice(0, i + 1).join('');
+    result.push(chunk);
+    acc = 0;
+  }
+}
+```
+
+---
+
+## 根因：article.md 占位符导致全链路损坏
+
+**症状**：视频每帧显示"请在此处粘贴原始文章内容..."等无关内容
+
+**根因链**：
+```
+article.md 含占位符文本
+  → stripMarkdown() 解析出乱码片段
+    → extractKeywords() 提取垃圾碎片（"为安全研"、"这是一款专"）
+      → extractNarration() 生成乱码配音文本
+        → 音频配音变成无意义声音
+          → 视频内容全错
+```
+
+**防护**：Step 0 后强制验证 article.md 不含占位符：
+```bash
+if grep -q "请在此处粘贴" docs/article.md; then
+  echo "ERROR: article.md 仍含占位符内容"
+  exit 1
+fi
+```
+
+---
+
+## 关键文件验证（Step 0 后必做）
+
+```bash
+# 1. article.md 不含占位符
+grep -q "请在此处粘贴" docs/article.md && echo "ERROR: 占位符" || echo "OK"
+
+# 2. narration.txt 干净（无控制字符、中文≥20字）
+python3 -c "
+text = open('docs/narration.txt', encoding='utf-8').read()
+bad = sum(1 for c in text if ord(c) < 32 and c not in '\n\r\t')
+cn = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+print(f'控制字符: {bad}, 中文字数: {cn}')
+if bad > 0 or cn < 20: exit(1)
+"
+
+# 3. keywords 无垃圾碎片（STOP_WORD_MULTI 过滤验证）
+python3 -c "
+import json
+data = json.load(open('docs/report.json'))
+kw = data.get('keywords', [])
+stop = ['为安全研', '这是一款专', '是一款专', '专为安全']
+bad = [w for w in kw if any(s in w for s in stop)]
+print(f'含停用词片段: {bad}')
+if bad: exit(1)
+"
+```

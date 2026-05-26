@@ -103,6 +103,42 @@ metadata:
 - **Step 0 后强制检查**：narration.txt 必须干净（无 `---`、`|`、反引号），中文字数 ≥20
 - 仅 `article.md`、`report.json`、HTML 三件套可直接使用
 
+### ⚠️ 已确认致命 Bug：article.md 占位符内容导致全链路数据损坏
+**症状**：视频每帧显示的内容与实际项目无关（CF-Hero 显示为通用占位符文本）。根因追溯：
+- `article.md` 包含 `"请在此处粘贴原始文章内容..."` 等占位符文本
+- `stripMarkdown()` 解析占位符后，`extractKeywords()` 提取出垃圾碎片（如"为安全研"、"这是一款专"）
+- `extractNarration()` 生成乱码 narration，音频配音变成无意义文本
+- `DynamicScene.tsx` 编译后包含损坏数据，导致视频内容全错
+
+**4个已确认的 generate_docs.js Bug**（必须修复后才能得到正确内容）：
+
+1. **`[字符类]` 内 `|` 是字面字符非或运算**（第 359 行附近）
+   - 错误：`/([^.！？]{8,30}[问题|困难|麻烦...]/)` — `[]` 内的 `|` 是字面字符
+   - 修复：改为 `(?:问题|困难|麻烦...)` 非捕获组
+
+2. **关键词去重优先保留短词**（第 158-166 行）
+   - 原逻辑：短词先加入后，长词因被 `r.includes(w)` 包含而被过滤
+   - 修复：对 sorted 数组迭代时反向检查 — 已有词包含当前词则丢弃当前词
+
+3. **`STOP_WORD_MULTI` 使用 `startsWith` 而非 `includes`**（第 168 行附近）
+   - 错误：仅过滤词首匹配（如"为安全研"作为开头才算过滤）
+   - 修复：改为 `sw.includes(w)` — 停用词出现在任意位置都过滤
+
+4. **`extractNarration()` 字节/字符边界混淆**
+   - `acc++` 按 UTF-8 字符计数，但 `slice(0, breakIdx)` 按字节截断
+   - 修复：使用字符感知的截断方式（详见 `references/F-GENDOCS/generate-docs-deep-analysis.md`）
+
+**防护检查（Step 0 后必做）**：
+```bash
+python3 -c "
+text = open('docs/narration.txt', encoding='utf-8').read()
+bad = sum(1 for c in text if ord(c) < 32 and c not in '\n\r\t')
+cn = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+print(f'控制字符数: {bad}, 中文字数: {cn}')
+if bad > 0 or cn < 20: exit(1)
+"
+```
+
 ### ⚠️ 已确认失败模式：Subagent Step 0 Bypass
 **症状**：Subagent 创建了 narration.txt + 音频 + 视频，但 docs/ 下缺少其余 10 个文档（README.md、video-script.md、copy.md、wechat-copy.md、posting-guide.md、session-log.md、landing-page.html、article-page.html、wechat-page.html、report.json），导致发布流程不完整。
 
