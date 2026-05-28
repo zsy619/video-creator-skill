@@ -38,7 +38,7 @@ import subprocess, json, re
 
 r = subprocess.run(
     ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration', '-of', 'json',
-     'video-project/out/VerticalVideo.mp4'],
+     'video-project/out/final.mp4'],
     capture_output=True, text=True)
 actual_ms = int(float(json.loads(r.stdout)['format']['duration']) * 1000)
 actual_frames = round(actual_ms / 1000 * 60)
@@ -65,7 +65,7 @@ else:
 **修复命令**：
 ```bash
 # 1. ffprobe 实测
-ACTUAL_MS=$(python3 -c "import subprocess, json; r=subprocess.run(['ffprobe','-v','quiet','-show_entries','format=duration','-of','json','video-project/out/VerticalVideo.mp4'],capture_output=True,text=True); print(int(float(json.loads(r.stdout)['format']['duration'])*1000))")
+ACTUAL_MS=$(python3 -c "import subprocess, json; r=subprocess.run(['ffprobe','-v','quiet','-show_entries','format=duration','-of','json','video-project/out/final.mp4'],capture_output=True,text=True); print(int(float(json.loads(r.stdout)['format']['duration'])*1000))")
 ACTUAL_FRAMES=$(python3 -c "print(round($ACTUAL_MS / 1000 * 60))")
 echo "实测: ${ACTUAL_MS}ms = ${ACTUAL_FRAMES}帧"
 

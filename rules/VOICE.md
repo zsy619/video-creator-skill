@@ -1,6 +1,6 @@
 # 音频合成最佳实践（Voice Synthesis Best Practices）
 
-> 所属模块：video-creator / SKILL.md → 音频合成 ⭐ 重要更新
+> 所属模块：video-creator / SKILL.md → 音频合成
 >
 > ## ⚠️ 强制执行：违反以下任何一条将导致音画不同步或音质问题
 >
@@ -22,8 +22,6 @@
 >
 > **修复**：生成配音前强制校验，**超长必须精简，不得用 atempo 补救**。
 
-| 目标时长 | 文本字数上限 | 实测字数/秒 | 说明 |
-|---------|-------------|------------|------|
 | 目标时长 | 字数上限 | 速率 | 备注 |
 |----------|----------|------|------|
 | 45秒 | **≤151字** | 3.37字/秒 | edge-tts +0% 实测 |
@@ -45,7 +43,7 @@
 ```bash
 # 检查配音文本长度是否符合目标时长
 python3 -c "
-text = open('audio/voice_text.txt').read()
+text = open('audio/full_narration.txt').read()
 chars = len(text)
 target_dur = 52  # 目标秒数
 max_chars = int(target_dur * 3.37)
@@ -57,7 +55,7 @@ assert chars <= max_chars, f'字数超限: {chars} > {max_chars}，请精简'
 
 ## ⚠️ 重要提醒
 
-**macOS 原生 TTS（如 Eddy、Rocko、Daniel 等中文男声）均为机械音**，有明显合成感，不适合正式视频发布。如需自然人声，**必须使用微软 Azure Neural TTS**。
+**macOS 原生 TTS（如 Eddy、Rocko、Daniel 等中文男声）均为机械音**，有明显合成感，不适合正式视频发布。如需自然人声，**必须使用微软 edge-tts**（基于 Azure 语音技术）。
 
 ---
 
@@ -66,13 +64,13 @@ assert chars <= max_chars, f'字数超限: {chars} > {max_chars}，请精简'
 | 方案 | 自然度 | 成本 | 推荐度 |
 |------|--------|------|--------|
 | macOS say (Eddy/Rocko/Daniel) | ⭐ 机械 | 免费 | ❌ 不推荐 |
-| **微软 Azure Neural TTS** | ⭐⭐⭐⭐⭐ 极度自然 | 免费额度 | ✅ **强烈推荐** |
+| **微软 edge-tts（Azure）** | ⭐⭐⭐⭐⭐ 极度自然 | 免费额度 | ✅ **强烈推荐** |
 | ElevenLabs | ⭐⭐⭐⭐ 非常自然 | 付费 | ✅ 推荐（需API Key） |
 | Bark (本地) | ⭐⭐⭐⭐ 自然 | 免费 | ✅ 备选（安装复杂） |
 
 ---
 
-## ✅ 推荐方案：微软 Azure Neural TTS
+## ✅ 推荐方案：微软 edge-tts（Azure 语音技术）
 
 ### 前置条件
 
@@ -216,7 +214,7 @@ ffmpeg -y \
   -c:a aac -b:a 256k \
   -map 0:v -map 1:a \
   -shortest \
-  out/final_video.mp4
+  out/final.mp4
 ```
 
 **为什么禁止 `-c:a copy`？**
@@ -304,7 +302,7 @@ ffmpeg -y \
   -c:v copy -c:a aac -b:a 256k \
   -map 0:v -map 1:a \
   -shortest \
-  out/final_video.mp4
+  out/final.mp4
 
 # ❌ 错误：-c:a copy 会复制 Remotion raw 视频的静音音频轨道
 ffmpeg -y \
@@ -313,7 +311,7 @@ ffmpeg -y \
   -c:v copy -c:a copy \
   -map 0:v -map 1:a \
   -shortest \
-  out/final_video.mp4
+  out/final.mp4
 ```
 
 ⚠️ **关键区别**：`-c:a copy` 只是流复制，不会重新编码。如果 Remotion raw 视频的音频轨道内容为空，复制后依然为空。必须用 `-c:a aac -b:a 256k` 强制重新编码。

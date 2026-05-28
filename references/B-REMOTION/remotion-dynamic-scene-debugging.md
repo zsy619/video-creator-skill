@@ -133,7 +133,7 @@ Remotion 默认 publicDir 为项目根目录的 `public/` 目录。如果 `publi
 ```bash
 cd video-project/
 npx remotion render VerticalVideo \
-  --output out/ \
+  out/final.mp4 \
   --quality 0 \
   --fps 60 \
   --public-dir public    # ← 必须显式传入
@@ -164,7 +164,9 @@ fs.writeFileSync(f, c);
 ls -la video-project/public/assets/cover.png
 
 # 5. 启动渲染
-cd video-project && npx remotion render VerticalVideo --output out/ --quality 0 --fps 60 --public-dir public
+cd video-project && npx remotion render VerticalVideo \
+  out/final.mp4 \
+  --quality 0 --fps 60 --public-dir public
 ```
 
 ---

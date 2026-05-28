@@ -1,6 +1,6 @@
 # 文档一致性维护指南
 
-> **最后更新**：2026-05-27
+> **最后更新**：2026-05-28
 > **配套文档**：`B-REMOTION/remotion-troubleshoot.md`（Remotion 问题排查）、`C-CONTENT/audio-tts.md`（TTS 规范）
 
 ---

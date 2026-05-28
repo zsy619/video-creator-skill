@@ -3,6 +3,10 @@
 > 所属模块：video-creator / SKILL.md → 字幕生成
 >
 > ## ⚠️ 最终权威规范（以本文为准，冲突时以此为准）
+>
+> **主流程（Remotion Native）**：`launch.sh` Step 3 直接生成 `audio/captions.json`（`startMs/endMs` 毫秒格式）。**不需要 ASS 文件。**
+>
+> **Fallback 流程**：当 Remotion 渲染不可用时，使用 `subtitle-generator.js` 生成 `audio/subtitles.ass` 作为 ffmpeg 烧录字幕。
 
 **核心铁律（必须严格遵守）**：
 
@@ -41,6 +45,16 @@
 
 ### 验证命令
 
+#### 主流程（captions.json）
+```bash
+# 验证 captions.json 格式
+node -e "var c=require('./audio/captions.json');console.log('段落数:',c.length,'末段endMs:',c[c.length-1].endMs);"
+
+# 验证视频时长与末段 endMs 偏差
+ffprobe -v error -show_entries format=duration -of csv=p=0 out/final.mp4
+```
+
+#### Fallback（ASS 烧录）
 ```bash
 # 验证字幕 Fontsize=72
 ffmpeg -y -i final.mp4 -vf "subtitles=audio/subtitles.ass" -frames:v 1 /tmp/check.png
@@ -52,10 +66,10 @@ ffmpeg -y -i final.mp4 -vf "subtitles=audio/subtitles.ass" -frames:v 1 /tmp/chec
 video-creator 技能现在集成了完整的字幕生成和质量检查系统，包括：
 
 ### 核心功能
-1. **智能字幕生成**：自动生成ASS格式字幕，支持字体兼容性
+1. **captions.json 生成**（主流程）：`launch.sh` Step 3 使用比例分配算法，直接生成 `startMs/endMs` 格式
 2. **质量检查**：全面检查视频项目的字体、音频、字幕、视频质量
 3. **自动修复**：自动修复常见问题（如字体兼容性）
-4. **批量处理**：支持批量处理多个视频项目
+4. **ASS Fallback**：当 Remotion 不可用时，`subtitle-generator.js` 生成 `subtitles.ass` 作为 ffmpeg 烧录路径
 
 ---
 
@@ -123,13 +137,14 @@ for i, (start, end, text) in enumerate(subtitles):
     lines.append(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,50,,{text_escaped}")
 ```
 
-> **⚠️ 自动检查**：运行 `ffmpeg -i video.mp4 -filter_complex "ass=subs.ass" -f null -` 时，如果看到 `Track has custom format line(s)` 警告，说明 Format 行声明的字段数与实际 Dialogue 行字段数不匹配。
+> **⚠️ 自动检查**：运行 `ffmpeg -i final.mp4 -filter_complex "ass=subs.ass" -f null -` 时，如果看到 `Track has custom format line(s)` 警告，说明 Format 行声明的字段数与实际 Dialogue 行字段数不匹配。
 
 ### 标准参数（必须严格遵守）
 
-> ⚠️ **Fontsize 值取决于是否设置 PlayResX/PlayResY**：
-> - 设置 PlayResX/PlayResY=1080x1920 时，Fontsize=12（相对于 1920 高度的标准化值）
-> - 不设置 PlayRes 时，Fontsize=10（旧规范，已废弃；当前统一用 Fontsize=72）
+> ⚠️ **Fontsize 取决于使用场景**：
+> - ASS 标准（PlayResY=1920 归一化）→ Fontsize=12（这是 ASS 规范的标准值）
+> - **video-creator 统一值**→ Fontsize=72（实测约 40px 视觉，经验证可用）
+> - 两者均可通过 PlayResX/PlayResY 在 ASS 中正确渲染，差异仅是 ASS 内部归一化计算方式不同
 
 | 参数 | 值 | 说明 |
 |------|-----|-----|
@@ -223,12 +238,23 @@ video-creator batch --directory ./workspace --fix
 - **时间轴计算**：自动计算字幕显示时间
 
 ### API 使用示例
+
+#### 主流程：captions.json（Remotion Native）
+```javascript
+// captions.json 由 launch.sh Step 3 自动生成，无需手动调用
+// 格式：[{startMs, endMs, text}, ...]
+// launch.sh 验证：
+const captions = require('./audio/captions.json');
+console.log('段落数:', captions.length, '末段endMs:', captions[captions.length-1].endMs);
+```
+
+#### Fallback：ASS 格式（subtitle-generator.js）
 ```javascript
 const SubtitleGenerator = require('./scripts/subtitle-generator');
 
-// 创建实例 - 必须传入 fontSize=12
+// 创建实例 - 必须传入 fontSize=72
 const generator = new SubtitleGenerator({
-  fontSize: 72,  // 必须是72（PlayResY=1920时，约40px视觉，已验证）
+  fontSize: 72,  // PlayResY=1920时，约40px视觉，已验证
   color: '&H00FFFF' // 黄色
 });
 
@@ -247,21 +273,34 @@ await generator.generateASS(subtitles, 'audio/subtitles.ass');
 ## 🚀 集成到视频创作工作流
 
 ### 标准流程（强制执行）
+
+#### 主流程（Remotion Native）- 推荐
+```
+1. edge-tts 生成原始音频（--rate +0%）
+         ↓
+2. ffmpeg atempo 后处理 → 确认最终时长 T（video-config.json voice.atempo）
+         ↓
+3. launch.sh Step 3 生成 captions.json（比例分配算法，基于 T）
+         ↓
+4. create-remotion-project.js 生成 Remotion 项目
+         ↓
+5. Remotion 渲染（final.mp4，音频内嵌，字幕 CaptionOverlay 烧录）
+         ↓
+6. captions.json 末段 endMs 同步为视频实际时长
+```
+
+#### Fallback（ASS + ffmpeg 烧录）
 ```
 1. edge-tts 生成原始音频
          ↓
 2. atempo 后处理（1.2x）→ 确认最终时长 T
          ↓
-3. Remotion 渲染视频（帧数 = T × 60fps）
+3. subtitle-generator.js 生成 subtitles.ass（基于 T 时长）
          ↓
-4. 生成 ASS 字幕（基于 T 时长，fontSize=12）
-         ↓
-5. ffmpeg 合并视频+音频（stream copy）
-         ↓
-6. ffmpeg 烧录字幕（-vf "ass=xxx.ass"）→ 最终视频
+4. ffmpeg 烧录字幕（-vf "ass=xxx.ass"）→ 最终视频
 ```
 
-### 字幕烧录命令（必须分两步）
+### 字幕烧录命令（Fallback 流程）
 ```bash
 # Step 1: 合并视频 + 音频
 ffmpeg -y \
@@ -292,7 +331,7 @@ ffmpeg -y \
 1. **项目结构**：检查必需的目录和文件
 2. **字体兼容性**：检查并修复不兼容字体
 3. **音频质量**：检查音频文件格式、时长、码率
-4. **字幕质量**：检查ASS格式、时间轴、fontSize=12
+4. **字幕质量**：检查ASS格式、时间轴、fontSize=72
 5. **视频质量**：检查分辨率、帧率、时长、文件大小
 
 ### 检查报告示例
@@ -312,7 +351,7 @@ ffmpeg -y \
      解决方案: 必须使用 fontSize=10
 
   2. VIDEO_RESOLUTION: 视频分辨率不正确: 1920x1080
-     文件: video/out/video.mp4
+     文件: video-project/out/final.mp4
      解决方案: 应为1080x1920（竖屏）
 ```
 
@@ -391,7 +430,7 @@ re.split(r'[，。；、]+', text)  # ✅ 只分割中文句子边界
 ```bash
 python3 -c "
 import re
-text = open('audio/voice_text.txt').read()
+text = open('audio/full_narration.txt').read()
 # 找含英文句点的段落
 import re
 for m in re.finditer(r'[a-zA-Z0-9]\.[a-zA-Z0-9]', text):

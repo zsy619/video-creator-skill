@@ -145,7 +145,7 @@ cp /tmp/<repo>_captions.json video-project/public/audio/captions.json
 
 # 5. npm install && 渲染
 cd video-project && npm install
-npx remotion render VerticalVideo --output out/ --quality 0 --fps 60 --public-dir public
+npx remotion render VerticalVideo out/final.mp4 --quality 0 --fps 60 --public-dir public
 
 # 6. 更新 Base → 清理 Git
 ```
@@ -196,7 +196,7 @@ print(f'音频: {a:.3f}s = {int(a*60)}帧 @ 60fps')
 // ⚠️ calculateMetadata 方案（仅在 Remotion 版本支持 getAudioDuration 时使用）
 calculateMetadata={async ({ props }) => {
   const audioDur = await getAudioDuration(staticFile(props.audioFile || "audio/neural_1_2x.m4a"));
-  return { durationInFrames: Math.ceil(audioDur * 60), props };
+  return { durationInFrames: Math.round(audioDur * 60), props };
 }}
 ```
 

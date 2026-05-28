@@ -642,7 +642,7 @@ def main():
 
     # 获取音频时长计算总帧数
     audio_duration = get_audio_duration(audio_file)
-    TOTAL_FRAMES = math.ceil(audio_duration * 60)  # 强制60fps
+    TOTAL_FRAMES = round(audio_duration * 60)  # 强制60fps（与Remotion内部round()一致）
     print(f"🎬 音频时长: {audio_duration:.2f}s → 总帧数: {TOTAL_FRAMES} (@60fps)")
 
     # 读取场景配置

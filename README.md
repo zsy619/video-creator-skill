@@ -31,7 +31,7 @@ bash ~/.hermes/skills/video-creator/scripts/launch.sh all
 |------|------|
 | `docs/assets/cover.png` | 竖屏封面 1080×1920 |
 | `docs/assets/cover-wechat.png` | 公众号封面 900×383 |
-| `docs/assets/cover-xhs.png` | 小红书封面 1440×1920 |
+| `docs/assets/cover-xhs.png` | 小红书封面 1440×2560 |
 | `docs/narration.txt` | 配音文本（**需手动验证并重写**） |
 | `audio/neural_1_2x.m4a` | 处理后音频 |
 | `audio/captions.json` | 字幕时间轴（sentence-level） |

@@ -1,6 +1,6 @@
 # 视频性能优化与质量门禁
 
-> **最后更新**：2026-05-15
+> **最后更新**：2026-05-28（统一输出文件名为 final.mp4）
 > **配套文档**：`audio-production.md`（音频验证）、`video-one-shot-checks.md`（生成前验证）
 
 ---
@@ -150,7 +150,7 @@ step = total_ms // 6
 ```
 
 **Root.tsx 必同步项**：
-- `DURATION_FRAMES = ceil(total_ms / 1000 × 60)`（向上取整）
+- `DURATION_FRAMES = round(total_ms / 1000 × 60)`（与Remotion内部round()一致，向下取整）
 - `defaultProps.scenes[].startMs / endMs`（6个场景全部更新）
 
 **video-config.json 必同步项**：
@@ -230,7 +230,7 @@ cp "${VP_DIR}/public/audio/captions.json" "${proj_dir}/audio/captions.json"
 
 ```bash
 # 渲染完成后立即执行
-VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video-project/out/VerticalVideo.mp4)
+VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video-project/out/final.mp4)
 EXPECTED_ENDMS=$(python3 -c "print(int(round(${VIDEO_DUR} * 1000)))")
 
 python3 -c "
@@ -253,7 +253,7 @@ cp audio/captions.json video-project/public/audio/captions.json
 python3 -c "
 import json, subprocess
 caps = json.load(open('audio/captions.json'))
-vdur = float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0','video-project/out/VerticalVideo.mp4']).strip())
+vdur = float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0','video-project/out/final.mp4']).strip())
 expected = int(round(vdur * 1000))
 actual = caps[-1]['endMs']
 print('✅ 同步正确' if actual == expected else f'❌ 末段={actual}ms, 视频={expected}ms')
@@ -335,7 +335,7 @@ cp audio/neural_1_2x.m4a video-project/public/audio/neural_1_2x.m4a
 ### 正确流程
 
 ```bash
-VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video-project/out/VerticalVideo.mp4)
+VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video-project/out/final.mp4)
 ACTUAL_MS=$(python3 -c "print(int(round(${VIDEO_DUR} * 1000)))")
 
 python3 -c "
@@ -360,7 +360,7 @@ print(f'✅ totalMs → {ACTUAL_MS}ms，{scene_count}场景等比分配')
 python3 -c "
 import json, subprocess
 cfg = json.load(open('video-config.json'))
-vdur = float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0','video-project/out/VerticalVideo.mp4']).strip())
+vdur = float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0','video-project/out/final.mp4']).strip())
 expected = int(round(vdur * 1000))
 actual = cfg['scenes'][-1]['endMs']
 print('✅ 同步正确' if actual == expected else f'❌ endMs={actual}ms, 视频={expected}ms')

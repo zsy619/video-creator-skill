@@ -272,9 +272,9 @@ function checkAudio() {
     if (fs.existsSync(configFile)) {
       try {
         const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-        targetDuration = cfg.duration || cfg.totalFrames
-          ? (cfg.duration || cfg.totalFrames / 60)
-          : null;
+        targetDuration = (cfg.duration != null)
+          ? cfg.duration
+          : (cfg.totalFrames != null ? cfg.totalFrames / 60 : null);
       } catch (e) { /* ignore */ }
     } else if (fs.existsSync(durationFile)) {
       targetDuration = parseFloat(fs.readFileSync(durationFile, 'utf8').trim()) || null;

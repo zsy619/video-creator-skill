@@ -1,7 +1,7 @@
 # 视频创作工作流程 (Video Creator Workflow)
 
 > **所属模块**: video-creator / SKILL.md → 核心工作流
-> **版本**: v4.0.0
+> **版本**: v4.0.0（2026-05-28 Remotion Native）
 > **相关模块**: [INPUT.md](INPUT.md) · [COPY.md](COPY.md) · [THEMES.md](THEMES.md) · [VOICE.md](VOICE.md) · [QUALITY.md](QUALITY.md)
 
 本文档定义了使用 Remotion 和 baoyu 技能体系创建专业级社交媒体视频的完整工作流程。
@@ -46,9 +46,8 @@ Step 11       Step 10        Step 9        Step 8        Step 7        Step 6
 | 执行报告     | `docs/report.json`                  | JSON 格式完整报告                                   |
 | 🔴 封面图   | `docs/assets/cover.png`             | \*\*竖屏封面（9:16），\*\*平台尺寸见 PLATFORM.md，**禁止跳过** |
 | 封面生成脚本   | `docs/assets/generate_cover.py`     | PIL 封面生成模板                                    |
-| 字幕生成脚本   | `docs/assets/gen_subtitles.py`      | ASS 字幕生成脚本                                    |
-| 音频文件     | `audio/neural_1_2x.m4a`             | 处理后音频（atempo 后，文件名反映实际语速）                     |
-| 字幕文件     | `audio/subtitles_58s.ass`           | ASS 格式（文件名反映实际时长）                             |
+| 音频文件     | `audio/neural_1_2x.m4a`             | 处理后音频（atempo 1.2x 后）                     |
+| 字幕文件     | `audio/captions.json`           | captions.json 格式（Remotion Native 字幕时间轴）                             |
 | 最终视频     | `video-project/out/final.mp4`    | Remotion Native 直出（音频内嵌 / 字幕同期）                        |
 
 ***
@@ -270,9 +269,8 @@ REQUIRED_FILES=(
   "${PROJECT_DIR}/docs/session-log.md"
   "${PROJECT_DIR}/docs/assets/cover.png"
   "${PROJECT_DIR}/docs/assets/generate_cover.py"
-  "${PROJECT_DIR}/docs/assets/gen_subtitles.py"
   "${PROJECT_DIR}/audio/neural_1_2x.m4a"
-  "${PROJECT_DIR}/audio/subtitles_*.ass"
+  "${PROJECT_DIR}/audio/captions.json"
   "${PROJECT_DIR}/video-project/out/final.mp4"
 )
 
@@ -476,7 +474,7 @@ mkdir -p "{workspace}/{PROJECT_NAME}/fonts
 | `docs/`          | 文档和素材       | `article.md`, `video-script.md`, `wechat.md` |
 | `docs/assets/`   | 视觉素材        | `cover.webp`, `illustration-*.webp`          |
 | `video-project/` | Remotion 项目 | `src/`, `out/`, `package.json`               |
-| `audio/`         | 音频文件        | `raw/`, `processed/`, `final.mp3`            |
+| `audio/`         | 音频文件        | `neural_full.mp3`, `neural_1_2x.m4a`, `captions.json` |
 | `fonts/`         | 字体文件        | 自定义字体                                        |
 
 ### 🎯 命名规范
@@ -786,7 +784,7 @@ else:  # 竖版图片
 
 > ⚠️ **前置条件：封面图必须已生成（Step 6.1）。封面未生成则不开始本步骤。**
 > ⚠️ **⚠️ 渲染前必须通过质量门禁（见 Step 10 前置检查）。**
-> **⚠️ 详细说明**: 请参考 [VOICE.md](VOICE.md) - Azure Neural TTS 自然语音合成最佳实践
+> **详细说明**: 请参考 [VOICE.md](VOICE.md) - edge-tts 自然语音合成（微软 Azure 语音技术）
 
 ### 7.0 ⚠️ 强制质量门禁（禁止跳过）
 
@@ -804,15 +802,22 @@ echo "✅ audio 节点门禁通过"
 ### 7.1 音频生成流程
 
 ```bash
-# 1. 使用 Azure Neural TTS 生成音频（整段连续生成，禁止分段拼接）
-# 参考 VOICE.md 中的 API 调用方式
+# 1. 读取配置（从 video-config.json 获取 voice 配置）
+SKILL_DIR="$HOME/.hermes/skills/video-creator"
+PROJECT_DIR="{workspace}/{project-name}"
+VOICE_NAME=$(node -e "console.log(require('${PROJECT_DIR}/video-config.json').voice?.name || 'zh-CN-YunjianNeural')")
+VOICE_RATE=$(node -e "console.log(require('${PROJECT_DIR}/video-config.json').voice?.rate || '+0%')")
+VOICE_ATEMPO=$(node -e "console.log(require('${PROJECT_DIR}/video-config.json').voice?.atempo || 1.2)")
 
-# 2. 音频后处理
-# ⚠️ atempo 值决定最终时长 → 必须记录 DURATION 供字幕生成使用
-# ⚠️ 必须用 -c:a aac -b:a 256k 强制重编码（禁止 -c:a copy）
-ffmpeg -y -i raw/audio.mp3 \
-  -af "silenceremove=start_periods=1:start_duration=0.5:start_threshold=-50dB:detection=peak,atempo=1.2" \
-  -c:a aac -b:a 256k -ar 48000 -ac 2 \
+# 2. edge-tts 生成原始音频（整段连续生成，禁止分段拼接）
+# ⚠️ rate=+0%（禁止叠速），atempo 在后处理阶段单独控制
+edge-tts --voice "${VOICE_NAME}" --rate "${VOICE_RATE}" \
+  --write-media audio/neural_full.mp3 --text "$(cat docs/narration.txt)"
+
+# 3. 音频后处理（去静音 + 动态 atempo + AAC 256k）
+# ⚠️ atempo 使用 video-config.json voice.atempo 配置值，不再动态计算
+ffmpeg -y -i audio/neural_full.mp3 \
+  -af "silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.3,atempo=${VOICE_ATEMPO}" \
   -c:a aac -b:a 256k -ar 48000 -ac 2 \
   audio/neural_1_2x.m4a
 
@@ -872,46 +877,49 @@ node "${SKILL_DIR}/scripts/video-quality-gate.js" "${PROJECT_DIR}" "subtitle"
 # 不通过 → 修复字幕格式问题
 ```
 
-### 8.1 字幕生成（Fontsize=72，禁止其他值）
+### 8.1 字幕生成（captions.json 格式）
 
-```javascript
-// ⚠️ 必须先执行 8.0 前置检查，确认最终时长
-const DURATION = 58.16; // 最终音频时长（atempo 1.2x 处理后），从 Step 7 获取
+> ⚠️ **必须先完成 Step 7（音频后处理）确认最终时长，再生成字幕**
+> 字幕时间轴必须基于 `atempo` 处理后的最终音频时长，禁止用原速时长。
 
-// 字幕规范（统一值，禁止修改）：
-//   Fontsize: 72, PlayResX: 1080, PlayResY: 1920
-//   PrimaryColour: &H00FFFF (黄色)
-//   Alignment: 2 (底部居中)
-//   MarginV: 50, Outline: 2
-const generator = new SubtitleGenerator();
-const subtitles = await generator.generateFromText(text, DURATION);
-await generator.generateASS(subtitles, 'audio/subtitles.ass');
+```bash
+# ⚠️ 必须先执行 8.0 前置检查，确认最终时长
+SKILL_DIR="$HOME/.hermes/skills/video-creator"
+node "${SKILL_DIR}/scripts/pre-subtitle-check.js" "${PROJECT_DIR}"
+# 检查内容：音频文件存在、时长有效、非静音、文本长度合理
+# 不通过 → 修复音频问题，禁止强行生成字幕
+
+# ⚠️ 同时执行字幕节点质量门禁
+node "${SKILL_DIR}/scripts/video-quality-gate.js" "${PROJECT_DIR}" "subtitle"
+# 不通过 → 修复字幕格式问题
 ```
 
-### 8.2 字幕格式规范（2026-05-10 统一值）
+### 8.2 字幕格式规范（captions.json）
 
-| 参数                    | 值             | 说明                                                             |
-| --------------------- | ------------- | -------------------------------------------------------------- |
-| **Fontsize**          | **72**        | 竖屏1080×1920标准，禁止10/12/36                                       |
-| **PlayResX/PlayResY** | **1080/1920** | 必须设置                                                           |
-| **PrimaryColour**     | `&H00FFFF`    | 黄色                                                             |
-| **Alignment**         | **2**         | 底部居中                                                           |
-| **MarginV**           | **50**        | 距底边50px                                                        |
-| **Outline**           | **2**         | 2px描边，禁止1                                                      |
-| **Format字段数**         | **10**        | Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text |
-| **Dialogue字段数**       | **10**        | 必须与Format一致                                                    |
-| **换行符**               | `\N`          | 禁止`\\N`                                                        |
+> **已迁移至 Remotion Native 方案**：不再使用 ASS 文件，改用 `audio/captions.json` + `@remotion/captions`
+
+**输出文件**: `audio/captions.json`（同步备份至 `video-project/public/audio/captions.json`）
+
+**禁止**: `audio/subtitles.ass`（旧 ASS 方案已废弃）
+
+**格式**（`{startMs, endMs, text}` 数组，TikTok/TikTokCaptionOverlay 风格）:
+```json
+[
+  { "startMs": 0,    "endMs": 3120, "text": "第一段字幕文本" },
+  { "startMs": 3120, "endMs": 5760, "text": "第二段字幕文本" }
+]
+```
 
 ### 8.3 字幕质量验证
 
 ```bash
-  # 烧录一帧截图验证字幕显示效果
-ffmpeg -y -i video-project/out/final.mp4 \
-  -vf "ass=audio/subtitles.ass" \
-  -frames:v 1 -q:v 2 /tmp/subtitle-check.png
+# 验证 captions.json 格式
+node -e "var c=require('$PROJECT_DIR/audio/captions.json');console.log('段落数:',c.length,'末段endMs:',c[c.length-1].endMs);"
+# 末段 endMs 应 ≤ 视频时长（ms），偏差 ≤ 500ms
 
-# 检查字幕文件时长覆盖
-ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 audio/subtitles.ass
+# 视频时长验证
+ffprobe -v error -show_entries format=duration -of csv=p=0 "$PROJECT_DIR/video-project/out/final.mp4"
+# 与 captions.json 末段 endMs 偏差 ≤ 500ms
 ```
 
 ### 8.4 记录 Session 日志
@@ -1067,7 +1075,7 @@ export const VerticalVideo: React.FC<{
 # 计算帧数（60fps）
 AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
   -of csv=p=0 "${PROJECT_DIR}/audio/neural_1_2x.m4a")
-TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
+TOTAL_FRAMES=$(python3 -c "import math; print(math.round(${AUDIO_DURATION} * 60))")
 
 # Remotion 直接渲染带音频成品（无需 ffmpeg 混流）
 cd "${PROJECT_DIR}/video-project" && npx remotion render VerticalVideo \
@@ -1170,7 +1178,7 @@ echo "✅ session-log.md 已更新（最终状态）"
   "files": {
     "video": "video-project/out/final.mp4",
     "audio": "audio/neural_1_2x.m4a",
-    "subtitles": "audio/subtitles_*.ass"
+    "subtitles": "audio/captions.json"
   }
 }
 ```
@@ -1249,9 +1257,9 @@ REQUIRED_FILES=(
   "docs/report.json"
   "docs/assets/cover.png"
   "docs/assets/generate_cover.py"
-  "docs/assets/gen_subtitles.py"
-  "audio/neural_1_2x_speed.m4a"
-  "audio/subtitles_*.ass"
+  "docs/assets/generate_cover.py"
+  "audio/neural_1_2x.m4a"
+  "audio/captions.json"
   "video-project/out/final.mp4"
 )
 
@@ -1311,12 +1319,10 @@ fi
 | 封面生成脚本 | `docs/assets/generate_cover.py`     | PIL 封面生成模板           |
 | 内容插图   | `docs/assets/illustration-*.webp`   | 场景配图                 |
 | 音频文件   | `audio/neural_1_2x.m4a`             | 处理后音频（atempo 后）      |
-| 字幕文件   | `audio/subtitles_58s.ass`           | ASS 格式字幕（基于最终音频时长）   |
+| 字幕文件   | `audio/captions.json`           | captions.json 格式（Remotion Native 字幕时间轴）   |
 | 最终视频   | `video-project/out/final.mp4`    | Remotion Native 直出（音频内嵌）     |
 
-> ⚠️ **文档必须全部生成**，禁止跳过任何一个文件。参考 [PATHS.md](PATHS.md) 查看完整目录结构。
-
-> ⚠️ **音频和字幕文件名**必须反映实际内容，如 `neural_1_2x.m4a`（1.2x 语速）、`subtitles_58s.ass`（58s 时长），禁止使用 `final.mp3` / `subtitles.ass` 等泛泛名称。
+> ⚠️ **音频和字幕文件名**必须反映实际内容，如 `neural_1_2x.m4a`（1.2x 语速）、`captions.json`（逐字高亮字幕），禁止使用 `final.mp3` / `subtitles.ass` 等泛泛名称。
 
 ***
 

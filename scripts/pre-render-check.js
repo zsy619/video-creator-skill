@@ -181,7 +181,7 @@ function main() {
   }
   
   const content = fs.readFileSync(TSX_FILE, 'utf8');
-  const expectedFrames = Math.ceil(EXPECTED_DURATION * FPS);
+  const expectedFrames = Math.round(EXPECTED_DURATION * FPS);
   
   log(`文件: ${TSX_FILE}`, BLUE);
   log(`FPS: ${FPS}`, BLUE);
@@ -287,7 +287,7 @@ function main() {
   if (passed) {
     log('✅ 所有关键检查通过，可以渲染', GREEN);
     console.log('\n渲染命令示例:');
-    console.log(`  npx remotion render Video --output out/video.mp4 --log=error`);
+    console.log(`  npx remotion render Video --output out/final.mp4 --log=error`);
     console.log('');
     process.exit(0);
   } else {

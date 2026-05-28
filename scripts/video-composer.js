@@ -135,13 +135,13 @@ class VideoComposer {
   generateRemotionComponent(content, metadata, images, theme, duration) {
     const title = metadata.title || '视频内容';
     const fps = this.options.fps;
-    const totalFrames = duration * fps;
+    const totalFrames = Math.round(duration * fps);
     const hasImages = images && images.length > 0;
     const coverImage = images && images.length > 0 ? images[0] : null;
 
     // 生成场景帧边界（基于时长分配）
     const sceneCount = Math.min(hasImages ? images.length : 3, 6);
-    const framesPerScene = Math.floor(totalFrames / sceneCount);
+    const framesPerScene = Math.round(totalFrames / sceneCount);
 
     let sceneImports = '';
     let sceneComponents = '';
@@ -313,16 +313,16 @@ const calculateMetadata: CalculateMetadataFunction = async () => {
 
     if (isNaN(audioDuration) || audioDuration <= 0) {
       console.warn('[Root] 无法读取音频时长，使用默认值');
-      return { durationInFrames: ${duration} * ${this.options.fps} };
+      return { durationInFrames: Math.round(${duration} * ${this.options.fps}) };
     }
 
-    const durationInFrames = Math.ceil(audioDuration * ${this.options.fps});
+    const durationInFrames = Math.round(audioDuration * ${this.options.fps});
     console.log(\`[Root] calculateMetadata: 音频时长 \${audioDuration}s → \${durationInFrames} 帧 (fps=\${${this.options.fps}})\`);
 
     return { durationInFrames };
   } catch (err) {
     console.warn('[Root] calculateMetadata 执行失败，使用默认值:', err);
-    return { durationInFrames: ${duration} * ${this.options.fps} };
+    return { durationInFrames: Math.round(${duration} * ${this.options.fps}) };
   }
 };
 
@@ -332,7 +332,7 @@ export const RemotionVideo: React.FC = () => {
       <Composition
         id="Video"
         component={Video}
-        durationInFrames={${duration} * ${this.options.fps}}
+        durationInFrames={Math.round(${duration} * ${this.options.fps})}
         fps={${this.options.fps}}
         width={${this.options.width}}
         height={${this.options.height}}

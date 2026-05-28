@@ -22,12 +22,13 @@
 
 ## 执行模式
 
+> ⚠️ **主要执行方式**：`bash scripts/launch.sh all <项目目录>`（launch.sh 统一管理全流程）
+
 | 模式 | 命令 | 说明 |
 |------|------|------|
-| 标准 | `node scripts/main.js <项目目录>` | 宽松模式，允许部分步骤失败 |
-| 严格 | `node scripts/main.js <项目目录> --strict` | 验证失败立即退出 |
-| 监督 | `node scripts/main-supervised.js <项目目录>` | 带自动重试和回退 |
-| 一键验证 | `node scripts/run-full-pipeline.js --project <项目目录>` | 验证并完成缺失步骤 |
+| 一键（推荐） | `bash scripts/launch.sh all <项目目录>` | launch.sh 全流程（文档→音频→字幕→渲染） |
+| 分步 | `bash scripts/launch.sh <step> <项目目录>` | 按 Step 执行（Step 0-11，见 WORKFLOW.md） |
+| 质量门禁 | `node scripts/video-quality-gate.js <项目目录>` | 渲染后最终质量验证 |
 
 ---
 
@@ -98,11 +99,12 @@ Step 11 → 生成报告
 │       ├── cover-wechat.png (900×383)
 │       └── cover-xhs.png (1440×2560)
 ├── audio/
-│   ├── neural_1_2x.m4a
-│   └── subtitles.ass
+│   ├── neural_full.mp3     # edge-tts 原始（--rate +0%）
+│   ├── neural_1_2x.m4a     # atempo 后处理
+│   └── captions.json
 └── video-project/
     └── out/
-        └── final-with-subs.mp4
+        └── final.mp4
 ```
 
 ---
@@ -112,8 +114,8 @@ Step 11 → 生成报告
 **Q: 视频没有声音？**  
 → 检查音频文件是否命名为 `neural_1_2x.m4a`，并确认在 `audio/` 目录
 
-**Q: 字幕没有显示？**  
-→ 确认字幕文件为 `audio/subtitles.ass`，Fontsize=72，Alignment=2
+**Q: 字幕没有显示？**
+→ 确认字幕文件为 `audio/captions.json`，每段 `{startMs, endMs, text}` 结构正确，末段 endMs 等于视频实际时长
 
 **Q: 封面生成失败？**  
 → 按顺序重试：baoyu-imagine → Remotion单帧 → PIL兜底
@@ -126,4 +128,4 @@ Step 11 → 生成报告
 - [rules/CHECKLIST.md](CHECKLIST.md) - 步骤检查清单
 - [rules/FONTS.md](FONTS.md) - 字体规范
 - [rules/SUBTITLES.md](SUBTITLES.md) - 字幕规范
-- [scripts/video-creator-validator.js](../scripts/video-creator-validator.js) - 项目验证脚本
+- [scripts/video-quality-gate.js](../scripts/video-quality-gate.js) - 项目质量验证脚本（渲染后验证）

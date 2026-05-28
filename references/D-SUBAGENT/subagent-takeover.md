@@ -53,7 +53,7 @@ Subagent 超时后目录结构可能不完整，标准化布局：
 
 ```
 oh-my-pi/
-├── video-project/out/final.mp4   ← 从 remotion/out/VerticalVideo.mp4 复制
+├── video-project/out/final.mp4   ← Remotion Native 输出（含音频轨道）
 ├── audio/
 │   ├── neural_full.mp3           ← Remotion 渲染用音频
 │   └── captions.json             ← 字幕
@@ -77,6 +77,6 @@ lark-cli base +record-batch-update \
 ## 教训（2026-05-28）
 
 1. **Subagent max_iterations=48 次 API 调用后超时**，不是等所有步骤完成
-2. **Subagent 创建了 remotion/ 子目录结构**，视频在 `remotion/out/VerticalVideo.mp4`，不在标准 `video-project/out/final.mp4`
+2. **Remotion 输出文件名**：`video-project/out/final.mp4`（Remotion Native 方案，直接指定文件名）
 3. **音频 75.5s vs 视频 35s**：subagent 在音频未完成处理前就触发了渲染，导致音视频完全脱节
 4. **narration 字数必须受控**：179 字（10句）通过；超过 337 字会导致 atempo 异常

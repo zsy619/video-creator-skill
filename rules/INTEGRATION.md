@@ -34,10 +34,10 @@ bun "$SKILL_DIR/scripts/vendor/baoyu-fetch/src/cli.ts" "$URL" \
   --media-dir "workspace/${PROJECT_NAME}/docs/assets/imgs/"
 
 # 2. 生成封面
-node scripts/generate-cover.js --input docs/article.md --theme tech-vision --output "docs/assets/cover.png"
+python3 scripts/generate_cover.py --input docs/article.md --theme tech-vision --output "docs/assets/cover.png"
 
 # 3. 渲染视频
-cd "video-project" && npx remotion render VerticalVideo --output out/video.mp4
+cd "video-project" && npx remotion render VerticalVideo --output out/final.mp4
 
 # 4. 合成语音（使用 VOICE.md 最佳实践）
 # ...

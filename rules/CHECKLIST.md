@@ -1,7 +1,7 @@
 # Video Creator 执行清单 (CHECKLIST)
 
 > 所属模块：video-creator / SKILL.md → 执行检查清单
-> **最后更新**：2026-05-23（动态 N 场景 + Remotion Native 方案）
+> **最后更新**：2026-05-28（Remotion Native + captions.json + 音频后处理 atempo 1.2x）
 
 ## ⚠️ 重要说明
 
@@ -75,9 +75,10 @@ ffprobe -v error -select_streams v:0 -show_entries stream=width,height \
 
 ## Step 7: 生成音频
 
-### 音频命名规范
-- **标准文件名**: `audio/neural_1_2x.m4a`
-- 禁止使用: `neural_processed.m4a`, `audio.m4a`, `voice.mp3` 等非标准命名
+### 音频文件规范
+- `audio/neural_full.mp3` — edge-tts 原始输出（--rate +0%）
+- `audio/neural_1_2x.m4a` — atempo 后处理音频（从 video-config.json voice.atempo 读取）
+- **禁止使用**: `neural_processed.m4a`, `audio.m4a`, `voice.mp3` 等非标准命名
 
 ### 音频参数要求
 - 格式: AAC
@@ -137,11 +138,11 @@ python3 -c "import subprocess; v=float(subprocess.check_output(['ffprobe','-v','
 ## Step 10: 生成视频
 
 ### 视频参数要求
-- **分辨率**: 1080×1920 (竖屏)
-- **帧率**: 60fps
-- **编码**: H.264
-- **音频**: AAC
-- **文件名**: `video-project/out/final.mp4`（Remotion Native 方案，音频内嵌，无需 ffmpeg 混流）
+- **输出文件**：`video-project/out/final.mp4`
+- **分辨率**：1080×1920 (竖屏)
+- **帧率**：60fps
+- **编码**：H.264
+- **音频**：AAC
 
 ### 验证命令
 ```bash
@@ -182,12 +183,12 @@ echo $?  # 应输出 0
 
 ---
 
-## 一键验证脚本
+## 质量验证脚本
 
-### 完整项目验证
+### 渲染后质量门禁
 ```bash
-# 使用 video-creator-validator.js 验证完整项目
-node {SKILL_DIR}/scripts/video-creator-validator.js \
+# 使用 video-quality-gate.js 进行渲染后质量验证
+node {SKILL_DIR}/scripts/video-quality-gate.js \
   "$PROJECT_DIR"
 ```
 
@@ -240,9 +241,9 @@ echo "通过: $PASS | 失败: $FAIL"
 |------|------|----------|
 | 封面尺寸错误 | 使用了错误的分辨率 | 重新生成正确尺寸的封面 |
 | 音频命名为 neural_processed.m4a | 未遵循命名规范 | `mv audio/neural_processed.m4a audio/neural_1_2x.m4a` |
-| 字幕为 .srt 格式 | 生成了错误的格式 | 使用 ASS 格式重新生成 |
-| 字幕 Fontsize≠72 | 使用了错误的字号 | 修改为 Fontsize=72（竖屏必须≥72px） |
-| 视频无音频 | Remotion 渲染问题 | 使用 ffmpeg 混流音频 |
+| 字幕为 captions.json 格式 | 生成了错误的格式 | 使用 @remotion/captions 生成 captions.json |
+| 字幕文字与视频不同步 | captions.json endMs 未基于渲染后视频更新 | 用 ffprobe 测实际视频时长，同步 captions.json 末段 endMs |
+| 视频无音频 | Remotion 渲染问题 | 检查 `<Audio>` 组件配置，确认 audioFile 路径正确，音频轨道已内嵌 |
 | 视频尺寸错误 | 渲染时分辨率设置错误 | 修改 Remotion 配置为 1080×1920 |
 
 ---

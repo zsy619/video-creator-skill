@@ -237,10 +237,10 @@ export const CaptionOverlay: React.FC<{
     <AbsoluteFill>
       {captions.map((caption, index) => {
         const nextCaption = captions[index + 1] || null;
-        const startFrame = Math.floor((caption.startMs / 1000) * fps);
+        const startFrame = Math.round((caption.startMs / 1000) * fps);
         const endFrame = nextCaption
-          ? Math.floor((nextCaption.startMs / 1000) * fps)
-          : Math.floor((caption.endMs / 1000) * fps);
+          ? Math.round((nextCaption.startMs / 1000) * fps)
+          : Math.round((caption.endMs / 1000) * fps);
 
         return (
           <Sequence

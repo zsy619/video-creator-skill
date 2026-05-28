@@ -10,7 +10,7 @@
  * 输出（写入 ${PROJECT_DIR}/docs/）:
  *   article.md          — 原始内容（拷贝）
  *   video-script.md     — 分镜脚本（6-8场景，含时长分配）
- *   narration.txt      — 配音文本（从 video-script.md 提取，⌊duration × 6.45⌋ 字上限）
+ *   narration.txt      — 配音文本（从 article.md 提取，⌊duration × 3.37⌋ 字上限，rate=+0% 速率）
  *   copy.md            — 小红书营销文案（3条）
  *   wechat-copy.md     — 公众号文案
  *   posting-guide.md   — 多平台发布指南

@@ -90,7 +90,7 @@ npx remotion render VerticalVideo out/final.mp4
 ```bash
 mkdir -p out/
 ffmpeg -i video-project/out/final.mp4 -i audio/neural_1_2x.m4a \
-  -c:v copy -c:a aac -shortest out/final-video-with-audio.mp4
+  -c:v copy -c:a aac -shortest out/final.mp4
 ```
 
 ### Q: 封面图生成失败（API 不可用 / 错位）
@@ -203,7 +203,7 @@ img.save('docs/assets/cover.png')
 
 ```bash
 export NODE_TLS_REJECT_UNAUTHORIZED=0
-npx remotion render VerticalVideo --output out/video.mp4
+npx remotion render VerticalVideo --output out/final.mp4
 ```
 
 注意：此方法会降低安全性，仅在本地开发环境使用。

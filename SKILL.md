@@ -66,14 +66,15 @@ metadata:
 - **禁止分段拼接配音**：必须整段连续生成
 - **禁止跳过音频后处理**：必须执行去静音 + atempo + AAC 256k
 - **禁止使用旧版 ffmpeg 混流**：Remotion Native 方案（`<Audio>` 直接内嵌 MP4）
-- **禁止 edge-tts rate=+20% + atempo=1.2x 叠加**：使用 `--rate +0%` + `voice.atempo` 配置值（优先从 video-config.json 读取，不再动态计算）
-- **用户指定 atempo**：从 `video-config.json` 的 `voice.atempo` 字段读取（如 1.2），工作流直接使用该值
+- **禁止 edge-tts rate=+20% + atempo=1.2x 叠加**：使用 `--rate +0%` + `VOICE_ATEMPO` 配置值（从 video-config.json `voice.atempo` 读取，默认 1.2）。音频 pipeline 流程：`edge-tts --rate +0%` 生成原始音频 → `ffmpeg atempo ${VOICE_ATEMPO}` 后处理。
+- **用户指定 atempo**：从 `video-config.json` 的 `voice.atempo` 字段读取（如 1.2），工作流直接使用该值。若字段不存在则使用默认值 1.2。
+- **atempo 仅在后处理生效**：atempo 在 ffmpeg 后处理阶段对音频文件操作，不影响 TTS 生成速率。Remotion 直接播放 `audioFile` 路径的文件，该文件已经过 atempo 处理。
 - **音频文件命名**：`audio/neural_full.mp3`（原始）→ `audio/neural_1_2x.m4a`（atempo后）
 - **目标时长从 video-config.json 获取**：从 `scenes[-1]['endMs']/1000` 动态计算，禁止硬编码（如 `TARGET_DUR=52`）
 - **ffmpeg pad/truncate 必须用 /tmp/ 中转**：直接 `ffmpeg ... output.m4a` 覆盖输入文件会触发 returncode=234（OpenClawDrive 挂载卷特有）；必须先写 `/tmp/` 再 `cp` 覆盖
 
 ### 渲染铁律
-- **Root.tsx TOTAL_FRAMES**：必须用 `calculateMetadata` 动态计算（`getAudioDuration(staticFile("audio/neural_1_2x.m4a")) × fps`），禁止在 JSX 中硬编码帧数（硬编码值会覆盖 CLI 的 `--duration-in-frames` 参数）。若直接硬编码帧数，必须用 `round(实测秒数 × 60)` 而非 `ceil()`（Remotion 内部用 round()，ceil 会导致多 1 帧偏差）。帧数配置有 4 种形式（`durationInFrames={N}`、`durationInFrames={60*N}`、`TOTAL_FRAMES` const、`DURATION` const），正则必须全覆盖。
+- **Root.tsx TOTAL_FRAMES**：必须用 `calculateMetadata` 动态计算（`getAudioDuration(staticFile("audio/neural_1_2x.m4a")) × fps`），禁止在 JSX 中硬编码帧数（硬编码值会覆盖 CLI 的 `--duration-in-frames` 参数）。若直接硬编码帧数，必须用 `round(实测秒数 × 60)` 而非 `ceil()`（Remotion 内部用 round()，ceil 会导致多 1 帧偏差）。帧数配置有 4 种形式（`durationInFrames={N}`、`durationInFrames={60*N}`、`TOTAL_FRAMES` const、`DURATION` const），正则必须全覆盖。详见 `references/B-REMOTION/frame-round-calculation.md`。
 - **caption.json 末段 endMs** 必须等于视频实际时长（毫秒），而非音频时长
 - **video-config.json** 必须在项目根目录（不是 `docs/`）
 - **所有 .json 配置文件**必须符合 JSON 语法，禁止重复键名
@@ -236,6 +237,10 @@ if bad > 0 or cn < 20: exit(1)
 > ⚠️ `@remotion/media-utils` 的 `getAudioDuration` 在 subagent 渲染时可能不存在（`is not a function`），导致 `calculateMetadata` 方案不稳定。**推荐方案 1**：直接用 ffprobe 获取音频时长 × 60fps，硬编码到 Root.tsx。
 **检测命令**（渲染前必做）：
 ```bash
+# 检查帧数配置是否为 4 种模式之一
+grep -rE 'durationInFrames|TOTAL_FRAMES|DURATION_FRAMES' video-project/src/ || echo "⚠️ 未找到帧数配置"
+```
+```bash
 ### 冲突 9：CoverScene attrs 配置层到渲染层断连 ✅ 2026-05-27
 - **问题**：`video-config.json cover.attrs` 字段完整（如 `["WebGL渲染引擎","15层数据可视化","60fps流畅体验","MIT开源协议"]`），但渲染的封面标签是 hard-coded 的 `["🛩️ 航空追踪","🚢 海事监控","🔒 RECON工具包"]`，与配置完全脱节
 - **根因**：`CoverScene` 组件声明为 `({ title, subtitle })`，接收参数中无 `attrs`，内部直接引用 hard-coded 标签数组
@@ -259,23 +264,20 @@ cd video-project && npm run build  # 2819帧 ✅
 > - CoverScene 视频内嵌标签：Remotion 渲染时在视频封面帧内显示 title + subtitle + attrs 标签，是视频画面的一部分
 > 两者数据源均为 `video-config.json cover` 字段，但渲染位置和时机不同。
 
-### 冲突 10：voice.atempo 残留字段 ✅ 2026-05-27
-- **问题**：`video-config.json` 的 `voice.atempo: 1.2` 字段在音频 pipeline 改用 `rate=+0%` 直接输出后仍然残留，导致配置与实际行为不一致
-- **根因**：音频 pipeline 从 `atempo` 压缩改为直接使用原始音频（atempo=1.0），但 video-config.json 的 `voice.atempo` 字段未同步删除
-- **受影响文件**：`video-config.json`
+### 冲突 10：voice.atempo 字段说明（2026-05-28 澄清）
+- **背景**：`video-config.json` 的 `voice.atempo` 字段用于 ffmpeg 后处理阶段，对 `neural_full.mp3` 原始音频执行 atempo 变速（1.2x），输出到 `neural_1_2x.m4a`
+- **受影响文件**：`video-config.json`（写入 voice.atempo）、`launch.sh`（读取 voice.atempo 并传给 ffmpeg atempo）
 - **检测脚本**：
 ```bash
 python3 -c "
 import json
 cfg = json.load(open('video-config.json'))
-if 'voice' in cfg and 'atempo' in cfg.get('voice', {}):
-    print(f'⚠️  atempo 残留: {cfg[\"voice\"][\"atempo\"]} (应删除)')
-else:
-    print('✅ 无 atempo 残留')
+ate = cfg.get('voice', {}).get('atempo')
+print(f'atempo: {ate}' if ate else '✅ 无 atempo 字段')
 "
 ```
-- **修复**：删除 `video-config.json` 中的 `voice.atempo` 字段，保留 `voice.rate`
-> ⚠️ `atempo` 配置从未在 Remotion 中生效（Remotion 直接播放 `audioFile` 路径的原始文件），保留会误导后续维护。配置层 `atempo` 与渲染层实际行为必须一致。
+- **用途**：atempo 在 ffmpeg 后处理阶段生效，不影响 TTS 生成速率。Remotion 直接播放已处理的 `neural_1_2x.m4a`，该文件已经过 atempo 变速
+- **注意**：若音频 pipeline 改为直接使用原始音频（无 ffmpeg atempo），需同步删除此字段避免误导
 
 ### 冲突 11：video-config.json duration/scenes 与 Root.tsx 帧数不一致 ✅ 2026-05-27
 - **问题**：`video-config.json` 的 `duration: 47`（秒）和 `scenes[].duration: 7.83s`（6场景）是近似值，但 Root.tsx 的 `DURATION_FRAMES = 2819` 基于精确的 `46968ms / 60fps` 计算，两者数值不精确对应
@@ -287,7 +289,7 @@ else:
 # 获取精确视频时长
 ffprobe -i video-project/out/final.mp4 -show_entries format=duration -v quiet -of csv=p=0
 # Root.tsx 帧数验证
-python3 -c "import math; ms=46968; fps=60; frames=math.ceil(ms/1000*fps); print(f'DURATION_FRAMES={frames}')"
+python3 -c "import math; ms=46968; fps=60; frames=math.round(ms/1000*fps); print(f'DURATION_FRAMES={frames}')"
 ```
 > 详见 `references/G-WORKFLOW/frame-sync.md`（帧数反推 / caption 重叠 / 同步脚本）
 
@@ -457,15 +459,20 @@ else:
   - 视频时长以 Remotion 渲染后 `ffprobe` 测得的实际秒数为准
   - `inferredTheme` 是自动分析残留字段，应删除；保留 `theme` 字段即可
 
-#### 冲突 10：voice.atempo 残留字段 ✅ 2026-05-27
-- **问题**：`video-config.json voice.atempo: 1.2` 在音频 pipeline 改用 `rate=+0%` 后残留，导致配置与实际行为不一致
-- **根因**：音频 pipeline 从 `atempo` 压缩改为直接使用原始音频（atempo=1.0），但 `voice.atempo` 字段未同步删除
-- **受影响文件**：`video-config.json`
+#### 冲突 10：voice.atempo 字段说明（2026-05-28 澄清）
+- **背景**：`video-config.json` 的 `voice.atempo` 字段用于 ffmpeg 后处理阶段，对 `neural_full.mp3` 原始音频执行 atempo 变速（1.2x），输出到 `neural_1_2x.m4a`
+- **受影响文件**：`video-config.json`（写入 voice.atempo）、`launch.sh`（读取 voice.atempo 并传给 ffmpeg atempo）
 - **检测脚本**：
 ```bash
-python3 -c "import json; cfg=json.load(open('video-config.json')); print('⚠️ atempo残留' if cfg.get('voice',{}).get('atempo') else '✅ ok')"
+python3 -c "
+import json
+cfg = json.load(open('video-config.json'))
+ate = cfg.get('voice', {}).get('atempo')
+print(f'atempo: {ate}' if ate else '✅ 无 atempo 字段')
+"
 ```
-- **修复**：删除 `voice.atempo`，保留 `voice.rate`；`atempo` 从未在 Remotion 渲染层生效，保留仅会误导维护
+- **用途**：atempo 在 ffmpeg 后处理阶段生效，不影响 TTS 生成速率。Remotion 直接播放已处理的 `neural_1_2x.m4a`，该文件已经过 atempo 变速
+- **注意**：若音频 pipeline 改为直接使用原始音频（无 ffmpeg atempo），需同步删除此字段避免误导
 
 #### 冲突 11：video-config.json duration/scenes 近似值与 Root.tsx 精确帧数不匹配 ✅ 2026-05-27
 - **问题**：`video-config.json` 的 `duration: 47` 和 `scenes[].duration: 7.83s` 是近似值，`Root.tsx` 的 `DURATION_FRAMES: 2819` 基于精确 `46968ms / 60fps` 计算，两者数值不一致
@@ -518,7 +525,7 @@ grep "attrs" video-project/src/Root.tsx | grep scenes
 **渲染验证（osiris 项目 6 次渲染通过）**：
 ```bash
 # 检测文字像素上下半部分布（内容中心应在画布中心 y=960px）
-ffmpeg -i video-project/out/VerticalVideo.mp4 -vf "select=eq(n\,519)" -vframes 1 -update 1 /tmp/painpoint.png
+ffmpeg -i video-project/out/final.mp4 -vf "select=eq(n\,519)" -vframes 1 -update 1 /tmp/painpoint.png
 python3 -c "
 from PIL import Image; import numpy as np
 img = Image.open('/tmp/painpoint.png'); arr = np.array(img)
@@ -555,6 +562,32 @@ else: print('❌ 偏底或偏顶')
 - ffprobe 实测 47082ms → `ceil(47082/1000*60) = 2826`，但 Remotion 渲染出 **2825 帧**
 - Remotion 用 `round()` 行为：47082/1000×60 = 2824.92 → round = **2825** ✅
 - 永远用 `round(actual_ms / 1000 * 60)`，不用 `ceil()`
+
+### ⚠️ video-quality-gate.js operator precedence Bug（2026-05-28 新增）
+**症状**：音频时长偏差检测误报（`targetDuration=0.8667` 而非 52）。音频 51.9s，实际偏差仅 1.9%，但显示 57.8% 偏差。
+**根因**：三元运算符优先级陷阱：
+```javascript
+// 错误代码（bug）
+targetDuration = cfg.duration || cfg.totalFrames
+  ? (cfg.duration || cfg.totalFrames / 60)
+  : null;
+// 等价于 cfg.duration || (cfg.totalFrames ? cfg.duration : cfg.totalFrames / 60)
+// cfg.duration=52 时走左侧分支（返回52），但 cfg.duration=0 时走右侧
+// 正确代码：
+targetDuration = (cfg.duration != null)
+  ? cfg.duration
+  : (cfg.totalFrames != null ? cfg.totalFrames / 60 : null);
+```
+**验证**：`node --check scripts/video-quality-gate.js`
+
+### ⚠️ Python 帧数计算：只用 `round()`，不用 `math.ceil()`
+**Python 内置 `round()` 是正确的**：Python 的 `round()` 与 Remotion 内部 JS `Math.round()` 行为一致（银行家舍入：.5 时取偶数），实测误差 ≤1 帧。
+**注意**：`math.ceil()` 用于**秒数估算**（`ceil(chineseChars / 400 * 60)`），不用于帧数计算。
+**检测**：
+```bash
+grep -rn "math\.ceil.*60" scripts/*.py
+# 应仅有 gen_frames_template.py 中一行，且已修复为 round()
+```
 
 ### ⚠️ Python 3.9 严格拒绝 JSON trailing comma
 **症状**：`video-config.json` 解析失败，`Expecting property name enclosed in double quotes` 指向文件末尾 `}` 附近。
@@ -602,7 +635,7 @@ cp /tmp/out.m4a audio/neural_1_2x.m4a
 **正确流程**：
 ```bash
 # 1. 渲染完成后立即获取实际视频时长
-VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video-project/out/VerticalVideo.mp4)
+VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video-project/out/final.mp4)
 EXPECTED_ENDMS=$(python3 -c "print(int(round(${VIDEO_DUR} * 1000)))")
 
 # 2. 更新 captions.json 末段 endMs
@@ -912,7 +945,17 @@ Step 0  → Step 1  → Step 2  → Step 3  → Step 4  → Step 5
 
 ### 核心输出文件
 
-`docs/assets/cover.png`(视频号封面) · `docs/assets/cover-wechat.png`(公众号封面) · `docs/assets/cover-xhs.png`(小红书封面) · `docs/narration.txt` · `docs/session-log.md` · `audio/neural_1_2x.m4a` · `audio/captions.json` · `video-project/out/final.mp4`
+| `audio/neural_1_2x.m4a` · `audio/captions.json` · `video-project/out/final.mp4`
+
+### ⚠️ narration.txt 字数上限公式（2026-05-28 修正）
+**旧公式**（已废弃）：`⌊TARGET_DURATION × 6.45⌋` — 对应 `rate=+20%`，导致字数严重不足
+**正确公式**：`⌊TARGET_DURATION × 3.37⌋` — 实测 `zh-CN-YunjianNeural --rate +0%`
+**检测**：
+```bash
+grep -rn "6\.45" scripts/pre-subtitle-check.js rules/ references/
+# 应无输出（有输出说明未更新）
+```
+**受影响文件**：`pre-subtitle-check.js:122` · `generate_docs.js:13` · `launch.sh:125,460`（均已修复）
 
 ### launch.sh 使用（2026-05-23 重要修正）
 
@@ -944,7 +987,7 @@ bash {SKILL_DIR}/scripts/launch.sh all              # 完整流程（Step 0→10
 
 ```bash
 # Remotion Native（音频内嵌 + 字幕同期烧录，无需 ffmpeg）
-npx remotion render VerticalVideo
+npx remotion render VerticalVideo out/final.mp4
 
 # 封面生成（必须先执行）
 python3 generate_cover.py   # 三平台：vertical/wechat/xhs
@@ -983,7 +1026,32 @@ EOF
 > - `documentation-consistency.md`：检查所有对其他 references/ 文件的引用是否仍然有效
 > - `subagent-timeout.md`：launch.sh 命令引用路径是否正确
 
-> ⚠️ **CHECKLIST.md 已知问题**（2026-05-23）：rules/CHECKLIST.md 有两处过时内容需手动修复：
-> 1. 验证脚本的 for 循环缺少 `narration.txt`（当前列出11个，应为12个，含 README.md 和 narration.txt）
-> 2. 字幕/视频文件名过时：文档写 `subtitles.ass` + `final-with-subs.mp4`，实际应使用 `captions.json` + `final.mp4`（Remotion Native 方案）
-> 修复方法：用文本编辑器打开 `~/.hermes/skills/video-creator/rules/CHECKLIST.md` 搜索上述字符串并替换。
+### 规则文档一致性维护（2026-05-28 新增）
+**症状**：更新 `references/` 子文档后，rules/ 目录下的规则文档未能同步更新，导致文档间引用不一致。经验证，以下内容最常遗漏：
+- `subtitles.ass` / `audio/subtitles_*.ass` → `audio/captions.json`
+- `gen_subtitles.py` / `gen_subtitles_template.py` → 已废弃（Remotion Native 字幕生成由 launch.sh Step 3 完成）
+- `final-with-subs.mp4` → `final.mp4`（Remotion Native 输出文件名）
+- 旧版 3-step ffmpeg 混流渲染流程 → Remotion Native 单步渲染
+- 字幕字号 72px Fontsize 约束 → 仅对 ASS 方案有意义，captions.json 方案已不适用
+- 小红书封面 1440×1920 → **1440×2560**（1440×1920 是旧错误值）
+
+**维护检查清单**：每次更新核心 pipeline 后，扫描 rules/ 目录：
+```bash
+grep -rn "subtitles.ass\|final-with-subs\|gen_subtitles\|1440.*1920\|Fontsize.*72" \
+  ~/.hermes/skills/video-creator/rules/
+```
+若有匹配，手动替换为正确值，并更新对应文件的"最后更新"时间戳。
+
+**已确认的过时内容修复记录**（2026-05-28）：
+| 文件 | 修复内容 |
+|------|---------|
+| `rules/CHECKLIST.md` | `.srt 格式` → `captions.json`；`Fontsize≠72` → `字幕与视频不同步`；`ffmpeg 混流` → `检查 Audio 组件` |
+| `rules/WORKFLOW.md` | 6处 `subtitles_*.ass` / `gen_subtitles.py` / `final-with-subs` → `captions.json` / `final.mp4` |
+| `rules/QUICKSTART.md` | 3处 `subtitles.ass` / `final-with-subs.mp4` → `captions.json` / `final.mp4` |
+| `rules/UNIFIED_RULES.md` | 旧 3-step 混流渲染 → Remotion Native 单步；中间文件列表删除；更新 时间戳 |
+| `README.md` | 小红书封面 1440×1920 → 1440×2560 |
+| `rules/FONTS.md` | 无需修改（Fontsize 规范仅对 ASS 有意义） |
+| `rules/VOICE.md` | 无需修改（音频 pipeline 描述正确） |
+| `rules/SUBTITLES.md` | 保留 ASS fallback 参考文档（无害） |
+
+> ⚠️ **CHECKLIST.md 已知问题**（2026-05-28 已修复）：

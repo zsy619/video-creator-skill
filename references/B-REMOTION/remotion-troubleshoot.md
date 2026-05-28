@@ -11,10 +11,10 @@
 
 **症状**：
 ```
-npx remotion render src/Root.tsx Video out/video.mp4
+npx remotion render src/Root.tsx VerticalVideo out/final.mp4
 → No entry point specified
 
-npx remotion render src/Video.tsx Video out/video.mp4
+npx remotion render src/Video.tsx VerticalVideo out/final.mp4
 → useCurrentFrame() can only be called inside a component that was registered as a composition
 ```
 
@@ -447,9 +447,9 @@ const fadeIn = interpolate(frame, [FRAMES.pain.start, FRAMES.pain.start + 40], .
 ### 验证方法
 
 ```bash
-ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1 video.mp4
+ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of default=noprint_wrappers=1 video-project/out/final.mp4
 
-mpv video.mp4 --start=2 --end=5  # 检查pain场景(176帧=2.9秒)
+mpv video-project/out/final.mp4 --start=2 --end=5
 ```
 
 > **关键教训**：`useCurrentFrame()` 在 Sequence 内部返回**局部帧（0-N）**，在 Sequence 外部返回**全局帧**。

@@ -33,7 +33,7 @@ def check_one(name):
         if not fm: fm = re.search(r'durationInFrames\s*=\s*\{\s*(\d+)\s*\}', content)
         frames = int(fm.group(1)) if fm else None
         return {'name': name, 'frames': frames, 'video_s': video_s,
-                'correct': math.ceil(video_s * 60)}
+                'correct': round(video_s * 60)}
     except: return None
 
 projects = sorted([n for n in os.listdir(workspace) 

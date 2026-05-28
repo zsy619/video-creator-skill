@@ -383,7 +383,7 @@ cmd_render() {
   AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
     -of csv=p=0 "${proj_dir}/audio/neural_1_2x.m4a" 2>/dev/null || echo "38")
   local TOTAL_FRAMES
-  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
+  TOTAL_FRAMES=$(python3 -c "import math; print(math.round(${AUDIO_DURATION} * 60))")
 
   log "音频时长: ${AUDIO_DURATION}s → ${TOTAL_FRAMES} 帧 @60fps"
 
@@ -651,7 +651,7 @@ print(f'CAPTION_OK:{len(captions)} captions ({AUDIO_DURATION:.3f}s total)')
   AUDIO_DURATION=$(ffprobe -v error -show_entries format=duration \
     -of csv=p=0 "${proj_dir}/audio/neural_1_2x.m4a" 2>/dev/null || echo "0")
   local TOTAL_FRAMES
-  TOTAL_FRAMES=$(python3 -c "import math; print(math.ceil(${AUDIO_DURATION} * 60))")
+  TOTAL_FRAMES=$(python3 -c "import math; print(math.round(${AUDIO_DURATION} * 60))")
   echo ""
   echo "=== Step 7: Remotion 渲染（60fps / 1080×1920 / ${TOTAL_FRAMES}帧）==="
 

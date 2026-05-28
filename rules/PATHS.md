@@ -57,22 +57,30 @@
 └── {project-name}/              # 项目根目录
     └── docs/                    # 文档目录 (所有文档存储于此)
         ├── README.md           # 文档首页
+        ├── article.md          # 原始内容（抓取或整理）
         ├── video-script.md     # 视频脚本
         ├── copy.md             # 营销文案集
         ├── wechat-copy.md      # 公众号文案
-        ├── posting-guide.md     # 多平台发布指南
-        ├── landing-page.html    # 宣传落地页
-        ├── article-page.html    # 文章阅读页
+        ├── posting-guide.md    # 多平台发布指南
+        ├── landing-page.html   # 宣传落地页
+        ├── article-page.html   # 文章阅读页
         ├── wechat-page.html    # 公众号适配页
         ├── session-log.md      # Session 日志（token 消耗追踪）
+        ├── report.json         # 项目元数据（来源链接/创建时间等）
+        ├── narration.txt       # 配音文本（⌊duration×3.37⌋ 字上限）
         └── assets/             # 视觉素材
-            ├── cover.png       # 封面图（9:16竖屏）
+            ├── cover.png       # 封面图（9:16竖屏，1440×2560）
             ├── imgs/           # 链接下载的原始图片
             └── illustrations/  # AI生成的插图/信息图
+    └── video-config.json       # 项目配置（duration/voice/cover/scenes 等）
     └── video-project/         # 视频项目
         ├── src/
         ├── out/
         └── assets/
+    └── audio/                   # 音频目录（launch.sh 自动创建）
+        ├── neural_full.mp3     # edge-tts 原始输出（--rate +0%）
+        ├── neural_1_2x.m4a     # atempo 后处理音频（从 video-config.json voice.atempo 读取）
+        └── captions.json       # 字幕时间轴（sentence-level，launch.sh Step 3 自动生成）
 ```
 
 ## 文件命名规范

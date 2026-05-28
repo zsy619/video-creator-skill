@@ -936,7 +936,7 @@ import { Img, staticFile } from 'remotion';
 ```tsx
 // 远程资源可直接使用
 <Img src="https://example.com/image.png" />
-<Video src="https://remotion.media/video.mp4" />
+<Video src="https://example.com/final.mp4" />
 ```
 
 ### 字体加载
@@ -964,8 +964,8 @@ useEffect(() => {
 
 ## 音频组件
 
-> **📖 参考**: [VOICE.md](VOICE.md) - Azure Neural TTS 音频合成详细指南
-> **⚠️ 注意**: 如果Azure Neural TTS 音频合成出现异常，请使用 Voicebox 服务生成对应的音频。
+> **📖 参考**: [VOICE.md](VOICE.md) - edge-tts 音频合成详细指南
+> **⚠️ 注意**: 如果 edge-tts 音频合成出现异常，请使用 Voicebox 服务生成对应的音频。
 > **⚠️ 注意**: 如果使用 Voicebox 服务，则设置为全局，避免每次都下载与设置环境变量。
 
 ### 音频组件规范
@@ -999,13 +999,13 @@ useEffect(() => {
 
 ```tsx
 // 正常速度
-<Video src={staticFile('video.mp4')} playbackRate={1} />
+<Video src={staticFile('final.mp4')} playbackRate={1} />
 
 // 2倍速
-<Video src={staticFile('video.mp4')} playbackRate={2} />
+<Video src={staticFile('final.mp4')} playbackRate={2} />
 
 // 0.5倍速（慢动作）
-<Video src={staticFile('video.mp4')} playbackRate={0.5} />
+<Video src={staticFile('final.mp4')} playbackRate={0.5} />
 ```
 
 ---
@@ -1044,13 +1044,13 @@ useEffect(() => {
 
    ```bash
    # 高配机器（8+ 核）：--concurrency=8
-   npx remotion render VerticalVideo out/video.mp4 \
+   npx remotion render VerticalVideo out/final.mp4 \
      --concurrency=8 \
      --crf=18 \
      --log=error
 
    # 低配机器：--concurrency=4
-   npx remotion render VerticalVideo out/video.mp4 \
+   npx remotion render VerticalVideo out/final.mp4 \
      --concurrency=4 \
      --crf=23
 
@@ -1080,7 +1080,7 @@ useEffect(() => {
    npx remotion benchmark
 
    # 定位最慢帧
-   npx remotion render VerticalVideo out/video.mp4 --log=verbose
+   npx remotion render VerticalVideo out/final.mp4 --log=verbose
    ```
 
 ### 批量渲染
@@ -1163,7 +1163,7 @@ const calculateMetadata: CalculateMetadataFunction<Props> = async ({ props }) =>
   const { getVideoDuration } = await import('@remotion/media-utils');
   const durationInSeconds = await getVideoDuration(props.videoSrc);
   return {
-    durationInFrames: Math.ceil(durationInSeconds * 60),
+    durationInFrames: Math.round(durationInSeconds * 60),
   };
 };
 

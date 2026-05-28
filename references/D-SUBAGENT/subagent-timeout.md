@@ -1,6 +1,6 @@
 # Subagent 超时恢复指南
 
-> **最后更新**：2026-05-18（整合 launch-sh-reference、feishu-base-补全流程、remotion-render-output-filename）
+> **最后更新**：2026-05-28（整合 launch-sh-reference、feishu-base-补全流程、remotion-render-output-filename）
 > **配套文档**：`C-CONTENT/content-document-generation.md`（Step 0 文档生成）、`C-CONTENT/subtitle-production.md`（字幕生成）
 
 ---
@@ -56,7 +56,7 @@ out/ 有 .mp4 文件？
 ```bash
 cd "{WORKSPACE_DIR}/<project>-video/video-project"
 npx remotion render VerticalVideo \
-  --output out/${PROJECT_NAME}.mp4 \
+  out/final.mp4 \
   --concurrency=4 --fps=60 --disable-gpu --log error
 ```
 

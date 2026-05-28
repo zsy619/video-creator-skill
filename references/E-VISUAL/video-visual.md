@@ -240,8 +240,8 @@ const GlitchText: React.FC<{ children: string; style?: React.CSSProperties }> = 
 ```tsx
 const TerminalText: React.FC<{ children: string; color?: string }> = ({ children, color = '#00FF88' }) => {
   const frame = useCurrentFrame();
-  const visibleChars = Math.min(children.length, Math.floor(frame / 3));
-  const cursorBlink = Math.floor(frame / 15) % 2 === 0;
+  const visibleChars = Math.min(children.length, Math.round(frame / 3));
+  const cursorBlink = Math.round(frame / 15) % 2 === 0;
   return (
     <div style={{ fontFamily: "Menlo, monospace", color }}>
       <span>{children.substring(0, visibleChars)}</span>

@@ -3,7 +3,7 @@
 > **优先级：最高**
 > **适用范围**：所有 video-creator 技能生成的视频项目
 > **默认风格**：赛博朋克（Cyberpunk）
-> **最后更新**：2026-05-14
+> **最后更新**：2026-05-28（Remotion Native + captions.json + final.mp4）
 
 ---
 
@@ -17,7 +17,7 @@
 | 2 | 封面字体小 | PIL 字体渲染字号有限制 | **封面使用 PIL generate_cover.py，字号上限已定义** |
 | 3 | 黑屏 | 场景总帧数 < 视频总帧数 | **所有场景帧数之和必须 = 视频总帧数** |
 | 4 | 元素不居中 | CSS 硬编码 top 值 | **使用 Flexbox 居中，禁止硬编码偏移** |
-| 5 | 中间文件残留 | 未清理 | **只保留 final-with-subs.mp4** |
+| 5 | 中间文件残留 | 未清理 | **只保留 final.mp4** |
 | 6 | 重复渲染 | 每次小修改都重新渲染 | **批量修改到位再渲染** |
 
 ---
@@ -53,13 +53,13 @@ PlayResY: 1920
 
 ```
 总时长 = 音频时长（秒）
-总帧数 = ceil(音频时长 × 60)
-所有场景帧数之和必须 = 总帧数，禁止少一帧！
+总帧数 = round(音频时长 × 60)
+所有场景帧数之和必须 = 总帧数（允许 ±1 帧误差）
 ```
 
 **示例**：
-- 音频时长 58.944秒 → 总帧数 = ceil(58.944 × 60) = 3540帧
-- 场景分布：cover(180) + apps(720) + frameworks(900) + CTA(900) + continue(840) = 3540 ✅
+- 音频时长 58.944秒 → 总帧数 = round(58.944 × 60) = 3537帧
+- 场景分布：cover(180) + apps(720) + frameworks(900) + CTA(900) + continue(837) = 3537 ✅
 
 ### 2.5 atempo 反模式门禁（强制，2026-05-10 新增）
 
@@ -104,7 +104,7 @@ fi
 ```typescript
 const FPS = 60;
 const AUDIO_DURATION = 58.944; // 秒
-const TOTAL_FRAMES = Math.ceil(AUDIO_DURATION * FPS);
+const TOTAL_FRAMES = Math.round(AUDIO_DURATION * FPS);
 
 // 场景定义（帧数必须加起来 = TOTAL_FRAMES）
 const SCENES = [
@@ -112,7 +112,7 @@ const SCENES = [
   { name: "apps", from: 180, duration: Math.ceil(12 * FPS) },     // 180-900
   { name: "frameworks", from: 900, duration: Math.ceil(15 * FPS) }, // 900-1800
   { name: "cta", from: 1800, duration: Math.ceil(15 * FPS) },      // 1800-2700
-  { name: "continue", from: 2700, duration: TOTAL_FRAMES - 2700 },  // 2700-3540
+  { name: "continue", from: 2700, duration: TOTAL_FRAMES - 2700 },  // 2700-3537 (round模式)
 ];
 ```
 
@@ -198,33 +198,27 @@ const CYBER = {
 
 ### 7. 文件清理规则
 
-渲染完成后**立即删除所有中间文件**：
+渲染完成后**立即删除所有中间文件**（Remotion Native 无中间视频文件）：
 
 ```
-video_raw.mp4
-video_audio.mp4
-video_cyber.mp4
-video_v2.mp4
-video_static.mp4
-video_noaudio.mp4
-video_with_audio.mp4
+（Remotion Native 方案无中间文件，渲染直接输出 final.mp4）
 ```
 
 只保留：
 ```
-final-with-subs.mp4  ← 最终视频（字幕已烧录）
+final.mp4  ← 最终视频（Remotion Native，含音频轨道和字幕）
 ```
 
-### 8. 渲染流程
+### 8. 渲染流程（Remotion Native）
 
-```
-Step 1: 渲染无音频视频 → video_raw.mp4
-Step 2: 合并音频 → video_audio.mp4
-Step 3: 烧录字幕(72px) → final-with-subs.mp4
-Step 4: 删除所有中间文件
+```bash
+# Remotion 直出（含 Audio 组件内嵌音频 + CaptionOverlay 字幕）
+npx remotion render VerticalVideo out/final.mp4 \
+  --concurrency=4 --fps=60 --log=error
+# 无需 ffmpeg 混流，无需 ASS 字幕烧录
 ```
 
-**注意**：Remotion 组件中**不要**集成字幕，字幕通过 ffmpeg 烧录。
+**注意**：Remotion 组件中已集成字幕（`<CaptionOverlay captions={captions}>`），字幕通过 Remotion 渲染而非 ffmpeg 烧录。
 
 ---
 
@@ -261,7 +255,7 @@ Step 4: 删除所有中间文件
 - [ ] 视频总时长 = 音频时长（允许 ±0.5秒误差）
 - [ ] 字幕清晰可读（≥72px）
 - [ ] 无黑屏（最后帧 = 延续场景）
-- [ ] 只有 final-with-subs.mp4 一个视频文件
+- [ ] 只有 final.mp4 一个视频文件
 - [ ] 封面图存在且尺寸正确（1080×1920 / 900×383 / 1440×2560）
 - [ ] 封面由 PIL generate_cover.py 生成，三平台各自独立
 

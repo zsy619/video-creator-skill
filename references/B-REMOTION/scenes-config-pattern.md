@@ -83,7 +83,7 @@ from PIL import Image
 import subprocess, numpy as np
 frames = [0, 519, 1039, 1559, 2079, 2599, 3118]
 for f in frames:
-    r = subprocess.run(['ffmpeg','-y','-i','video-project/out/VerticalVideo.mp4','-vf',f'select=eq(n\\,{f})','-vframes','1','-update','1',f'/tmp/f{f}.png'],capture_output=True)
+    r = subprocess.run(['ffmpeg','-y','-i','video-project/out/final.mp4','-vf',f'select=eq(n\\,{f})','-vframes','1','-update','1',f'/tmp/f{f}.png'],capture_output=True)
     img = Image.open(f'/tmp/f{f}.png')
     m = np.array(img).mean()
     print(f'帧{f}: {m:.1f} {\"✅\" if m>25 else \"❌\"} ')

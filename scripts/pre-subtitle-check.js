@@ -109,7 +109,7 @@ function checkTextLength() {
   }
 
   if (!text) {
-    warn('未找到配音文本文件（video-script.md 或 raw/text.txt），跳过文本长度检查');
+    warn('未找到配音文本文件（docs/narration.txt 或 docs/video-script.md），跳过文本长度检查');
     return true;
   }
 
@@ -117,12 +117,12 @@ function checkTextLength() {
   const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
   const totalChars = text.length;
 
-  // 字数上限 = floor(目标时长 × 6.45)，实测依据：zh-CN-YunjianNeural --rate +20%
-  // ⚠️ 旧公式 floor(TARGET_DURATION / 1.2 * 4.5) 严重偏低（52秒仅195字），已废弃
-  const maxChars = Math.floor(TARGET_DURATION * 6.45);
+  // 字数上限 = floor(目标时长 × 3.37)，实测依据：zh-CN-YunjianNeural --rate +0%
+  // ⚠️ 旧公式 floor(TARGET_DURATION * 6.45) 对应 rate=+20%（已废弃）
+  const maxChars = Math.floor(TARGET_DURATION * 3.37);
 
   console.log(`   文本字数: ${chineseChars}字（中文）/ ${totalChars}字（总计）`);
-  console.log(`   字数上限: ${maxChars}字（目标${TARGET_DURATION}s @1.2x语速）`);
+  console.log(`   字数上限: ${maxChars}字（目标${TARGET_DURATION}s @+0%语速）`);
 
   if (chineseChars > maxChars) {
     log(`❌ 配音文本过长（${chineseChars}字 > ${maxChars}字上限）`, RED);
@@ -209,10 +209,10 @@ function main() {
         totalFrames = config.totalFrames || null;
       } else {
         const dur = parseFloat(fs.readFileSync(cfgFile, 'utf8').trim());
-        totalFrames = dur ? Math.ceil(dur * 60) : null;
+        totalFrames = dur ? Math.round(dur * 60) : null;
       }
       if (totalFrames && duration) {
-        const expectedFrames = Math.ceil(duration * 60);
+        const expectedFrames = Math.round(duration * 60);
         const diff = Math.abs(totalFrames - expectedFrames);
         if (diff > 30) {
           log(`⚠️ 警告: 视频帧数(${totalFrames})与音频时长×60fps(${expectedFrames})差异较大`, YELLOW);
@@ -233,7 +233,7 @@ function main() {
     log('✅ 所有检查通过，可以生成字幕', GREEN);
     console.log('\n下一步: 生成 ASS 字幕文件');
     console.log('命令示例:');
-    console.log(`  node scripts/gen_subtitles.js --duration ${(getAudioDuration(audioFile) || 60).toFixed(2)} --output audio/subtitles.ass`);
+    console.log(`  ⚠️ Remotion Native 方案无需 gen_subtitles.js，使用 launch.sh Step 3 captions.json 生成`);
     console.log('');
     process.exit(0);
   } else {

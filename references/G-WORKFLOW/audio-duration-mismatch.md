@@ -28,7 +28,7 @@ ffprobe 时长                           ffprobe 时长
 **检测命令**：
 ```bash
 AUDIO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video-project/public/audio/neural_1_2x.m4a)
-VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video-project/out/VerticalVideo.mp4)
+VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 video-project/out/final.mp4)
 echo "Audio: ${AUDIO_DUR}s, Video: ${VIDEO_DUR}s"
 python3 -c "import sys; a=float('${AUDIO_DUR}'); v=float('${VIDEO_DUR}'); print(f'DIFF: {abs(a-v):.3f}s ({abs(a-v)*1000:.0f}ms)'); sys.exit(1 if abs(a-v)>0.5 else 0)"
 ```
@@ -57,7 +57,7 @@ ffmpeg -y -i audio/neural_full.mp3 -acodec aac -b:a 256k -ar 48000 -ac 2 audio/n
 import math, subprocess
 result = subprocess.run(['ffprobe', '-i', 'audio/neural_1_2x.m4a', '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'csv=p=0'], capture_output=True, text=True)
 audio_dur = float(result.stdout.strip())  # 秒
-frames = math.ceil(audio_dur * 60)
+frames = round(audio_dur * 60)
 print(f"DURATION_FRAMES = {frames}  # {audio_dur}s × 60fps")
 ```
 
@@ -143,7 +143,7 @@ set -e
 PROJECT_DIR=$1
 
 # 1. 视频实际时长
-VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 ${PROJECT_DIR}/video-project/out/VerticalVideo.mp4)
+VIDEO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 ${PROJECT_DIR}/video-project/out/final.mp4)
 echo "Video: ${VIDEO_DUR}s"
 
 # 2. 音频实际时长

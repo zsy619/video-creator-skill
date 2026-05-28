@@ -44,7 +44,7 @@ export const calculateMetadata = async () => {
     staticFile("audio/neural_1_2x.m4a")
   );
   const fps = 60;
-  const TOTAL_FRAMES = Math.floor(audioDuration * fps);
+  const TOTAL_FRAMES = Math.round(audioDuration * fps);
   return {
     durationInFrames: TOTAL_FRAMES,
     fps,

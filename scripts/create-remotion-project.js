@@ -308,10 +308,10 @@ function createProject(projectDir, config) {
     "    <AbsoluteFill>\n" +
     "      {captions.map((caption, index) => {\n" +
     "        const nextCaption = captions[index + 1] || null;\n" +
-    "        const startFrame = Math.floor((caption.startMs / 1000) * fps);\n" +
+    "        const startFrame = Math.round((caption.startMs / 1000) * fps);\n" +
     "        const endFrame = nextCaption\n" +
-    "          ? Math.floor((nextCaption.startMs / 1000) * fps)\n" +
-    "          : Math.floor((caption.endMs / 1000) * fps);\n" +
+    "          ? Math.round((nextCaption.startMs / 1000) * fps)\n" +
+    "          : Math.round((caption.endMs / 1000) * fps);\n" +
     "        const durationInFrames = endFrame - startFrame;\n" +
     "        if (durationInFrames <= 0) return null;\n\n" +
     "        return (\n" +
@@ -747,7 +747,7 @@ function createProject(projectDir, config) {
     "  let currentFrame = 0;\n" +
     "  const timings = sceneList.map((s) => {\n" +
     "    const startFrame = currentFrame;\n" +
-    "    const durationInFrames = Math.ceil(s.duration * (fps || 60));\n" +
+    "    const durationInFrames = Math.round(s.duration * (fps || 60));\n" +
     "    currentFrame += durationInFrames;\n" +
     "    return { ...s, startFrame, durationInFrames };\n" +
     "  });\n\n" +
@@ -803,12 +803,12 @@ function createProject(projectDir, config) {
     const { execSync } = require("child_process");
     try {
       const dur = execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${audioPath}"`, { encoding: "utf8" });
-      totalFrames = Math.ceil(parseFloat(dur.trim()) * fps);
+      totalFrames = Math.round(parseFloat(dur.trim()) * fps);
     } catch (e) {
-      totalFrames = Math.ceil((config.duration || 52) * fps);
+      totalFrames = Math.round((config.duration || 52) * fps);
     }
   } else {
-    totalFrames = Math.ceil((config.duration || 52) * fps);
+    totalFrames = Math.round((config.duration || 52) * fps);
   }
   // ── T-3: cover title/subtitle fallback — 从 report.json keywords 读取 ────────
   const coverReportPath = path.join(projectDir, "docs", "report.json");
