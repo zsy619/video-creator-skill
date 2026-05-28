@@ -111,49 +111,29 @@ Step 6.3 PIL resize/裁剪 → cover-xhs.png (1440×2560)
 
 ---
 
-## 9. Feishu Base 记录更新语法（必须使用 +record-batch-update）
-
-> ⚠️ **Feishu Base 更新语法与文档旧版冲突，以此为准。**
-
-**错误语法**（试错得出）：
-```bash
-lark-cli base +record-upsert --fields '{"video-creator": "是"}' # ❌ 报错
-```
+## 9. Feishu Base 记录更新语法（必须使用 +record-upsert）
+> ⚠️ **Feishu Base 更新语法与此文档旧版冲突，以此为准。**
 
 **正确语法**：
 ```bash
-lark-cli base +record-batch-update \
-  --base-token DTjXbS3tcaLVlqss6mHcmTwrnMg \
-  --table-id tblks7R5MCE03xlS \
-  --json '{"record_id_list":["RECORD_ID"],"patch":{"video-creator":"是"}}'
-```
-
-**参数说明**：
-- `--json`：传递 JSON 字符串，字段名为 Map Key，值为 CellValue
-- 字段名为单选/文本类型时，直接传字符串值 `"是"`
-- 不支持 `--fields` 参数（会报错）
-- 必须使用 `+record-batch-update`，不是 `+record-upsert`
-
-**验证步骤**（强制，执行后立即验证）：
-```bash
-lark-cli base +record-list \
+lark-cli base +record-upsert \
   --base-token DTjXbS3tcaLVlqss6mHcmTwrnMg \
   --table-id tblks7R5MCE03xlS \
   --record-id {record-id} \
-  --format json 2>/dev/null | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-rows = data['data']['data']
-for row in rows:
-    vc = row[2]  # video-creator 字段索引
-    vc_val = vc[0] if vc else '(空)'
-    print(f'video-creator: {vc_val}')
-    if '是' in str(vc_val):
-        print('✅ Base 更新验证通过')
-    else:
-        print('❌ Base 更新失败，需重试')
-        exit(1)
-"
+  --json '{"video-creator":"是"}'
+```
+
+**关键参数**：
+- `--record-id`：直接指定单条记录的 ID（非 batch 模式）
+- `--json`：字段名为 JSON Key，值为字符串（单选/文本类型直接传字符串）
+
+**验证步骤**：
+```bash
+lark-cli base +record-upsert \
+  --base-token DTjXbS3tcaLVlqss6mHcmTwrnMg \
+  --table-id tblks7R5MCE03xlS \
+  --record-id {record-id} \
+  --json '{"video-creator":"是"}' 2>&1 | grep -q '"updated": true' && echo "✅" || echo "❌"
 ```
 
 ---
@@ -218,49 +198,65 @@ lark-cli base +record-list --base-token DTjXbS3tcaLVlqss6mHcmTwrnMg --table-id t
 }
 ```
 
-Python 解析 pending 记录：
+### Python 解析 pending 记录
+
 ```python
-import json, subprocess, re
+import subprocess, json
 
-subprocess.run(['lark-cli', 'base', '+record-list',
-                '--base-token', 'DTjXbS3tcaLVlqss6mHcmTwrnMg',
-                '--table-id', 'tblks7R5MCE03xlS',
-                '--limit', '200', '--format', 'json',
-                '--out', '/tmp/feishu_records.json'], check=True)
+result = subprocess.run([
+    'lark-cli', 'base', '+record-list',
+    '--base-token', 'DTjXbS3tcaLVlqss6mHcmTwrnMg',
+    '--table-id', 'tblks7R5MCE03xlS',
+    '--format', 'json', '--limit', '100'
+], capture_output=True, text=True)
 
-with open('/tmp/feishu_records.json') as f:
-    raw = json.load(f)
-
-data = raw['data']
-rows = data['data']
-record_ids = data.get('record_id_list', [])
+data = json.loads(result.stdout)
+records = data['data']['data']
+fields = data['data']['fields']
+vc_idx = fields.index('video-creator')
+link_idx = fields.index('链接')
+time_idx = fields.index('添加时间')
+record_ids = data['data']['record_id_list']
 
 pending = []
-for i, row in enumerate(rows):
-    vc = row[2]  # video-creator 字段索引
-    vc_val = vc[0] if vc else ''
-    if vc_val != '是':
-        url_field = row[1]  # github URL 字段索引
-        url_match = re.search(r'https://github\.com/[^\s\)\]]+', url_field)
-        url = url_match.group(0) if url_match else url_field
-        rid = record_ids[i] if i < len(record_ids) else 'N/A'
-        pending.append((rid, url))
+for i, rec in enumerate(records):
+    vc = rec[vc_idx]
+    if vc is None or (isinstance(vc, list) and '是' not in vc):
+        rid = record_ids[i]
+        link = rec[link_idx]
+        time_val = rec[time_idx]
+        pending.append((time_val, link, rid))
+
+pending.sort(key=lambda x: x[0])
+if pending:
+    t, l, r = pending[0]
+    print(f'record_id={r}')
+    print(f'添加时间={t}')
+    print(f'链接={l}')
+else:
+    print('暂无待处理任务')
 ```
 
 ### 更新记录状态
 
-```bash
-lark-cli base +record-batch-update \
-  --base-token DTjXbS3tcaLVlqss6mHcmTwrnMg \
-  --table-id tblks7R5MCE03xlS \
-  --json '{"record_id_list":["RECORD_ID"],"patch":{"video-creator":"是"}}'
+```python
+import subprocess, json
+
+result = subprocess.run([
+    'lark-cli', 'base', '+record-upsert',
+    '--base-token', 'DTjXbS3tcaLVlqss6mHcmTwrnMg',
+    '--table-id', 'tblks7R5MCE03xlS',
+    '--record-id', record_id,
+    '--json', '{"video-creator":"是"}'
+], capture_output=True, text=True)
+
+data = json.loads(result.stdout)
+print("✅ Base 更新成功" if data.get('data', {}).get('updated') else "❌ Base 更新失败")
 ```
-
-> 注意：`+record-update` 命令有问题，应使用 `+record-batch-update` 配合 `record_id_list` 数组。
-
 ### 表格信息
 
 - base token: `DTjXbS3tcaLVlqss6mHcmTwrnMg`
 - table ID: `tblks7R5MCE03xlS`
-- 字段: title, github, video-creator
-- 筛选条件: video-creator != "是"
+- 视图: `vewygLbwn2`
+- 字段: `链接`（fldD2M6fhD）、`备注`（fld6VvfaaS）、`video-creator`（fld9ZMMjiO）、`添加时间`（fldLlHqLXu）、`wechat-sticker`（fldRv5H766）、`修订日期`（fldx53t3pw）、`images2`（fldyP1NvM4）
+- 筛选条件: `video-creator != "是"`，按 `添加时间` 升序取第一条

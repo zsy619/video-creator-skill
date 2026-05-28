@@ -222,10 +222,10 @@ check_file "$PROJECT_DIR/docs/assets/cover-xhs.png"
 check_file "$PROJECT_DIR/audio/neural_1_2x.m4a"
 
 # 字幕
-check_file "$PROJECT_DIR/audio/subtitles.ass"
+check_file "$PROJECT_DIR/audio/captions.json"
 
 # 视频
-check_file "$PROJECT_DIR/video-project/out/final-with-subs.mp4"
+check_file "$PROJECT_DIR/video-project/out/final.mp4"
 
 echo ""
 echo "========================================"

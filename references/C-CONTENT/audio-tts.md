@@ -23,9 +23,11 @@ edge-tts \
   --write-media audio/neural_full.mp3
 
 # Step 2: 动态 atempo 调整到目标时长
+# ⚠️ 必须从 video-config.json 动态获取，禁止硬编码
+TARGET_DUR=$(python3 -c "import json; print(json.load(open('video-config.json'))['scenes'][-1]['endMs']/1000)")
 SOURCE_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_full.mp3)
-TARGET_DUR=50   # 从 video-config.json 的 duration 字段读取
 ATEMPO=$(python3 -c "print(round($SOURCE_DUR / $TARGET_DUR, 4))")
+echo "原始:${SOURCE_DUR}s → 目标:${TARGET_DUR}s → atempo:${ATEMPO}"
 
 ffmpeg -y -i audio/neural_full.mp3 \
   -af "atempo=${ATEMPO}" \

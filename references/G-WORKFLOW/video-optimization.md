@@ -137,7 +137,40 @@ with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
 
 ---
 
-## 5. launch.sh Bug 修复记录
+## 5. Root.tsx + video-config.json scenes 同步（重要）
+
+**症状**：Root.tsx 的 `defaultProps.scenes` 时间戳与 video-config.json 不一致，或 `DURATION_FRAMES` 使用旧值。osiris 项目实测：Root.tsx scenes 基于旧 51977ms，与 video-config.json 的 52032ms 偏差 55ms，导致渲染帧数错误。
+
+**精确等分公式**（6场景，无余数）：
+```python
+total_ms = video-config.json totalMs
+step = total_ms // 6
+# 场景 0-4: startMs=i×step, endMs=(i+1)×step
+# 场景 5:   startMs=5×step, endMs=total_ms
+```
+
+**Root.tsx 必同步项**：
+- `DURATION_FRAMES = ceil(total_ms / 1000 × 60)`（向上取整）
+- `defaultProps.scenes[].startMs / endMs`（6个场景全部更新）
+
+**video-config.json 必同步项**：
+- `totalMs` → captions 末段 endMs
+- `scenes[].startMs / endMs / duration`（6个场景全部更新）
+
+**检测命令**：
+```bash
+python3 -c "
+import json
+with open('video-config.json') as f: cfg = json.load(f)
+cfg_total = cfg['totalMs']
+max_end = max(s['endMs'] for s in cfg['scenes'])
+print(f'video-config totalMs={cfg_total}, scenes max endMs={max_end}, diff={cfg_total-max_end}')
+"
+```
+
+---
+
+## 6. launch.sh Bug 修复记录
 
 > 已合并 `launch-all-workflow-gaps-2026-05-14.md` 内容
 

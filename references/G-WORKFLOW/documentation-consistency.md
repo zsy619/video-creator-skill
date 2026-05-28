@@ -1,6 +1,6 @@
 # 文档一致性维护指南
 
-> **最后更新**：2026-05-18
+> **最后更新**：2026-05-27
 > **配套文档**：`B-REMOTION/remotion-troubleshoot.md`（Remotion 问题排查）、`C-CONTENT/audio-tts.md`（TTS 规范）
 
 ---
@@ -37,14 +37,13 @@ grep -n "session-log\|tags\.md\|post\.md" "$SKILL_DIR/scripts/generate_*.py" | g
 **模式**：文档引用 `references/X.md`，但 `ls {SKILL_DIR}/references/` 中该文件不存在
 
 **原因**：上下文摘要压缩时，"声称完成"被当作"实际完成"，摘要来自 handoff 不是文件系统真相
-
 **预防**：
 - 每次修订后用 `grep -r "references/" {SKILL_DIR}/SKILL.md` 交叉验证所有引用
 - 使用脚本批量验证：
 ```bash
 # 验证 SKILL.md 中所有 references/ 引用是否实际存在
 cd {SKILL_DIR}
-grep -oP 'references/[^]]+\.md' SKILL.md | sort -u | while read f; do
+grep -oP 'references/[^)]]+\.md' SKILL.md | sort -u | while read f; do
   [ -f "$f" ] || echo "❌ 死链: $f"
 done
 ```
@@ -82,8 +81,6 @@ done
 
 ## 2. 审计方法论
 
-> 本节来源：skill-audit-methodology.md（2026-05-10 + 2026-05-13 审计成果）
-
 ### 何时使用
 
 技能声称已完成修订，但仍出现同类错误时执行本审计流程。
@@ -99,22 +96,20 @@ done
 grep -rn "fontSize:\s*10\b" {SKILL_DIR}/scripts/
 grep -rn "fontSize:\s*10\b" {SKILL_DIR}/rules/
 grep -rn "Fontsize=10[^0-9]" {SKILL_DIR}/
-
 grep -rn "marginV:\s*30\b" {SKILL_DIR}/scripts/
 grep -rn "outline:\s*1\b" {SKILL_DIR}/scripts/
-
 grep -rn "\\\\n" {SKILL_DIR}/scripts/        # 查 ASS 换行符（应有 \N）
 grep -rn "\\n" {SKILL_DIR}/scripts/subtitle-generator.js  # 上下文确认
 
-# ===== 第二批：路径占位符 =====
+# ===== 第二批：路径占位符 ======
 grep -rn "~/video-projects" {SKILL_DIR}/
 grep -rn "~/.hermes/skills/video-creator/" {SKILL_DIR}/  # 全部替换为 {SKILL_DIR}
 
-# ===== 第三批：验证器/检查器 =====
+# ===== 第三批：验证器/检查器 ======
 grep -rn "fontSize.*应为.*10\|fontsize.*10.*✅" {SKILL_DIR}/scripts/
 grep -rn "Fontsize=10" {SKILL_DIR}/rules/
 
-# ===== 第四批：文档引用 =====
+# ===== 第四批：文档引用 ======
 grep -rn "fontSize\|MarginV\|Outline" {SKILL_DIR}/SKILL.md
 ```
 
@@ -151,7 +146,6 @@ grep -rn "fontSize\|MarginV\|Outline" {SKILL_DIR}/SKILL.md
 ```javascript
 // 类默认值正确（第35-58行）
 this.options = { fontSize: 72, marginV: 50, outline: 2, ... };
-
 // 但直接实例化时覆盖（main.js 第796行、cli.js 第118行）
 const gen = new SubtitleGenerator({ fontSize: 10, ... }); // ← 遗漏
 ```
@@ -242,9 +236,6 @@ grep -n "remotion still\|Step 8\|--frame=" {SKILL_DIR}/scripts/launch.sh
 
 ## 4. 已修复冲突案例库
 
-> 本节来源：CONFLICTS.md（2026-05-14 冲突登记）
-> 本文档是 video-creator 技能冲突修复的单一记录源。每次修复冲突后，在此登记，禁止再在不同文件中出现冲突的路径/参数。
-
 ### 修复铁律（永久规则）
 
 1. **输出文件名**：统一为 `final.mp4`，禁止出现 `final_with_subs.mp4` / `final-video.mp4`
@@ -313,34 +304,72 @@ grep -n "remotion still\|Step 8\|--frame=" {SKILL_DIR}/scripts/launch.sh
 - **修复**：cmd_render 统一输出 `final.mp4`，完成消息同步
 - **受影响文件**：launch.sh
 
-### 受影响文件清单
+#### 冲突 8：文档时长过期引用（52s→47s 脱节）✅ 2026-05-27
 
-| 文件 | 冲突数 |
-|------|--------|
-| `scripts/launch.sh` | 6 |
-| `rules/WORKFLOW.md` | 9 |
-| `SKILL.md` | 5 |
-| `scripts/video-quality-gate.js` | 1 |
-| `scripts/video-composer.js` | 1 |
-| `scripts/create-remotion-project.js` | 2 |
-| `scripts/generate_docs.js` | 1 |
-| `rules/SUBTITLES.md` | 1 |
-| `rules/QUALITY.md` | 1 |
-| `rules/TROUBLESHOOTING.md` | 2 |
-| `references/ONEPASS_WORKFLOW.md` | 3 |
-| `references/audio-validation-protocol.md` | 2 |
-| `references/video-optimization.md` | 1 |
-| `references/video-visual.md` | 1 |
-| `references/remotion-compilation-errors.md` | 1 |
-| `references/audio-production.md` | 1 |
-| `references/remotion-compilation-errors.md` | 1 |
+- **问题**：`posting-guide.md` / `session-log.md` 含 `52秒` 过期引用未更新，`video-config.json` / `report.json` 含 `inferredTheme` 残留字段（与实际 `theme` 不一致）
+- **根因**：视频时长从 52s 优化至 47s 后，自动生成的文档未同步更新
+- **受影响文件**：posting-guide.md, session-log.md, video-script.md, video-config.json, report.json
+- **检测脚本**：
+```bash
+python3 -c "
+import os, re
+for root, dirs, files in os.walk('docs'):
+    for f in files:
+        if f.endswith(('.md', '.html')):
+            path = os.path.join(root, f)
+            content = open(path).read()
+            if re.search(r'\d{2,3}\s*秒', content):
+                print(f'⚠️  {path}')
+"
+```
+- **修复原则**：
+  - 视频时长以 Remotion 渲染后 `ffprobe` 测得的实际秒数为准
+  - `inferredTheme` 是自动分析残留字段，应删除；保留 `theme` 字段即可
 
-### 如何避免未来冲突
+---
 
-1. **任何输出文件路径修改**：必须同步更新本登记册 + 所有引用文件
-2. **Remotion 方案切换**：必须先更新 launch.sh → WORKFLOW.md → SKILL.md → 本登记册
-3. **参数修改（fps/audio/codec）**：在 UNIFIED_RULES.md 中定义一次，launch.sh 和 WORKFLOW.md 均引用
-4. **新增子命令**（cmd_render 等）：检查是否与其他子命令输出文件名一致
+## 5. 视频时长变化后的文档同步门禁
+
+> **新增日期**：2026-05-27（来源：osiris 项目修复）
+
+### 触发条件
+
+视频时长从旧值变化到新值时（如 52s→47s），自动生成的文档中可能出现过期引用。
+
+### 受影响的 4 类文档
+
+| 文档类型 | 过期内容模式 | 修复要求 |
+|----------|--------------|----------|
+| `posting-guide.md` | 表格中的 `52秒` / 文案模板 `第52秒` | 替换为 ffprobe 实际测得秒数 |
+| `session-log.md` | 目标时长 `52秒` / 字数上限 `⌊52×3.37⌋` | 重写为当前值 |
+| `video-script.md` | `52s` 时长描述 | 替换为实际时长 |
+| `report.json` / `video-config.json` | `inferredTheme` 残留字段 | 删除（与实际 `theme` 不一致） |
+
+### 验证命令
+
+```bash
+# 检测所有 markdown/html 中的过期时长引用
+python3 -c "
+import os, re
+for root, dirs, files in os.walk('docs'):
+    for f in files:
+        if f.endswith(('.md', '.html')):
+            path = os.path.join(root, f)
+            content = open(path).read()
+            if re.search(r'\d{2,3}\s*秒', content):
+                print(f'⚠️  {path}')
+"
+
+# 检测 video-config.json 中的 inferredTheme 残留
+python3 -c "
+import json, sys
+cfg = json.load(open('video-config.json'))
+if 'inferredTheme' in cfg:
+    print(f'⚠️  video-config.json 含 inferredTheme: {cfg[\"inferredTheme\"]}')
+else:
+    print('✅ 无 inferredTheme')
+"
+```
 
 ---
 
@@ -352,13 +381,12 @@ grep -n "remotion still\|Step 8\|--frame=" {SKILL_DIR}/scripts/launch.sh
 SKILL_DIR=~/.hermes/skills/video-creator
 
 # 1. 验证所有内联引用存在
-grep -oP '(?:references|rules|scripts)/[^)]+\.(?:md|sh|py|js)' "$SKILL_DIR/SKILL.md" | sort -u | while read f; do
+grep -oP '(?:references|rules|scripts)/[^)]]+\.(?:md|sh|py|js)' "$SKILL_DIR/SKILL.md" | sort -u | while read f; do
   [ -f "$SKILL_DIR/$f" ] || echo "❌ 死链: $f"
 done
 
 # 2. 检查是否有自相矛盾的段落（如"X不存在"+"引用X"）
 grep -n "不存在\|死链\|缺失" "$SKILL_DIR/SKILL.md" | head -10
-
 # 3. 交叉检查 references/ 文件数量变化
 find "$SKILL_DIR/references" -maxdepth 1 -name "*.md" | wc -l
 ```
@@ -371,14 +399,4 @@ find "$SKILL_DIR/references" -maxdepth 1 -name "*.md" | wc -l
 2. **文档与代码必须同步修订**：代码改了文档要改，文档改了代码也要查
 3. **自相矛盾是最高优先级信号**：文档自己否认自己，比文档与代码不一致更严重
 4. **任何文件操作前先验证文件系统状态**：ls / test -f 是唯一可信的真相来源
-
-## 2026-05-22 验证发现
-
-| 项目 | 描述 | 状态 |
-|------|------|------|
-| pre-render-check.js 路径错误 | 检查 `${projDir}/src/` 但 Remotion 在 `${projDir}/video-project/src/` | ✅ 已修复（2026-05-22）|
-| synthesize-voice.sh PLACEHOLDER | 三处 PLACEHOLDER（VOICE/OUTPUT/NARRATION）无 sed 替换 | ✅ 已修复（2026-05-22）|
-| attrs 需为数组 | launch.sh 用 `.join(',')`，字符串会报 TypeError | ✅ 文档已补充（2026-05-22）|
-| session-log.md 位置 | SKILL.md 说 `session-log.md`，实际在 `docs/session-log.md` | ⚠️ 待确认 |
-| README.md 位置 | SKILL.md 说 `docs/README.md`，实际不在 docs/ 内 | ⚠️ 待确认 |
-
+5. **视频时长变化必须同步文档**：自动生成文档中的时长引用容易成为过期引用，渲染后必须验证

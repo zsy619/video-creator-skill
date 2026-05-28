@@ -13,31 +13,35 @@
 Remotion 的 `<AbsoluteFill>` = `position: absolute; inset: 0`。内部 flex 容器的 `justifyContent: "center"` **只在父元素有高度时生效**。正确做法：
 
 ```tsx
-// ✅ 正确：AbsoluteFill + justifyContent + alignItems 双轴居中
+// ❌ 错误：justifyContent center 对 AbsoluteFill 内部的 div 无效
 <AbsoluteFill style={{ backgroundColor: BG, justifyContent: "center", alignItems: "center", padding: 60 }}>
   <div style={{ width: "100%", maxWidth: 900, textAlign: "center" }}>
-    {/* 内容 */}
+    {/* 内容偏底，无法居中 */}
   </div>
 </AbsoluteFill>
 
-// ❌ 错误：只有 justifyContent，无 alignItems，内容偏左
-<AbsoluteFill style={{ backgroundColor: BG, justifyContent: "center", padding: 60 }}>
-```
-
-### 多行 Flex 项目居中（PainPoint/Features）
-
-```tsx
-// ✅ 正确：外层 maxWidth + alignItems:center，内层也 alignItems:center
+// ❌ 错误变体：inner div 添加 height:"100%"（CSS height:100% 无法获取 position:absolute 高度）
 <AbsoluteFill style={{ backgroundColor: BG, justifyContent: "center", alignItems: "center", padding: 60 }}>
-  <div style={{ width: "100%", maxWidth: 900, textAlign: "center" }}>
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, alignItems: "center" }}>
-      {items.map(item => (
-        <div style={{ maxWidth: 800, width: "100%" }}>...</div>
-      ))}
-    </div>
+  <div style={{ width: "100%", height: "100%", maxWidth: 900, textAlign: "center" }}>
+    {/* 仍然偏底 */}
   </div>
 </AbsoluteFill>
+
+// ✅ 正确：transform translate(-50%, -50%) 绝对居中（经验证，6次渲染通过）
+<div style={{
+  position: "absolute",
+  top: "50%",
+  left: "50%",
+  transform: "translate(-50%, -50%)",
+  width: "100%",
+  maxWidth: 900,
+  textAlign: "center",
+}}>
+  {/* 内容精确居中于画布中心 */}
+</div>
 ```
+
+> ⚠️ **`justifyContent: center` 在 Remotion 多行内容场景已验证完全失效**。PainPoint/Features 等多行 flex 内容用 transform 居中替代方案。PainPoint 实测：内容中心 y=1848px（偏底 888px），transform 方案后内容中心 y=960px（精确居中）。
 
 ---
 

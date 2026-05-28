@@ -256,9 +256,16 @@ export const DynamicScene: React.FC<DynamicSceneProps> = ({
 ## 关键设计要点
 
 1. **CoverScene 用 CSS 多层渐变**：无任何外部图片依赖，`background: linear-gradient(...)` 绘制网格，`background-size` 匹配断点，亮度可达 60+
-2. **PainPointScene/FeaturesScene 居中**：`justifyContent: "center" alignItems: "center"`，外层 maxWidth: 900，内层 alignItems: "center"
+2. **⚠️ 垂直居中必须用 `transform: translate(-50%, -50%)`**：Remotion 的 `justifyContent: center` 对 AbsoluteFill 内部 div 完全失效（PainPoint/Features 等多行内容偏底）。每个场景内容根 div 必须用：
+   ```tsx
+   <div style={{
+     position: "absolute", top: "50%", left: "50%",
+     transform: "translate(-50%, -50%)",
+     width: "100%", maxWidth: 900, textAlign: "center",
+   }}>
+   ```
 3. **背景渐变色**：从 #4A1B8C → #3D1B6E → #1A0A3D，比纯 #0D0221 亮得多
-4. **无 literal `\n`**：所有 JSX 中的换行都是真实的 JSX 缩进结构，无字节 `5c6e`
+4. **无 literal `\\n`**：所有 JSX 中的换行都是真实的 JSX 缩进结构，无字节 `5c6e`
 5. **SVG stroke 禁止用于网格线**：SVG `<line stroke="...">` 在 Remotion headless 中不渲染，必须用 CSS `background: linear-gradient(...)`
 6. **`features` 类型必须正确**：`Array<{ icon?: string; name?: string; desc?: string }>` — 大括号是对象类型语法，不是 `Array<icon?: string`
 

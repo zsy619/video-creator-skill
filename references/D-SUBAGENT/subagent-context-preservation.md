@@ -61,3 +61,28 @@ if bad > 0 or cn == 0: exit(1)
 ## 相关文件
 - `F-GENDOCS/generate-docs-deep-analysis.md` — generate_docs.js 深度分析
 - `E-VISUAL/theme-matching.md` — sceneContent 动态化完整数据流
+- `references/G-WORKFLOW/subagent-handover.md` — 主进程接管 subagent 的标准流程
+
+---
+
+## 新增失败模式（2026-05-26）：subagent completed 但渲染未执行
+
+**症状**：subagent 创建了 docs/(12个文档) + audio/(3个文件) + video-project/src/，session_status=completed 后被压缩退出。`video-project/out/` 为空，无 final.mp4。
+
+**根因**：subagent 在音频步骤完成后立即触发 max_iterations 压缩，渲染命令未执行或正在队列中。
+
+**kooky 项目实例**：
+- subagent 创建了完整 docs/ + audio/ + video-project/src/
+- session_status=completed → 主进程收到 completed
+- 主进程未检查 out/ 即执行 npm install + 渲染
+- npm install 成功，渲染命令已在后台（session proc_d35c9ed6f882）
+- out/ 此时为空（渲染进程尚在运行）
+
+**主进程接管检查清单**：
+```bash
+ls video-project/out/*.mp4 2>/dev/null || echo "❌ 无 mp4"
+ps aux | grep "remotion render" | grep -v grep || echo "✅ 无渲染进程"
+ls audio/neural_1_2x.m4a audio/captions.json 2>/dev/null || echo "❌ 音频缺失"
+```
+
+**防护**：主进程收到 completed 后，必须检查 out/final.mp4 是否存在 + 是否有渲染进程在跑。若 mp4 不存在但音频存在，立即接管渲染。
