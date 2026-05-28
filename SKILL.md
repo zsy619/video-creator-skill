@@ -732,35 +732,41 @@ print(f'中文字数: {cn}')
 
 [rules/WORKFLOW.md](rules/WORKFLOW.md) · [rules/UNIFIED_RULES.md](rules/UNIFIED_RULES.md) · [rules/THEMES.md](rules/THEMES.md) · [rules/PLATFORM.md](rules/PLATFORM.md) · [rules/TROUBLESHOOTING.md](rules/TROUBLESHOOTING.md) · [rules/SCRIPTS.md](rules/SCRIPTS.md) · [rules/INTEGRATION.md](rules/INTEGRATION.md) · [rules/LAYOUT.md](rules/LAYOUT.md) · [rules/FONTS.md](rules/FONTS.md) · [rules/HTML.md](rules/HTML.md) · [rules/COVER_GENERATE.md](rules/COVER_GENERATE.md) · [rules/WECHAT_COVER.md](rules/WECHAT_COVER.md) · [rules/WECHAT_PUBLISH.md](rules/WECHAT_PUBLISH.md) · [rules/QUICKSTART.md](rules/QUICKSTART.md)
 
-### references/ 目录结构（2026-05-24 重组）
+### references/ 目录结构（2026-05-28 重组）
 
 > ⚠️ **请勿使用 A-ARCHIVED/** 目录下的文件 — 已废弃。
-> 快速查询入口：`references/index.md`（含分类索引 + 文件清单）
+> 快速查询入口：`references/README.md`（总入口）或 `references/index.md`（详细索引）
 
-| 目录 | 内容 | 定位 |
-|------|------|------|
-| **B-REMOTION/** | Remotion 渲染核心（9文件） | 必读 · 每次渲染前必查 |
-| **C-CONTENT/** | 内容获取与音频字幕（6文件） | 必读 · Step 0-3 |
-| **D-SUBAGENT/** | Subagent 超时与上下文（2文件） | 辅助 · 深度分析后必读 |
-| **E-VISUAL/** | 视觉设计与封面图（6文件） | 辅助 · 封面/视觉相关 |
-| **F-GENDOCS/** | generate_docs.js 分析（2文件） | 辅助 · 文档生成问题 |
-| **G-WORKFLOW/** | 工作流与集成（5文件） | 辅助 · Git / Base / 文档规范 |
-| **H-CONFIG/** | 配置文件（3文件） | 参考 · baoyu / CDN / Tailwind |
+| 目录 | 内容 | 文件数 |
+|------|------|--------|
+| **B-REMOTION/** | Remotion 渲染核心 | 9 |
+| **C-CONTENT/** | 内容获取与音频字幕 | 7 |
+| **D-SUBAGENT/** | Subagent 超时与上下文 | 2 |
+| **E-VISUAL/** | 视觉设计与封面图 | 8 |
+| **F-GENDOCS/** | generate_docs.js 分析 | 2 |
+| **G-WORKFLOW/** | 工作流与集成 | 13 |
+| **H-CONFIG/** | 配置文件 | 3 |
+| **A-ARCHIVED/** | 已废弃文档 | 3 |
+
+> 2026-05-28 删除：`duration-zero-fix.md`、`remotion-tsx-bug.md`、`launch-sh.md`（内容已并入相关文件）
+> 2026-05-28 合并：`pil-cover-usage.md` → `pil-cover.md`；`video-optimization-pitfalls.md` → `video-optimization.md`
+> 2026-05-28 新增：各子目录 `README.md`（共 7 个）
 
 ### B-REMOTION — Remotion 渲染核心（必读）
 
 | 文件 | 用途 |
 |------|------|
 | `remotion-troubleshoot.md` | Remotion 问题排查总入口 |
-| `remotion-render-gotchas.md` | 三个致命陷阱：durationInFrames硬编码 / props传递 / 输出文件名 |
-| `duration-zero-fix.md` | `durationInFrames={0}` bundle阶段TypeError修复（方案A：直接硬编码帧数） |
+| `remotion-render-gotchas.md` | 三个致命陷阱：durationInFrames硬编码 / props传递 / atempo覆盖 |
 | `remotion-props.md` | --props JSON 构造算法 + Bash 引号嵌套陷阱 |
 | `dynamic-scene-template.md` | DynamicScene.tsx 完整模板（CSS 渐变封面版） |
 | `dynamic-scene-vertical-center.md` | 垂直居中规范 + CSS 渐变封面 + 首帧亮度验证 |
 | `dynamic-scenes-architecture.md` | SCENE_TYPES 枚举 / 百分比等分 / name 路由（详见 remotion-props.md） |
-| `create-remotion-project-bugs.md` | create-remotion-project.js 三大 Bug 修复 |
+| `create-remotion-project-bugs.md` | create-remotion-project.js 三大 Bug 修复（含双花括号/literal `\n`） |
 | `remotion-dynamic-scene-debugging.md` | hive 项目 9 次渲染调试实录 |
-| `remotion-tsx-bug.md` | 双花括号修复快速指南（指向 create-remotion-project-bugs.md） |
+| `scenes-config-pattern.md` | 场景配置数据结构模式 |
+
+> ⚠️ `duration-zero-fix.md` 和 `remotion-tsx-bug.md` 已删除，内容并入 `remotion-render-gotchas.md` 和 `create-remotion-project-bugs.md`
 
 ### C-CONTENT — 内容与音频字幕
 
@@ -789,8 +795,7 @@ print(f'中文字数: {cn}')
 | `cover-font.md` | 封面字体规范 |
 | `cover-image-rendering.md` | 封面图渲染失败诊断（2026-05-23 最终修订） |
 | `video-visual.md` | 视觉规范、主题动画 |
-| `pil-cover.md` | PIL 本地封面生成（无 AI API 时备用） |
-| `pil-cover-usage.md` | **generate_cover.py 路径/attrs/keywords 规范**（2026-05-28 修订：路径移至 skill scripts + Python API 调用规范） |
+| `pil-cover.md` | PIL 本地封面生成（无 AI API 时备用；已合并原 `pil-cover-usage.md` 内容） |
 
 ### ⚠️ HTML 发布页必须含 viewport + og: meta 标签（2026-05-27 新增）
 所有 HTML 文件（landing-page.html / article-page.html / wechat-page.html）必须在 `<head>` 内包含以下 meta 标签：
@@ -852,12 +857,11 @@ for root, dirs, files in os.walk('docs'):
 | `feishu-base-batch.md` | Feishu Base 批量处理（record_id 查询 / 更新） |
 | `documentation-consistency.md` | 文档一致性维护指南 |
 | `node-execsync-bug.md` | Node.js execSync 返回值 bug（macOS arm64） |
-| `video-optimization.md` | 视频性能优化与质量门禁（4 项预检） |
+| `video-optimization.md` | 视频性能优化与质量门禁（含原 `video-optimization-pitfalls.md` 内容） |
 | `captions-endms-sync.md` | captions 末段 endMs 精确同步（批量检测脚本） |
-| `batch-duration-fix-20260527.md` | **【批量修复手册】** 141 项目四维同步（帧数/音频/字幕/config）实测修复全记录 + **新增本 session 发现：5 帧数修复（Root.tsx `durationInFrames` JSX硬编码/多种形式匹配正则/osiris+needle-video/残留-repo清理）** |
-| `video-optimization-pitfalls.md` | 渲染后发现的已知陷阱（captions 同步/atempo 验证/public 同步/码率偏差） |
-| `audio-duration-mismatch.md` | **【核心修复手册】** atempo/audio/video 三元组不匹配根因 + atempo=1.0 恢复流程 + **silent tail 修复（apad/rubberband）**（osiris 案例新增） |
-| `frame-sync-regex-patterns.md` | **【本 session 新增】** DURATION_FRAMES 正则提取 4 种模式（JSX硬编码/乘法表达式/TOTAL_FRAMES/DURATION别名）+ 批量修复 5 项目实战（CF-Hero/hermes-atlas-video/hermes-web-search-plus-video/workshop/needle-video） |
+| `batch-duration-fix-20260527.md` | **【批量修复手册】** 141 项目四维同步（帧数/音频/字幕/config）实测修复全记录 |
+| `audio-duration-mismatch.md` | **【核心修复手册】** atempo/audio/video 三元组不匹配根因 + atempo=1.0 恢复流程 |
+| `frame-sync-regex-patterns.md` | **【正则提取】** DURATION_FRAMES 正则提取 4 种模式（JSX硬编码/乘法表达式/TOTAL_FRAMES/DURATION别名） |
 
 ### H-CONFIG — 配置文件
 
@@ -872,9 +876,10 @@ for root, dirs, files in os.walk('docs'):
 | 文件 | 说明 |
 |------|------|
 | `feishu-base-completion.bak.md` | 旧版手动流程，已被 launch.sh all 替代 |
-| `launch-sh.md` | ⚠️ 已废弃 |
 | `one-pass.bak.md` | ⚠️ 已废弃 |
 | `remotion-render-output.md` | ⚠️ 已废弃 |
+
+> ⚠️ `launch-sh.md` 已删除，内容并入 `D-SUBAGENT/subagent-timeout.md`
 
 ---
 

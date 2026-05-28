@@ -172,7 +172,7 @@ cd video-project && npx remotion render VerticalVideo --output out/ --quality 0 
 ## 相关文件
 
 - `B-REMOTION/dynamic-scene-template.md` — 已知良好的 DynamicScene.tsx 模板（当生成文件损坏时使用）
-- `B-REMOTION/remotion-tsx-bug.md` — 双花括号 `{{ hLines }}` 和 literal `\n` 的修复方法
+- `B-REMOTION/create-remotion-project-bugs.md` — 双花括号 `{{ hLines }}` 和 literal `\n` 的修复方法
 - `B-REMOTION/create-remotion-project-bugs.md` — `create-remotion-project.js` 的全部已知 bug
 - `E-VISUAL/cover-image-rendering.md` — 封面图渲染的完整诊断（包含 CSS 渐变解法）
 - `B-REMOTION/dynamic-scene-vertical-center.md` — 居中布局规范

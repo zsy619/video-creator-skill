@@ -126,4 +126,4 @@ rm -rf kooky-repo
 
 ## 相关文件
 - `D-SUBAGENT/subagent-context-preservation.md` — subagent 会话压缩问题
-- `B-REMOTION/duration-zero-fix.md` — durationInFrames={0} 修复
+- `B-REMOTION/remotion-render-gotchas.md` — durationInFrames={0} 修复（陷阱一）

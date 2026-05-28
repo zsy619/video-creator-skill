@@ -29,4 +29,4 @@ python3 -c "import json; c=json.load(open('video-config.json'))['cover']; print(
 
 两者数据源相同 (`video-config.json cover.attrs`)，但渲染位置和时机不同。生成封面图前必须确保此字段存在且非空。
 
-详见：`references/E-VISUAL/pil-cover-usage.md`
+详见：`references/E-VISUAL/pil-cover.md`（已合并原 `pil-cover-usage.md` 内容）
