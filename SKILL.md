@@ -784,6 +784,7 @@ print(f'中文字数: {cn}')
 | 文件 | 用途 |
 |------|------|
 | `subagent-timeout.md` | 超时恢复指南（launch.sh / Base 更新 / 清理） |
+| `subagent-takeover.md` | Subagent 超时后主进程接管流程（2026-05-28） |
 | `subagent-context-preservation.md` | 会话压缩上下文丢失 + narration.txt 损坏防护 |
 
 ### E-VISUAL — 视觉设计
@@ -855,6 +856,7 @@ for root, dirs, files in os.walk('docs'):
 | `git-workflow.md` | Git 隔离与目录分离规范 |
 | `subagent-handover.md` | 主进程接管 subagent completed 但渲染未执行的完整流程 |
 | `feishu-base-batch.md` | Feishu Base 批量处理（record_id 查询 / 更新） |
+| `lark-cli-base-record-update.md` | lark-cli record-update 命令实测语法（2026-05-28） |
 | `documentation-consistency.md` | 文档一致性维护指南 |
 | `node-execsync-bug.md` | Node.js execSync 返回值 bug（macOS arm64） |
 | `video-optimization.md` | 视频性能优化与质量门禁（含原 `video-optimization-pitfalls.md` 内容） |
