@@ -810,8 +810,22 @@ function createProject(projectDir, config) {
   } else {
     totalFrames = Math.ceil((config.duration || 52) * fps);
   }
-  const coverTitle = (config.cover && config.cover.title) ? config.cover.title : (config.title || "视频标题");
-  const coverSubtitle = (config.cover && config.cover.subtitle) ? config.cover.subtitle : (config.subtitle || "副标题");
+  // ── T-3: cover title/subtitle fallback — 从 report.json keywords 读取 ────────
+  const coverReportPath = path.join(projectDir, "docs", "report.json");
+  let coverReportKeywords = [];
+  try {
+    if (fs.existsSync(coverReportPath)) {
+      const rpt = JSON.parse(fs.readFileSync(coverReportPath, "utf8"));
+      coverReportKeywords = rpt.keywords || [];
+    }
+  } catch (e) { /* ignore */ }
+  // 优先级：config.cover.title > config.title > report.keywords[0] > 硬编码
+  const coverTitle = (config.cover && config.cover.title)
+    ? config.cover.title
+    : (config.title || (coverReportKeywords[0] || "视频标题"));
+  const coverSubtitle = (config.cover && config.cover.subtitle)
+    ? config.cover.subtitle
+    : (config.subtitle || "副标题");
   const themeId = config.theme || "cyberpunk";
 
   fs.writeFileSync(path.join(srcDir, "Root.tsx"),

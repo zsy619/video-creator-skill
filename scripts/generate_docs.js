@@ -33,16 +33,17 @@ function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-/** 从 Markdown 提取纯文本（去掉 frontmatter、代码块、链接等） */
+/** T-6: 增强 stripMarkdown — 保持中文句子完整性，处理更多 Markdown 语法
+ * 修复：列表合并（含数字列表）、图片链接、水平线、连续空白 */
 function stripMarkdown(content) {
-  // 第一步：处理连续列表项（将 - 开头的多行列表合并为一行，用空格替代换行）
+  // 第一步：处理连续列表项（将 -/*/数字 开头的多行列表合并为一行）
   const lines = content.split('\n');
   const mergedLines = [];
   for (const line of lines) {
-    if (line.match(/^[-*]\s/)) {
-      // 列表项：与前一行合并（用空格替代换行）
+    // 匹配所有列表前缀：- /* 1. 2. ① 等各种列表标记
+    if (line.match(/^(\s*)([-*+]|\d+\.|[一二三四五六七八九十]+[.、])\s/)) {
       if (mergedLines.length > 0) {
-        mergedLines[mergedLines.length - 1] += ' ' + line.replace(/^[-*]\s/, '');
+        mergedLines[mergedLines.length - 1] += ' ' + line.replace(/^\s*[-*+]|\d+[.、]\s/, '').trim();
         continue;
       }
     }
@@ -51,12 +52,16 @@ function stripMarkdown(content) {
   const merged = mergedLines.join('\n');
 
   return merged
-    .replace(/^---[\s\S]*?---\n/, "")          // 去掉 frontmatter
-    .replace(/```[\s\S]*?```/g, "")               // 去掉代码块
-    .replace(/`[^`]*`/g, "")                      // 去掉行内代码
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")     // [文字](url) → 文字
-    .replace(/[*_~>#|]/g, "")                    // 去掉 Markdown 标记
-    .replace(/\n{3,}/g, "\n\n")                  // 压缩多余空行
+    .replace(/^---[\s\S]*?---\n/, "\n")    // 去掉 frontmatter
+    .replace(/```[\s\S]*?```/g, "\n")       // 代码块（保留换行防止粘连）
+    .replace(/`[^`]*`/g, "")                // 行内代码
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")   // ![alt](url) 图片链接
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [文字](url) → 文字
+    .replace(/^#{1,6}\s+/gm, "")            // 标题标记
+    .replace(/^[-*_]{3,}$/gm, "\n")         // --- 水平线
+    .replace(/[*_~`#>|]/g, "")             // 去掉 Markdown 标记
+    .replace(/\n{3,}/g, "\n\n")             // 压缩多余空行
+    .replace(/ {2,}/g, " ")                 // 连续空格压缩
     .trim();
 }
 
@@ -265,10 +270,39 @@ function inferTheme(keywords) {
  * @param {string[]} keywords
  * @returns {string[]}
  */
-function generateAttrs(keywords) {
-  if (!keywords || keywords.length === 0) return ['效率工具', '实用推荐', '收藏备用', '值得一试'];
-  // 全部来自关键词，最多4个，不足时截断
-  return keywords.slice(0, 4);
+// T-4: generateAttrs — 从 sceneContent（features + steps）生成，不再依赖 keywords
+// 优先级：feature.name > step.cmd 关键词 > keywords > 兜底
+function generateAttrs(keywords, sceneContent) {
+  const corpus = [];
+  // 从 features 提取名称
+  if (sceneContent?.features) {
+    for (const f of sceneContent.features) {
+      if (f.name) corpus.push(...f.name.split(/[^\u4e00-\u9fa5a-zA-Z0-9]+/));
+    }
+  }
+  // 从 steps 提取命令词（取第一行命令的关键词）
+  if (sceneContent?.steps) {
+    for (const s of sceneContent.steps) {
+      if (s.cmd) {
+        const parts = s.cmd.trim().split(/\s+/);
+        // 取非选项、非短横线的实词
+        for (const p of parts) {
+          if (p && !p.startsWith('-') && p.length > 1) {
+            corpus.push(p.replace(/^[#$]/, ''));
+          }
+        }
+      }
+    }
+  }
+  // 合并 keywords（权重更低）
+  if (keywords) corpus.push(...keywords);
+  // 过滤停用词
+  const filtered = corpus.filter(w => w.length > 1 && !STOP_WORDS.has(w) && !STOP_WORD_MULTI.has(w));
+  // 取唯一词列表（保留顺序）
+  const seen = new Set();
+  const unique = filtered.filter(w => { if (seen.has(w)) return false; seen.add(w); return true; });
+  if (unique.length === 0) return ['效率工具', '实用推荐', '收藏备用', '值得一试'];
+  return unique.slice(0, 4);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -412,31 +446,54 @@ function generateSceneContent(articleContent, keywords) {
     }
   }
   const featIcons = ["🚀", "🛡️", "⚡", "🌐"];
-  // 功能名称固定（从关键词推断名称不可靠）
+
+  // ── T-7: featNames 从 article 内容推断（不再是固定硬编码）────────────────
+  // 策略：提取文章中含"功能/特性/支持/提供"的句子 → 取名词短语作为功能名
+  const featNameCandidates = [];
+  const featNamePatterns = [
+    /(?:功能|特性|优势|支持|提供|具备)[：:]\s*([^\n，。！？]{2,15})/g,
+    /(?:基于|采用|使用)[^的是]([^\n，。！？]{2,15})(?:技术|方案|协议|引擎|算法)/g,
+  ];
+  for (const pat of featNamePatterns) {
+    let m;
+    while ((m = pat.exec(stripped)) !== null && featNameCandidates.length < 4) {
+      const name = m[1].trim().replace(/[*_~`#>|]/g, '').slice(0, 8);
+      if (name.length > 1 && !STOP_WORDS.has(name) && !featNameCandidates.includes(name)) {
+        featNameCandidates.push(name);
+      }
+    }
+  }
+  // 若提取不足4个，用 keywords 补充（排除通用词）
+  if (featNameCandidates.length < 4) {
+    for (const k of kw) {
+      if (!STOP_WORDS.has(k) && !featNameCandidates.includes(k) && featNameCandidates.length < 4) {
+        featNameCandidates.push(k);
+      }
+    }
+  }
+  // featNamesFixed 只作最终兜底
   const featNamesFixed = ["多情报源聚合", "并发高速扫描", "JA3指纹伪装", "HTML验证"];
-  // featNames 用于兜底（featSentences 不足时用固定名称）
-  const featNames = kw.length >= 4 && kw.some(k => !['真实','记录','人员','一款'].includes(k))
-    ? kw.slice(0, 4)
-    : featNamesFixed;
+  const featNames = featNameCandidates.length >= 4
+    ? featNameCandidates.slice(0, 4)
+    : [...featNameCandidates, ...featNamesFixed].slice(0, 4);
+
   const features = featSentences.length >= 4
     ? featSentences.slice(0, 4).map((desc, i) => ({
         icon: featIcons[i] || "✨",
-        name: featNamesFixed[i] || `特性${i + 1}`,
+        name: featNames[i] || `核心优势${i + 1}`,   // T-7: 使用推断的名称
         desc: desc.slice(0, 25),
       }))
     : featNamesFixed.map((name, i) => ({
         icon: featIcons[i] || "✨",
-        name,
+        name: featNames[i] || name,                  // T-7: 混合使用
         desc: featSentences[i] ? featSentences[i].slice(0, 25) : `核心优势${i + 1}`,
       }));
 
-  // ── 4. 上手指南步骤：从文章提取安装/使用相关命令 ───────────────────────
-  // 提取命令行、URL、配置相关句子
+  // ── T-8: 步骤提取 + defaultSteps 使用实际 url（不再用 kw[0] 占位符）────────
   const cmdPatterns = [
     /(`[^`]+`)/g,                          // `命令` 格式
     /(npm |pip |brew |yarn |cargo )[^\n]{0,40}/g,  // 包管理命令
     /(git clone|curl|wget)[^\n]{0,40}/g,   // 常用命令
-    /(https?:\/\/[^\s。！？]{10,50})/g,     // URL
   ];
   const cmds = [];
   for (const pat of cmdPatterns) {
@@ -446,23 +503,24 @@ function generateSceneContent(articleContent, keywords) {
       if (s.length > 3) cmds.push(s.trim().slice(0, 50));
     }
   }
-  // 去重并保留前3个
   const uniqueCmds = [];
   for (const c of cmds) {
     if (!uniqueCmds.includes(c) && uniqueCmds.length < 3) uniqueCmds.push(c);
   }
-  const defaultSteps = [
-    { cmd: `git clone ${kw[0] || '项目地址'}`, desc: "克隆项目" },
-    { cmd: "cd 项目目录 && 安装依赖", desc: "安装依赖" },
-    { cmd: "运行启动命令", desc: "启动使用" },
-  ];
-  const steps = uniqueCmds.length >= 2
-    ? uniqueCmds.map((cmd, i) => ({ cmd, desc: `步骤${i + 1}` }))
-    : defaultSteps;
 
   // ── 5. URL：从文章提取第一个 https URL ────────────────────────────────
   const urlMatch = stripped.match(/(https?:\/\/[^\s。！？)）]{10,60})/);
   const url = urlMatch ? urlMatch[1].replace(/[。！？)）]$/, '') : `https://github.com/${kw[0] || 'project'}`;
+
+  // T-8: defaultSteps 使用实际提取的 url（不再用 kw[0] 占位符）
+  const defaultSteps = [
+    { cmd: `git clone ${url}`, desc: "克隆项目" },
+    { cmd: "cd 项目目录 && npm install", desc: "安装依赖" },
+    { cmd: "npm run dev", desc: "启动项目" },
+  ];
+  const steps = uniqueCmds.length >= 2
+    ? uniqueCmds.map((cmd, i) => ({ cmd, desc: `步骤${i + 1}` }))
+    : defaultSteps;
 
   // ── 6. 许可证：检测开源许可证关键词 ───────────────────────────────────
   const licenseMatch = stripped.match(/(MIT|Apache|GPL|BSD|Mozilla|CC0)[- ]?[Ll]icense/i);
@@ -479,76 +537,77 @@ function generateSceneContent(articleContent, keywords) {
 }
 
 /**
- * 从 video-script.md 提取配音文本
- * @param {string} scriptContent
- * @param {number} maxChineseChars — ⌊duration × 3.37⌋（实测安全上限，中文字符数）
+ * T-5: 从 article.md 直接提取配音文本（绕过 video-script.md）
+ * 策略：stripMarkdown 保持句子完整性 → 按段落分割 → 取能填满 maxChars 的内容
+ * @param {string} articleContent — article.md 原始内容
+ * @param {number} maxChineseChars — ⌊duration × 3.37⌋
  * @returns {string} narration.txt
  */
-function extractNarration(scriptContent, maxChineseChars) {
-  // 从脚本中提取场景内容（去掉标题、时长标注等）
-  const lines = scriptContent.split("\n");
-  const narrationLines = [];
-  let capture = false;
-
-  for (const line of lines) {
-    if (line.startsWith("## 场景")) {
-      capture = true;
-      continue;
-    }
-    // 遇到第二个 ## 场景（场景2开始）说明场景1结束，但继续捕获直到下一个 ## 场景
-    // 遇到非场景 markdown 标题（如 ## 核心能力）停止捕获
-    if (capture && line.startsWith("# ")) break;
-    if (capture && line.match(/^\*\*时长\*\*/)) continue;
-    // 跳过 markdown 语法噪声行（## 标题、- 列表、空白行、全是特殊字符的行）
-    const strippedLine = line
-      .replace(/^\*\*时长\*\*\s*\d+s\n?/, "")
-      .replace(/^##\s+.+/, "")
-      .replace(/^-{1,2}\s+/, "")
-      .replace(/[*_~`#>|]/g, "")
-      .replace(/\|+/g, "")
-      .replace(/^-+$/, "")
-      .trim();
-    if (capture && strippedLine && strippedLine.length > 0) {
-      narrationLines.push(strippedLine);
-    }
-  }
-
-  let narration = narrationLines.join("。");
-
-  // 统计中文字符数（与验证逻辑完全一致）
+function extractNarration(articleContent, maxChineseChars) {
   const countChinese = (text) => (text.match(/[\u4e00-\u9fa5]/g) || []).length;
-  let chineseChars = countChinese(narration);
 
-  // ⚠️ 截断逻辑：按中文字符数截断，在自然断点处截断
-  if (chineseChars > maxChineseChars) {
-    let acc = 0, breakIdx = narration.length;
-    for (let i = 0; i < narration.length; i++) {
-      if (/[\u4e00-\u9fa5]/.test(narration[i])) acc++;
-      if (acc > maxChineseChars && /[。！？]/.test(narration[i])) {
-        breakIdx = i + 1;
-        break;
+  // 预处理：保留中文句子结构，去掉代码块/链接/Markdown语法
+  const stripped = articleContent
+    .replace(/^---[\s\S]*?---\n/, '')          // frontmatter
+    .replace(/```[\s\S]*?```/g, '')               // 代码块
+    .replace(/`[^`]*`/g, '')                      // 行内代码
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')     // [文字](url) → 文字
+    .replace(/^[-*]\s+/gm, '')                   // 列表项
+    .replace(/[*_~>#|]/g, '')                    // Markdown 语法
+    .replace(/\n{3,}/g, '\n\n');                  // 压缩空行
+
+  // 按段落分割（保留空行作为自然断点）
+  const paragraphs = stripped.split(/\n\n+/).filter(p => {
+    const t = p.trim();
+    return t.length > 15 && countChinese(t) >= 8;
+  });
+
+  // 从文章内容构建 narration（优先取完整段落，控制在 maxChineseChars 内）
+  let narration = '';
+  let chineseChars = 0;
+  for (const para of paragraphs) {
+    const trimmed = para.trim();
+    const pc = countChinese(trimmed);
+    // 加句号连接相邻段落
+    const connect = narration.length > 0 && !narration.endsWith('。') ? '。' : '';
+    if (chineseChars + pc <= Math.floor(maxChineseChars * 1.05)) {
+      narration += connect + trimmed;
+      chineseChars += pc;
+    } else {
+      // 当前段落加入后超限，但在自然断点处截断
+      if (chineseChars < maxChineseChars) {
+        let acc = 0, breakIdx = 0;
+        for (let i = 0; i < trimmed.length; i++) {
+          if (/[\u4e00-\u9fa5]/.test(trimmed[i])) acc++;
+          if (acc > maxChineseChars - chineseChars && /[。！？]/.test(trimmed[i])) {
+            breakIdx = i + 1;
+            break;
+          }
+        }
+        if (breakIdx > 0) {
+          narration += connect + trimmed.slice(0, breakIdx);
+        }
       }
+      break;
     }
-    narration = narration.slice(0, breakIdx) || narration.slice(0, Math.floor(maxChineseChars * 1.5));
-    chineseChars = countChinese(narration);
   }
 
-  // 最终安全检查：若截断后仍超限，取上限一半强制截断（不抛错，避免阻断流程）
-  if (chineseChars > maxChineseChars) {
+  // 安全截断（若仍有超出）
+  if (countChinese(narration) > maxChineseChars) {
     let acc = 0, breakIdx = narration.length;
     for (let i = 0; i < narration.length; i++) {
       if (/[\u4e00-\u9fa5]/.test(narration[i])) {
         acc++;
-        if (acc >= Math.floor(maxChineseChars * 0.95)) {
+        if (acc >= Math.floor(maxChineseChars * 0.97) && /[。！？]/.test(narration[i])) {
           breakIdx = i + 1;
           break;
         }
       }
     }
-    narration = narration.slice(0, breakIdx);
+    narration = narration.slice(0, breakIdx) || narration.slice(0, Math.floor(maxChineseChars * 1.4));
   }
 
-  return narration + "。";
+  return narration || '请手动编写配音文本';
 }
 
 /**
@@ -859,8 +918,8 @@ function generateDocs(projectDir) {
   // 0.5 关键词提取（用于 attrs 生成、hashtag、主题推断）
   const keywords = extractKeywords(articleContent, 5);
   const inferredTheme = inferTheme(keywords);
-  const attrs = generateAttrs(keywords);
   const sceneContent = generateSceneContent(articleContent, keywords);
+  const attrs = generateAttrs(keywords, sceneContent);
 
   // 打印关键词供调试
   console.log(`   关键词: ${keywords.join(', ')}`);
@@ -888,7 +947,7 @@ function generateDocs(projectDir) {
   fs.writeFileSync(path.join(docsDir, "video-script.md"), scriptContent, "utf8");
 
   // 3. narration.txt（从 video-script.md 提取）
-  const narration = extractNarration(scriptContent, maxNarrationChars);
+  const narration = extractNarration(articleContent, maxNarrationChars);
   fs.writeFileSync(path.join(docsDir, "narration.txt"), narration, "utf8");
 
   // 4. copy.md（传入 keywords 生成 hashtag）

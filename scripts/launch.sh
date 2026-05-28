@@ -46,7 +46,8 @@ usage() {
 
 节点 (gate 子命令):
   audio    检查音频节点
-  subtitle 检查字幕节点
+  subtitle 检查字幕节点（captions.json 格式）
+  narration 检查配音文本字数（175-337字门禁）
   render   检查渲染节点
   final    检查最终视频
   all      全部检查（默认）
@@ -102,6 +103,39 @@ cmd_docs() {
     if ! check_step0_docs "$proj_dir"; then
       err "文档生成不完整，请检查 generate_docs.js 输出"
       exit 1
+    fi
+
+    # ── T-2: narration 质量门禁（175-337字）─────────────────────────────
+    log "narration 质量门禁..."
+    local narration_file="${proj_dir}/docs/narration.txt"
+    if [ ! -f "$narration_file" ]; then
+      err "缺少 narration.txt"
+      exit 1
+    fi
+    local CHAR_COUNT
+    CHAR_COUNT=$(python3 -c "
+text = open('$narration_file', encoding='utf-8').read()
+count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+print(count)
+")
+    local MAX_CHARS
+    MAX_CHARS=$(python3 -c "
+import json, math
+cfg = json.load(open('${proj_dir}/video-config.json'))
+print(math.floor((cfg.get('duration', 52)) * 3.37))
+" 2>/dev/null || echo "175")
+    local MIN_CHARS=175
+    if [ "$CHAR_COUNT" -lt "$MIN_CHARS" ]; then
+      err "❌ narration.txt 质量门禁未通过：${CHAR_COUNT}字 < ${MIN_CHARS}字（内容不足）"
+      err "   请手动重写 docs/narration.txt（参考 article.md 内容，175-337字）"
+      err "   后重新运行 $0 all"
+      exit 1
+    fi
+    if [ "$CHAR_COUNT" -gt "$MAX_CHARS" ]; then
+      warn "⚠️ narration.txt ${CHAR_COUNT}字 > 上限 ${MAX_CHARS}字，可能超出目标时长"
+      warn "   建议精简到 ${MAX_CHARS}字以内（自动截断可能损坏语意完整性）"
+    else
+      ok "✅ narration 质量门禁通过（${CHAR_COUNT}字 / ${MIN_CHARS}-${MAX_CHARS}字）"
     fi
   else
     ok "所有12个文档已存在，跳过生成"

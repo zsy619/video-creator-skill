@@ -7,7 +7,7 @@
  * 用法:
  *   node video-quality-gate.js <project-dir> [node-name]
  *
- * node-name: audio|subtitle|render|final|cover|all (默认: all)
+ * node-name: audio|subtitle|narration|render|final|cover|all (默认: all)
  *
  * 退出码:
  *   0 = 所有检查通过
@@ -358,6 +358,47 @@ function checkSubtitle() {
   const audioDur = getAudioMeta(audioFile).duration;
   if (audioDur) {
     pass(`参考音频时长: ${audioDur.toFixed(2)}s`);
+  }
+}
+
+// ─────────────────────────────────────────────
+// T-9: 节点 N: narration — 配音文本字数门禁（175-337字）
+// ─────────────────────────────────────────────
+function checkNarration() {
+  section('T-9: 节点 N: 配音文本字数检查');
+
+  const narrationFile = path.join(PROJECT_DIR, 'docs', 'narration.txt');
+  if (!checkFile(narrationFile, 'narration.txt')) return;
+
+  const text = fs.readFileSync(narrationFile, 'utf8');
+  const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const MIN_CHARS = 175;
+  const configFile = path.join(PROJECT_DIR, 'video-config.json');
+  const targetDuration = (() => {
+    try {
+      if (fs.existsSync(configFile)) {
+        const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+        return cfg.duration || 52;
+      }
+    } catch (e) { /* ignore */ }
+    return 52;
+  })();
+  const MAX_CHARS = Math.floor(targetDuration * 3.37);
+
+  pass(`配音字数: ${chineseChars}字（目标 ${MIN_CHARS}-${MAX_CHARS}字）`);
+
+  if (chineseChars < MIN_CHARS) {
+    fail(`narration.txt 不足 ${MIN_CHARS}字（当前${chineseChars}字），内容可能太短`);
+  } else if (chineseChars > MAX_CHARS) {
+    warn(`narration.txt 超过上限 ${MAX_CHARS}字（当前${chineseChars}字），可能超出目标时长`);
+  } else {
+    pass(`字数在合理范围内（${MIN_CHARS}-${MAX_CHARS}字）`);
+  }
+
+  // 检查 narration.txt 是否为自动生成的占位内容
+  const placeholderPhrases = ['请手动编写配音文本', '请在此处粘贴'];
+  if (placeholderPhrases.some(p => text.includes(p))) {
+    fail('narration.txt 仍为占位内容，请手动编写配音文本');
   }
 }
 
@@ -780,6 +821,7 @@ console.log(`${BLUE}════════════════════
 
 if (NODE_NAME === 'all' || NODE_NAME === 'audio') checkAudio();
 if (NODE_NAME === 'all' || NODE_NAME === 'subtitle') checkSubtitle();
+if (NODE_NAME === 'all' || NODE_NAME === 'narration') checkNarration();
 if (NODE_NAME === 'all' || NODE_NAME === 'render') checkRender();
 if (NODE_NAME === 'all' || NODE_NAME === 'cover') checkCover();
 if (NODE_NAME === 'all' || NODE_NAME === 'font') checkCoverFont();
