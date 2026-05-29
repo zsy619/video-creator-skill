@@ -152,17 +152,7 @@ npx remotion render VerticalVideo out/final.mp4 --quality 0 --fps 60 --public-di
 
 ---
 
-## Root.tsx `durationInFrames` 硬编码 Bug
-
-## Root.tsx `durationInFrames` 硬编码 Bug
-
-**症状**：渲染出来的视频帧数与音频时长不匹配——视频在错误时间点截断（如 60s 而非 85s），或开头几帧显示占位符内容。
-
-**根因**：`create-remotion-project.js` 生成的 `Root.tsx` 中 `durationInFrames={3606}` 是硬编码值（对应 60.1s @ 60fps）。实际音频可能更长或更短，导致：
-- 视频帧数 = 硬编码值 → 音频比视频长则截断，音频比视频短则尾部黑屏
-- `calculateMetadata` 动态方案需要导入 `getAudioDuration` + `staticFile`，但 esbuild 不支持时报 `TypeError: (0 , esm.getAudioDuration) is not a function`
-
-**修复（正确版——不依赖 calculateMetadata）：**
+| **修复**（正确版——不依赖 calculateMetadata）：|
 
 ```bash
 # 1. 用 ffprobe 获取音频实际帧数

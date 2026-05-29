@@ -795,7 +795,7 @@ print(f'中文字数: {cn}')
 | `dynamic-scene-template.md` | DynamicScene.tsx 完整模板（CSS 渐变封面版） |
 | `dynamic-scene-vertical-center.md` | 垂直居中规范 + CSS 渐变封面 + 首帧亮度验证 |
 | `dynamic-scenes-architecture.md` | SCENE_TYPES 枚举 / 百分比等分 / name 路由（详见 remotion-props.md） |
-| `create-remotion-project-bugs.md` | create-remotion-project.js 三大 Bug 修复（含双花括号/literal `\n`） |
+| `create-remotion-project-bugs.md` | create-remotion-project.js 三大 Bug 修复（含双花括号/literal `\n`/`key={'h'+i}` 单引号 JSX 属性） |
 | `remotion-dynamic-scene-debugging.md` | hive 项目 9 次渲染调试实录 |
 | `scenes-config-pattern.md` | 场景配置数据结构模式 |
 

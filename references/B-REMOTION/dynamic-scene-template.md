@@ -50,6 +50,7 @@ interface DynamicSceneProps {
   steps?: Array<{ cmd?: string; text?: string; desc?: string }>;
   url?: string;
   license?: string;
+  attrs?: string[];  // 用于 CoverScene 底部属性标签
 }
 
 const SceneWrapper = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => {
@@ -63,7 +64,7 @@ const SceneWrapper = ({ children, delay = 0 }: { children: React.ReactNode; dela
 };
 
 // === COVER SCENE（CSS 多层渐变，无外部图片依赖）===
-const CoverScene = ({ title, subtitle }: { title: string; subtitle: string }) => (
+const CoverScene = ({ title, subtitle, attrs }: { title: string; subtitle: string; attrs?: string[] }) => (
   <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
     {/* CSS 渐变背景：水平线(青色) + 垂直线(品红) + 中心光晕 + 紫蓝基色 */}
     <div style={{
@@ -93,7 +94,7 @@ const CoverScene = ({ title, subtitle }: { title: string; subtitle: string }) =>
         {subtitle}
       </div>
       <div style={{ marginTop: 56, display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap" }}>
-        {["🤖 AI Agent", "🔗 协作", "⚡ 自动化"].map(tag => (
+        {(attrs || ["🤖 AI Agent", "🔗 协作", "⚡ 自动化"]).map(tag => (
           <span key={tag} style={{
             background: "rgba(255,0,255,0.18)", border: `2px solid ${SECONDARY}`,
             borderRadius: 999, padding: "12px 28px", color: "#FFFFFF", fontSize: 30, fontFamily: "STHeiti Medium, sans-serif",
@@ -218,7 +219,7 @@ const GenericScene = ({ title, subtitle }: { title: string; subtitle: string }) 
 
 // === MAIN COMPONENT ===
 export const DynamicScene: React.FC<DynamicSceneProps> = ({
-  name, title, subtitle, painPoints, features, steps, url, license,
+  name, title, subtitle, painPoints, features, steps, url, license, attrs,
 }) => {
   const frame = useCurrentFrame();
   const p = useMemo(() => ({
@@ -235,7 +236,7 @@ export const DynamicScene: React.FC<DynamicSceneProps> = ({
         {frame}f
       </div>
       <SceneWrapper>
-        {name === "Cover" && <CoverScene title={title} subtitle={subtitle} />}
+        {name === "Cover" && <CoverScene title={title} subtitle={subtitle} attrs={attrs} />}
         {name === "PainPoint" && <PainPointScene title={title} painPoints={painPoints} />}
         {name === "Solution" && <SolutionScene title={title} subtitle={subtitle} />}
         {name === "Features" && <FeaturesScene title={title} features={features} />}
