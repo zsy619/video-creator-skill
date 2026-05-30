@@ -181,7 +181,7 @@ video-creator/
     ├── F-GENDOCS/                # generate_docs.js 分析（2文件）
     ├── G-WORKFLOW/               # 工作流与集成（5文件）
     ├── H-CONFIG/                 # 配置文件（3文件）
-    └── index.md                  # 总索引
+    └── README.md                 # 总索引（含快速查询 + 完整文件清单）
 ```
 
 ---
