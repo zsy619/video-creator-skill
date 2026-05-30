@@ -104,24 +104,26 @@ subagent 返回 completed
 
 ### B.2 接管前必须检查的三件事
 
+### ① mp4 文件是否已生成
+
 ```bash
-# ① mp4 文件是否已生成
 ls video-project/out/*.mp4 2>/dev/null || echo "❌ 无 mp4"
 
-# ② 是否有渲染进程在跑（可能 subagent 已启动渲染但尚未完成）
+## ② 是否有渲染进程在跑（可能 subagent 已启动渲染但尚未完成）
 ps aux | grep "remotion render" | grep -v grep || echo "✅ 无渲染进程"
 
-# ③ 音频文件是否存在（subagent 完成音频的标志）
+## ③ 音频文件是否存在（subagent 完成音频的标志）
 ls audio/neural_1_2x.m4a audio/captions.json 2>/dev/null || echo "❌ 音频文件缺失"
 ```
 
 ### B.3 接管时 Root.tsx 修复清单
 
+### 问题 1：durationInFrames={0} 或含 calculateMetadata
+
 ```bash
-# 问题 1：durationInFrames={0} 或含 calculateMetadata
 grep "durationInFrames={0}" video-project/src/Root.tsx && echo "❌" || echo "✅"
 
-# 问题 2：getAudioDuration 函数不存在（@remotion/media-utils 版本问题）
+## 问题 2：getAudioDuration 函数不存在（@remotion/media-utils 版本问题）
 grep "getAudioDuration" video-project/src/Root.tsx && echo "⚠️ 需验证函数存在" || echo "✅"
 ```
 

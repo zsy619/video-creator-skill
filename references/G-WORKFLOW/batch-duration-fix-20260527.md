@@ -38,7 +38,7 @@ def check_one(name):
                 'correct': round(video_s * 60)}
     except: return None
 
-projects = sorted([n for n in os.listdir(workspace) 
+projects = sorted([n for n in os.listdir(workspace)
     if os.path.isdir(os.path.join(workspace, n, "video-project"))
     and os.path.isfile(os.path.join(workspace, n, "video-config.json"))
     and os.path.exists(os.path.join(workspace, n, "video-project", "src", "Root.tsx"))
