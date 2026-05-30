@@ -1,4 +1,6 @@
 # video-config.json cover.attrs 检测与修复
+> **最后更新**：2026-05-28
+
 
 ## 症状
 `video-config.json` 的 `cover` 字段为 `{}`（完全空），或仅有 `title`+`subtitle` 缺少 `attrs` 数组，导致封面图生成时无属性标签显示。

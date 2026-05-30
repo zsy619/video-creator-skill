@@ -1,5 +1,7 @@
 # DynamicScene 架构（2026-05-23）
 
+> **最后更新**：2026-05-23
+
 ## 背景
 
 原架构：6个硬编码场景文件（Scene1_Cover ~ Scene6_Ending），Video.tsx 用 `SceneComponents[i]` 按索引路由。

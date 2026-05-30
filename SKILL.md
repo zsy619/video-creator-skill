@@ -76,8 +76,14 @@ metadata:
 ### 渲染铁律
 - **Root.tsx TOTAL_FRAMES**：必须用 `calculateMetadata` 动态计算（`getAudioDuration(staticFile("audio/neural_1_2x.m4a")) × fps`），禁止在 JSX 中硬编码帧数（硬编码值会覆盖 CLI 的 `--duration-in-frames` 参数）。若直接硬编码帧数，必须用 `round(实测秒数 × 60)` 而非 `ceil()`（Remotion 内部用 round()，ceil 会导致多 1 帧偏差）。帧数配置有 4 种形式（`durationInFrames={N}`、`durationInFrames={60*N}`、`TOTAL_FRAMES` const、`DURATION` const），正则必须全覆盖。详见 `references/B-REMOTION/frame-round-calculation.md`。
 - **caption.json 末段 endMs** 必须等于视频实际时长（毫秒），而非音频时长
-- **video-config.json** 必须在项目根目录（不是 `docs/`）
+- **video-config.json 必须在项目根目录**（不是 `docs/`）
 - **所有 .json 配置文件**必须符合 JSON 语法，禁止重复键名
+- **⚠️ `video-config.json` 两项为 CRITICAL 失败条件**（缺少则拒绝渲染）：
+  - `totalMs`：数字字段，等于音频实际时长（毫秒），控制视频总帧数
+  - `scenes`：非空数组，每条含 `startMs/endMs`，控制场景时间边界
+  - 验证命令：`node video-quality-gate.js <project> render` 或 `node video-quality-gate.js <project> config`
+  - 若缺失，**必须先补全再渲染**，不得跳过或使用 DEFAULT_SCENES 硬编码蒙混过关
+- **⚠️ `captions.json` 条数 < 10 → 拒绝渲染**：条数不足会导致场景时间边界错误，必须扩充 narration.txt 后重新生成字幕
 - **⚠️ narration.txt 句数 <10 → 视频质量不达标**：4-6句=4帧，7-9句=5帧，10+句=6帧（最低要求）。低于6帧不符合最低规格。若句数不足，手动补充过渡句确保 ≥10 句。
 - **⚠️ `--props` 必须传入 scenes/title/subtitle/theme**：不传则 `scenes: []`，触发 `DEFAULT_SCENES` 回退，全部场景显示"视频标题/痛点场景/解决方案"等占位符。props 对象结构：
   ```json
@@ -175,7 +181,7 @@ python3 -c "import json; c=json.load(open('video-config.json'))['cover']; print(
   "attrs": ["<属性1>", "<属性2>", ...]
 }
 ```
-> `attrs` 数组是封面图底部属性标签的数据源。封面图 attrs 和视频内嵌封面帧 attrs 共用 `video-config.json cover.attrs`，但分属两个独立渲染环节（详见 `references/G-WORKFLOW/video-config-cover-attrs.md` 和 `references/E-VISUAL/pil-cover-usage.md`）。
+> `attrs` 数组是封面图底部属性标签的数据源。封面图 attrs 和视频内嵌封面帧 attrs 共用 `video-config.json cover.attrs`，但分属两个独立渲染环节（详见 `references/E-VISUAL/pil-cover.md`）。
 ### Root.tsx scenes 必须填充
 生成的 Root.tsx 中 `defaultProps.scenes` 默认为空数组 `[]`，导致 Video.tsx 回退到 DEFAULT_SCENES（6 个通用场景，内容与项目无关）。**必须在渲染前将实际 scenes 配置填入 Root.tsx defaultProps**。
 
@@ -199,7 +205,7 @@ print(f'句数: {len(sentences)} (需≥10)')
 - `extractNarration()` 生成乱码 narration，音频配音变成无意义文本
 - `DynamicScene.tsx` 编译后包含损坏数据，导致视频内容全错
 
-**4个已确认的 generate_docs.js Bug**（必须修复后才能得到正确内容）：
+**5个已确认的 generate_docs.js Bug**（必须修复后才能得到正确内容）：
 
 1. **`[字符类]` 内 `|` 是字面字符非或运算**（第 359 行附近）
    - 错误：`/([^.！？]{8,30}[问题|困难|麻烦...]/)` — `[]` 内的 `|` 是字面字符
@@ -216,6 +222,11 @@ print(f'句数: {len(sentences)} (需≥10)')
 4. **`extractNarration()` 字节/字符边界混淆**
    - `acc++` 按 UTF-8 字符计数，但 `slice(0, breakIdx)` 按字节截断
    - 修复：使用字符感知的截断方式（详见 `references/F-GENDOCS/generate-docs-deep-analysis.md`）
+
+5. **主题漂移（Topic Drift）**
+   - 症状：`narration.txt` 跑题（如编程课程讲成"社交氛围感"）
+   - 修复：不重跑 `generate_docs.js`，直接手动重写 narration + video-script → 重新生成音频+字幕
+   - 详见 `references/F-GENDOCS/generate-docs-deep-analysis.md`（Bug 5）
 
 **防护检查（Step 0 后必做）**：
 ```bash
@@ -370,17 +381,17 @@ python3 -c "import math; frames=round(float('$VIDEO_S') * 60); print(f'DURATION_
 - `video-config.json` 补充 `durationInSeconds: 实测秒数` 或 `totalMs: 实测毫秒`
 - 143 个项目修复后全部 100% 帧数正确
 
-### ⚠️ 【核心修正 2026-05-27】captions.json endMs 必须基于渲染后视频时长等比缩放
-**问题本质**：`neural_1_2x.m4a` 标注"1.2x 加速"，但渲染时可能使用原始音频（`neural_full.mp3`）、BGM 变体（`neural_30pct_bgm.m4a`）等，导致：
+**⚠️ 【核心修正 2026-05-27】captions.json endMs 必须基于渲染后视频时长等比缩放**
+**问题本质**：neural_1_2x.m4a 标注"1.2x 加速"，但渲染时可能使用原始音频（neural_full.mp3）、BGM 变体（neural_30pct_bgm.m4a）等，导致：
 - 音频时长 ≠ 视频时长（如 hermes-web-search-plus: neural_1_2x=44.5s，视频=28.7s）
 - captions.json 由 neural_1_2x 驱动，endMs 基于错误时长
 
 **判断规则**（三种情况）：
-1. `neural_1_2x 时长 ≈ 视频时长`：字幕正确，无需修改
-2. `neural_1_2x 时长 = 视频时长 × 1.2`：字幕由 atempo 音频驱动 → **需要缩放**
-3. `neural_1_2x 时长 ≠ 视频时长（差异较大）**：渲染用了其他音频 → **需要缩放**
+1. neural_1_2x 时长 ≈ 视频时长：字幕正确，无需修改
+2. neural_1_2x 时长 = 视频时长 × 1.2：字幕由 atempo 音频驱动 → **需要缩放**
+3. neural_1_2x 时长 ≠ 视频时长（差异较大）：渲染用了其他音频 → **需要缩放**
 
-**缩放公式**：`scale = video_ms / cap_endms`，所有字幕时间戳乘以 scale：
+**缩放公式**：scale = video_ms / cap_endms，所有字幕时间戳乘以 scale：
 ```python
 scale = video_ms / cap_endms
 for cap in captions:
@@ -399,15 +410,38 @@ for cap in captions:
 | SenseNova-U1 | 51136 | 47082 | 0.9207 | ✅ 47082ms |
 | xhttp-installer-video | 51978 | 55680 | 1.0712 | ✅ 55680ms |
 
-### ⚠️ Python 3.9 严格拒绝 JSON trailing comma
-**症状**：`video-config.json` 解析失败，`Expecting property name enclosed in double quotes` 指向文件末尾 `}` 附近。
-**根因**：Python 3.9 的 `json.load()` 严格遵循 RFC 8259，不允许 trailing comma（如 `"totalMs": 141035,` 后的逗号）。
-**检测**：
+### ⚠️ video-quality-gate.js h264x 误判为失败（2026-05-29 新增）
+**症状**：npm run build 成功渲染（5.77MB），但门禁报告 ❌ 视频编码: h264x（期望 h264）。
+**根因**：Remotion 4.x 在不同 OS/arch 下输出不同的 H.264 编码名：h264（Linux）、h264x（macOS ARM64）、libx264（部分配置）。旧检查 codecOut === 'h264' 不覆盖 h264x。
+**修复**：将 h264x 和 libx264 加入白名单 validH264 = ['h264', 'h264x', 'libx264']。
+**实测验证**：Nova3D 项目（60条批处理第2条）渲染输出 h264x，门禁报告 ❌，实际视频正常。修复后门禁通过。
+
+### ⚠️ Subagent status=completed ≠ 项目完成（2026-05-29 新增）
+**症状**：飞书 Base 标记 video-creator="是"，但 video-config.json 缺少 totalMs/scenes 关键字段，渲染时走了 DEFAULT_SCENES fallback，视频内容全错。
+**根因**：Subagent 报告 "完成" 时只验证了文件存在性（final.mp4 存在），未验证 video-config.json 的字段完整性。
+**防护**：主进程强制验证产出，不依赖 subagent status。两条强制性检查：
+1. node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> config — totalMs 必须为正数，scenes 必须非空且每条含 startMs/endMs
+2. node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> all — 全部通过后才认为项目完整
+**关联风险：video-config.json patch 损坏**
+症状：JSON 解析错误（`Expecting ':' delimiter`），根因是 patch 操作同时匹配 cover 块的多行内容并替换，导致 `attrs` 字段或逗号被意外删除，留下孤立内容。
+**防御**：patch JSON 文件时每次只改一个字段，验证 `python3 -c "import json; json.load(open('x.json'))"` 后再继续。
+
+### ⚠️ Remotion 项目复制后 node_modules 依赖失效（2026-05-29 新增）
+**症状**：从旧项目复制 video-project 到新项目后，node_modules/.bin/remotion 引用原绝对路径（如 /Volumes/.../node_modules/.bin/remotion），导致 `MODULE_NOT_FOUND`。
+**场景**：Nova3D 从 sub2api 复制 video-project 模板后渲染失败。
+**根因**：node_modules 内脚本含硬编码绝对路径，重新 npm install 可解决。
+**修复**：不复制 node_modules，直接在新项目执行：
 ```bash
-python3 -c "import json; json.load(open('video-config.json'))"
+cd video-project && npm install remotion@4.0.459 @remotion/captions@4.0.459
 ```
+**防护**：launch.sh 复制模板时自动执行 npm install，无需手动干预。
+
+### ⚠️ Python 3.9 严格拒绝 JSON trailing comma
+**症状**：video-config.json 解析失败，Expecting property name enclosed in double quotes 指向文件末尾 } 附近。
+**根因**：Python 3.9 的 json.load() 严格遵循 RFC 8259，不允许 trailing comma（如 "totalMs": 141035, 后的逗号）。
+**检测**：python3 -c "import json; json.load(open('video-config.json'))"
 **修复**：删除 trailing comma。Python 3.9/3.11 均严格拒绝 trailing comma，必须符合 RFC 8259。
-> ⚠️ 单行 JSON 如 `{"a": 1,}` 也会失败。检查所有 `,}` 和 `,]` 模式。
+> ⚠️ 单行 JSON 如 {"a": 1,} 也会失败。检查所有 ,} 和 ,] 模式。
 
 ### ⚠️ audio/neural_1_2x.m4a 不一定是渲染用音频（2026-05-27 新增）
 **症状**：neural_1_2x.m4a 时长与视频实际时长不匹配（差 >0.5s），但 captions.json 基于 neural_1_2x 生成，导致字幕与视频对不上。
@@ -887,7 +921,7 @@ for root, dirs, files in os.walk('docs'):
 | 文件 | 用途 |
 |------|------|
 | `git-workflow.md` | Git 隔离与目录分离规范 |
-| `subagent-handover.md` | 主进程接管 subagent completed 但渲染未执行的完整流程 |
+| `subagent-takeover.md` | Subagent 超时后主进程接管流程（2026-05-28） |
 | `feishu-base-batch.md` | Feishu Base 批量处理（record_id 查询 / 更新） |
 | `lark-cli-base-record-update.md` | lark-cli record-update 命令实测语法（2026-05-28） |
 | `documentation-consistency.md` | 文档一致性维护指南 |

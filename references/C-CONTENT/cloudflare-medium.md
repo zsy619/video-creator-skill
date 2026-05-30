@@ -1,5 +1,7 @@
 # Medium.com Cloudflare Blocking — 2026-05-12
 
+> **最后更新**：2026-05-12
+
 ## Problem
 
 When attempting to fetch Medium articles for video creation, all automated approaches are blocked:

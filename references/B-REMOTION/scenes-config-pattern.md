@@ -1,5 +1,7 @@
 # Root.tsx scenes 配置模式
 
+> **最后更新**：2026-05-28
+
 ## 问题
 `create-remotion-project.js` 生成的 Root.tsx 中 `defaultProps.scenes = []`（空数组），导致 Video.tsx 使用硬编码的 DEFAULT_SCENES（6个通用场景，内容与项目无关）。
 

@@ -1,5 +1,6 @@
 # Node.js execSync { encoding: 'utf8' } 返回值 bug
 
+> **最后更新**：2026-05-13
 > **平台**：macOS arm64, Node.js 24（其他版本也可能受影响）
 > **发现时间**：2026-05-13，Hysteria 视频项目
 

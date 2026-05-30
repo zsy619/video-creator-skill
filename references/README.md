@@ -65,4 +65,5 @@
 |------|------|------|
 | 2026-05-28 | 目录重组 | 建立模块 README，精简主 index，清理重复文件 |
 | 2026-05-28 | 去重合并 | `duration-zero-fix.md` → `remotion-render-gotchas.md`；`pil-cover-usage.md` → `pil-cover.md`；`video-optimization-pitfalls.md` → `video-optimization.md` |
+| 2026-05-29 | 合并优化 | `G-WORKFLOW/edge-tts-ffprobe-params.md` → `C-CONTENT/audio-tts.md` 附录E；`G-WORKFLOW/subagent-handover.md` → `D-SUBAGENT/subagent-takeover.md` 附录B；全部56文件补全`最后更新`元数据 |
 | 2026-05-24 | 目录重组 | 建立8分类结构，废弃文档移入 A-ARCHIVED |

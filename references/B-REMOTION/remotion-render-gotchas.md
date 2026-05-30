@@ -72,7 +72,7 @@ grep "durationInFrames={[0-9]" video-project/src/Root.tsx
 # 渲染后检查实际帧数
 ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames \
   -of default=noprint_wrappers=1 video-project/out/final.mp4
-```
+```bash
 
 ---
 
@@ -139,7 +139,7 @@ const audioDuration = await getAudioDuration(
 ATEMPO=$(python3 -c "print(round($SOURCE_DUR / $TARGET_DUR, 4))")
 # 如果 narration.txt 字数偏少 → ATEMPO < 1.0 → 语速变慢
 # 例如：31.18s / 52s = 0.6 → 语速变成 0.6x！
-```
+```bash
 
 动态计算本意是"让 narration 精确填满目标时长"，但实际上 `narration.txt` 应该已经控制在目标字数内（175 字对应 52 秒），不需要动态压缩。
 

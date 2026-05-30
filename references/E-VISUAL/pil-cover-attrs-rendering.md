@@ -1,5 +1,7 @@
 # generate_cover.py attrs 标签增强（2026-05-27）
 
+> **最后更新**：2026-05-27
+
 ## 背景
 osiris 项目封面需要渲染 4 项技术属性标签（WebGL渲染引擎 / 15层数据可视化 / 60fps流畅体验 / MIT开源协议），而原版 `generate_cover.py` 仅渲染 title + subtitle。
 

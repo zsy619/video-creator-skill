@@ -211,7 +211,7 @@ cp "${VP_DIR}/public/audio/captions.json" "${proj_dir}/audio/captions.json"
 - Step 3 生成 captions.json 后，同时复制到 `audio/`（Gate B 检查路径）
 - 或 Gate B 检查 `video-project/public/audio/`（与 Remotion 读取路径一致）
 - `launch.sh all` 应该在 Gate B 失败后继续尝试渲染（--continue-on-error 模式）
-# video-optimization-pitfalls
+## 视频优化已知的陷阱
 > 本文件记录 video-creator 技能在实际项目中发现的已知陷阱，供渲染前验证使用。
 > **最后更新**：2026-05-27（基于 osiris 项目）
 

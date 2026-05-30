@@ -438,3 +438,138 @@ ffmpeg -i final.mp4 \
 ⚠️ **feedgrab 12.05 chars/s 实为字节数，非字符数**。真实 feedgrab 中文字符语速约 **3.40 Chinese chars/s**，与 edge-tts 自然语速 3.37~3.73 完全一致。
 
 **不要按 bytes/s 计算语速**，会把正常语速的视频用 atempo=0.5 强行拉慢 50%。
+
+---
+
+## 附录 E：edge-tts / ffprobe 参数差异备忘
+
+> **来源**：`G-WORKFLOW/edge-tts-ffprobe-params.md`（合并，原始文件已删除）
+> **最后更新**：2026-05-19
+
+### E.1 edge-tts 常用参数（vs 错误写法）
+
+```bash
+# ✅ 正确
+edge-tts --voice zh-CN-YunjianNeural --rate +0% \
+  --file docs/narration.txt \
+  --write-media audio/neural_full.mp3
+
+# ❌ 常见错误：--output 不存在
+edge-tts --output audio/neural_full.mp3 ...     # unrecognized arguments
+
+# ❌ 常见错误：--text 配合 --file（互斥）
+edge-tts --text "文字内容" --file docs/narration.txt ...  # --text 和 --file 互斥
+```
+
+### E.2 ffprobe 参数差异常见于 macOS
+
+```bash
+# ✅ macOS 兼容写法（无 -default）
+ffprobe -v error -show_entries format=duration -of csv=p=0 audio.m4a
+
+# ❌ Linux ffprobe（macOS 不支持此写法）
+ffprobe -v error -show_entries format=duration \
+  -default=noprint_wrappers=1 -of csv=p=0 audio.m4a
+# → Error: Option not found
+```
+
+### E.3 atempo 1.2x 对时长的影响（参考值）
+
+| 原始音频 | atempo | 输出音频 | 计算验证 |
+|:---------|:------:|:-------:|----------|
+| 65.33s | 1.2x | 54.42s | 65.33/1.2=54.44 ✓ |
+
+**注意**：不同音频内容密度不同，atempo 压缩比会有略微差异。每次生成后用 ffprobe 实测时长。
+
+### E.4 音频时长实测命令
+
+```bash
+# m4a / mp3 / aac
+ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_1_2x.m4a
+
+# 精确到毫秒（用于 captions.json 同步）
+ffprobe -v error -show_entries format=duration:stream=bit_rate \
+  -of csv=p=0 audio/neural_1_2x.m4a
+```
+
+---
+
+## 附录 D：用户指定的 atempo 优先级与实测数据
+
+> **来源**：`C-CONTENT/audio-tempo-user-patterns.md`（合并，原始文件已删除）
+> **最后更新**：2026-05-26
+
+### D.1 核心发现：用户指定 atempo 直接使用
+
+用户可以在 `video-config.json` 中通过 `voice.atempo` 字段指定语速倍率（如 `1.2`）。工作流必须尊重该值，**直接使用而非重新计算**。
+
+```json
+{
+  "voice": {
+    "name": "zh-CN-YunjianNeural",
+    "rate": "+0%",
+    "atempo": 1.2
+  }
+}
+```
+
+---
+
+### D.2 实测数据（2026-05-26）
+
+| 项目 | 原始时长 | atempo | 处理后时长 | 目标时长 | 偏差 |
+|------|---------|--------|-----------|---------|------|
+| CPA-Helper | 154.632s | 1.0967 | 140.979s | 141s | +0.02% |
+| Animal Island UI | 62.064s | 1.2 | 51.987s | 52s | -0.03% |
+
+**结论**：用户指定 atempo=1.2 时，直接使用该值即可满足 52s 目标。无需动态计算。
+
+---
+
+### D.3 atempo 计算公式（当用户未指定时）
+
+```
+ATEMPO = 原始时长 / 目标时长
+目标时长 = video-config.json 的 scenes[-1]['endMs'] / 1000
+```
+
+```bash
+# 动态计算（用户未指定 atempo 时）
+SOURCE_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 audio/neural_full.mp3)
+TARGET_DUR=$(python3 -c "import json; print(json.load(open('video-config.json'))['scenes'][-1]['endMs']/1000)")
+ATEMPO=$(python3 -c "print(round($SOURCE_DUR / $TARGET_DUR, 4))")
+```
+
+---
+
+### D.4 工作流中的 atempo 优先级
+
+1. **最高**：用户通过 video-config.json 明确指定 `voice.atempo`
+2. **次之**：动态计算（当用户未指定时）
+3. **禁止**：硬编码（如 `ATEMPO=1.2`）
+
+---
+
+### D.5 典型错误模式
+
+#### D.5.1 错误：忽略用户指定的 atempo
+
+```bash
+# ❌ 错误：重新计算 atempo，忽略 video-config.json
+SOURCE_DUR=$(ffprobe ... audio/neural_full.mp3)
+TARGET_DUR=52
+ATEMPO=$(python3 -c "print(round($SOURCE_DUR / $TARGET_DUR, 4))")
+```
+
+#### D.5.2 正确：尊重用户指定的 atempo
+
+```bash
+# ✅ 正确：优先使用 video-config.json 中的 atempo
+ATEMPO=$(python3 -c "import json; print(json.load(open('video-config.json'))['voice']['atempo'])")
+echo "使用用户指定的 atempo: ${ATEMPO}"
+
+ffmpeg -y -i audio/neural_full.mp3 \
+  -af "atempo=${ATEMPO}" \
+  -c:a aac -b:a 256k \
+  audio/neural_1_2x.m4a
+```

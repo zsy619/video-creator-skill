@@ -1,5 +1,7 @@
 # create-remotion-project.js Bug 修复 + 主进程接管手册
 
+> **最后更新**：2026-05-29
+
 > 本文件收录 `create-remotion-project.js` 的已知 Bug（双花括号/literal `\n`）及主进程在 subagent 失败时的标准接管流程。
 
 ## 目录

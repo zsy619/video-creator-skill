@@ -10,7 +10,7 @@
 ### "No entry point specified" + useCurrentFrame 错误
 
 **症状**：
-```
+```bash
 npx remotion render src/Root.tsx VerticalVideo out/final.mp4
 → No entry point specified
 
@@ -28,7 +28,7 @@ npx remotion versions
 ### Composition ID 与 registerRoot 不匹配
 
 **症状**：
-```
+```bash
 Could not find composition with ID RemotionRoot. Available compositions: VerticalVideo
 ```
 
@@ -269,12 +269,12 @@ cat > package.json << 'EOF'
 EOF
 
 npm install
-```
+```bash
 
 ### remotion.config.ts 导致 CLI 崩溃
 
 **症状**：
-```
+```bash
 TypeError: Cannot read properties of undefined (reading 'setVideoImageFormat')
 ```
 
@@ -310,7 +310,7 @@ npx remotion render VerticalVideo out/final.mp4 --fps=60 --disable-gpu --log=err
 ### --dir 路径解析 Bug
 
 **现象**：
-```
+```bash
 node create-remotion-project.js --dir /full/path/to/project --name my-project
 # 项目实际创建在 {cwd}/video-project，而非 /full/path/to/project/video-project
 ```
@@ -461,7 +461,7 @@ mpv video-project/out/final.mp4 --start=2 --end=5
 ### npx remotion still ProtocolError
 
 **现象**：执行 `npx remotion still` 时，Chrome Headless Shell 下载完成后报错：
-```
+```bash
 Was not able to close puppeteer page ProtocolError: Protocol error (Target.closeTarget): No target found for targetId
 ```
 但帧文件仍然成功生成。

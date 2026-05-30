@@ -1,5 +1,7 @@
 # 主题色板 — 50 套封面配色完整参考
 
+> **最后更新**：2026-05-24
+
 > 所属模块：video-creator / SKILL.md → 视觉设计
 > ⚠️ **数据来源**：`scripts/theme-colors.js`（单一数据源）
 > 对应 Remotion 动画风格：`rules/THEMES.md` 的 50 个动画主题 ID

@@ -7,6 +7,7 @@
 | 文件 | 用途 | 关键内容 |
 |------|------|---------|
 | `subagent-timeout.md` | **超时恢复指南** | delegate_task 600s 超时 / launch.sh 整体耗时 / SIGBUS / 主进程接管流程 |
+| `subagent-takeover.md` | **超时接管 + 主进程接管流程** | 强制验证步骤 / Root.tsx 修复 / 接管命令 / **已合并 subagent-handover.md** |
 | `subagent-context-preservation.md` | **会话压缩防护** | context compaction 后上下文丢失 / narration.txt 损坏 / references 文件写入规则 |
 
 ## 核心原则

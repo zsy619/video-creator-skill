@@ -1,5 +1,6 @@
 # DynamicScene.tsx 完整模板（CSS 渐变封面版）
 
+> **最后更新**：2026-05-23
 > **⚠️ 重要更新（2026-05-23）**：封面图请勿使用 `staticFile("assets/cover.png")` 或 `import ... from ".png"` 方式——Remotion 服务端渲染时 Chromium 的 file:// 协议限制会导致图片 404。**SVG `<line>` stroke 同样不渲染**。**正确做法**：使用 CSS `background: linear-gradient(...)` 多层渐变（唯一可靠方案，见下方模板 CoverScene）。
 
 ---

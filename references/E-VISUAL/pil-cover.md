@@ -1,4 +1,6 @@
 # PIL 封面生成参考
+> **最后更新**：2026-05-28
+
 
 当 Seedream / DashScope 等 AI 图像 API 全部不可用时，用 Pillow 本地渲染封面图。
 

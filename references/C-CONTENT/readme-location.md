@@ -1,5 +1,7 @@
 # README Location Variants
 
+> **最后更新**：2026-05-14
+
 GitHub repositories don't always place README.md at the repo root. Monorepos, documentation-centric repos, and agent-focused projects commonly store it in subdirectories. Always probe multiple locations when the expected path doesn't exist.
 
 ## Common Patterns

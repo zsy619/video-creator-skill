@@ -1,5 +1,6 @@
 # Subagent 会话压缩上下文丢失问题
 
+> **最后更新**：2026-05-26
 > 2026-05-22 发现：video-creator subagent 执行深度分析后，会话压缩仅保留最后一条用户消息（"开始执行"），丢失所有 TODO 状态、分析结论和工作上下文。
 
 ## 问题现象
@@ -61,7 +62,7 @@ if bad > 0 or cn == 0: exit(1)
 ## 相关文件
 - `F-GENDOCS/generate-docs-deep-analysis.md` — generate_docs.js 深度分析
 - `E-VISUAL/theme-matching.md` — sceneContent 动态化完整数据流
-- `references/G-WORKFLOW/subagent-handover.md` — 主进程接管 subagent 的标准流程
+- `D-SUBAGENT/subagent-takeover.md` — 主进程接管 subagent 的标准流程（含合并的接管流程详情）
 
 ---
 

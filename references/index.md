@@ -93,12 +93,13 @@ scenes-config-pattern.md           # 场景配置数据结构模式
 
 ```
 audio-tts.md                       # 音频生产与 TTS 语音生成（edge-tts + 1.2x atempo）
+                                    # 含原 audio-tempo-user-patterns.md（附录 D）
 subtitle-production.md             # 字幕生产与 TikTokCaptionOverlay 方案
+                                    # 含原 inline-captions.md（附录 F）
 content-document-generation.md     # 内容获取与文档生成工作流
 video-workflow-failures.md         # video-creator 系统性失败模式（按严重程度排序）
 readme-location.md                 # README 位置变体（monorepo / doc 子目录）
 cloudflare-medium.md               # Medium.com Cloudflare 拦截
-audio-tempo-user-patterns.md       # atempo 用户偏好（YunjianNeural vs YunxiNeural）
 ```
 
 ### D-SUBAGENT — Subagent 管理
@@ -141,9 +142,8 @@ captions-endms-sync.md            # 字幕末端 ms 同步
 batch-duration-fix-20260527.md    # 批量时长修复记录
 video-config-cover-attrs.md       # video-config.json cover.attrs 字段规范
 video-creator-deep-lessons.md     # video-creator 深度教训
-subagent-handover.md             # Subagent 交接规范
-frame-sync.md                     # 帧同步
-frame-sync-regex-patterns.md      # 帧同步正则模式
+subagent-takeover.md             # Subagent 超时接管流程
+frame-sync.md                     # 帧同步（含原 frame-sync-regex-patterns.md 第 6 节）
 ```
 
 ### H-CONFIG — 配置文件
@@ -157,11 +157,11 @@ tailwind-config.json             # Tailwind 主题扩展配置（cyberpunk / neo
 ### A-ARCHIVED — 已废弃文档（请勿使用）
 
 ```
-feishu-base-completion.bak.md    # 旧版手动流程，已被 launch.sh all 替代
 one-pass.bak.md                  # ⚠️ 已废弃
-remotion-render-output.md        # ⚠️ 已废弃
 launch-sh.md                     # ⚠️ 已废弃，内容并入 subagent-timeout.md
 ```
+
+> **2026-05-30 清理**：`remotion-render-output.md`、`feishu-base-completion.bak.md` 已删除；`audio-tempo-user-patterns.md` → `audio-tts.md` 附录 D；`inline-captions.md` → `subtitle-production.md` 附录 F；`frame-sync-regex-patterns.md` → `frame-sync.md` 第 6 节
 
 ---
 

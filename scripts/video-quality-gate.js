@@ -574,16 +574,18 @@ function checkFinal() {
     }
   }
 
-  // D2: 编码格式（H.264 / libx264）
+  // D2: 编码格式（H.264 / libx264 / h264x）
+  // Remotion 4.x 输出有 h264 / h264x 两种变体，均为有效 H.264
+  const validH264 = ['h264', 'h264x', 'libx264'];
   if (finalFile) {
     const codecOut = execSync(
-      `ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "${finalFile}" 2>/dev/null`,
+      `ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=s=x:p=0 "${finalFile}" 2>/dev/null`,
       { encoding: 'utf8' }
     ).trim();
-    if (codecOut === 'h264') {
-      pass(`视频编码: H.264 ✓`);
+    if (validH264.includes(codecOut)) {
+      pass(`视频编码: ${codecOut} ✓`);
     } else {
-      fail(`视频编码: ${codecOut}（期望 h264）`);
+      fail(`视频编码: ${codecOut}（期望 h264/h264x/libx264）`);
     }
   }
 
@@ -632,6 +634,78 @@ function checkFinal() {
     }
   } else {
     warn('captions.json 不存在（Remotion Native 字幕渲染未启用）');
+  }
+}
+
+// ─────────────────────────────────────────────
+// T-10: 节点 VC: video-config.json 关键字段检查（CRITICAL）
+// ─────────────────────────────────────────────
+function checkVideoConfig() {
+  section('T-10: 节点 VC: video-config.json CRITICAL 字段检查');
+
+  const cfgFile = path.join(PROJECT_DIR, 'video-config.json');
+  if (!fs.existsSync(cfgFile)) {
+    fail('video-config.json: 文件不存在（应在项目根目录）');
+    return;
+  }
+
+  try {
+    const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+    let ok = true;
+
+    // totalMs 检查
+    if (typeof cfg.totalMs !== 'number' || cfg.totalMs <= 0) {
+      fail(`video-config.json: totalMs 缺失或无效（当前值: ${cfg.totalMs}，应为正数字）`);
+      ok = false;
+    } else {
+      pass(`totalMs: ${cfg.totalMs}ms`);
+    }
+
+    // scenes 数组检查
+    if (!Array.isArray(cfg.scenes) || cfg.scenes.length === 0) {
+      fail(`video-config.json: scenes 为空或不存在（当前: ${JSON.stringify(cfg.scenes)}）`);
+      ok = false;
+    } else {
+      pass(`scenes: ${cfg.scenes.length} 个场景`);
+      // 检查每条 scenes 含 startMs/endMs
+      let sceneOk = true;
+      for (let i = 0; i < cfg.scenes.length; i++) {
+        const s = cfg.scenes[i];
+        if (typeof s.startMs !== 'number' || typeof s.endMs !== 'number') {
+          fail(`  scene[${i}] 缺少 startMs/endMs: ${JSON.stringify(s).substring(0, 60)}`);
+          sceneOk = false;
+          ok = false;
+        }
+      }
+      if (sceneOk) {
+        pass('所有 scenes 含 startMs/endMs');
+      }
+    }
+
+    // captions.json 条数检查（与 video-config.json 联动）
+    const captionFile = path.join(PROJECT_DIR, 'audio', 'captions.json');
+    if (fs.existsSync(captionFile)) {
+      try {
+        const caps = JSON.parse(fs.readFileSync(captionFile, 'utf8'));
+        if (!Array.isArray(caps) || caps.length < 10) {
+          fail(`captions.json: 仅 ${caps.length} 条（要求 ≥10 条，不足会破坏场景时间边界）`);
+          ok = false;
+        } else {
+          pass(`captions.json: ${caps.length} 条（≥10 ✓）`);
+        }
+      } catch (e) {
+        fail(`captions.json: 解析失败 - ${e.message}`);
+        ok = false;
+      }
+    } else {
+      warn('captions.json 不存在（跳过条数检查）');
+    }
+
+    if (!ok) {
+      fail('video-config.json 存在 CRITICAL 问题，修复前不得执行 npm run build');
+    }
+  } catch (e) {
+    fail(`video-config.json: 解析失败 - ${e.message}`);
   }
 }
 
@@ -819,16 +893,20 @@ log(`  项目: ${PROJECT_DIR}`, BLUE);
 log(`  节点: ${NODE_NAME === 'all' ? '全部' : NODE_NAME.toUpperCase()}`, BLUE);
 console.log(`${BLUE}═══════════════════════════════════════════${RESET}`);
 
-if (NODE_NAME === 'all' || NODE_NAME === 'audio') checkAudio();
+if (NODE_NAME === 'all' || NODE_NAME === 'audio')    checkAudio();
 if (NODE_NAME === 'all' || NODE_NAME === 'subtitle') checkSubtitle();
 if (NODE_NAME === 'all' || NODE_NAME === 'narration') checkNarration();
-if (NODE_NAME === 'all' || NODE_NAME === 'render') checkRender();
-if (NODE_NAME === 'all' || NODE_NAME === 'cover') checkCover();
-if (NODE_NAME === 'all' || NODE_NAME === 'font') checkCoverFont();
-if (NODE_NAME === 'all' || NODE_NAME === 'final') checkFinal();
+if (NODE_NAME === 'all' || NODE_NAME === 'render')   checkRender();
+if (NODE_NAME === 'all' || NODE_NAME === 'config')   checkVideoConfig();
+if (NODE_NAME === 'all' || NODE_NAME === 'cover')    checkCover();
+if (NODE_NAME === 'all' || NODE_NAME === 'font')     checkCoverFont();
+if (NODE_NAME === 'all' || NODE_NAME === 'final')    checkFinal();
 
-section('检查结果');
-if (exitCode === 0) {
+log(`\n${exitCode === 0 ? GREEN + '✅ 所有门禁通过' : RED + '❌ 存在失败项'}${RESET}`);
+if (exitCode !== 0) {
+  console.log('\n请修复上述 ❌ 项后再继续。');
+  process.exit(exitCode);
+} else {
   log('✅ 全部检查通过，质量门禁开放', GREEN);
   console.log(`\n下一步建议:`);
   const hasAudio = fs.existsSync(path.join(PROJECT_DIR, 'audio', 'neural_1_2x.m4a'));
@@ -836,9 +914,5 @@ if (exitCode === 0) {
   if (!hasAudio) console.log('  → 生成音频（edge-tts）');
   if (hasAudio && !hasCaption) console.log('  → 生成字幕时间戳（captions.json）');
   if (hasAudio && hasCaption) console.log('  → 可以渲染视频（Remotion）');
-} else {
-  log('❌ 存在失败项，质量门禁关闭', RED);
-  console.log('\n请修复上述 ❌ 项后再继续。');
 }
-
 process.exit(exitCode);
