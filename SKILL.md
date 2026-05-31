@@ -60,7 +60,7 @@ metadata:
 | 类别 | 快速索引 |
 |------|---------|
 | **Step 0** | `launch.sh init` 在项目目录内执行；article.md < 100 字或含 `"请在此处"` → 立即失败 |
-| **音频** | narration 必须手写（中文字符 175-337）；禁用 `generate_docs.js` 生成 narration |
+| **音频** | narration 必须手写（中文字符 175-337）；禁用 `generate_docs.js` 生成 narration；atempo处理后时长不能用于帧数校验 |
 | **渲染** | `--props` 每条 scene 必须含 `startMs/endMs`；Root.tsx 帧数用 `round(秒×60)` 而非 `ceil()` |
 | **Workspace 还原** | Git 还原项目渲染前必查 Root.tsx `durationInFrames` 与当前音频时长是否同步 |
 | **narration** | 中文字符 ≥175；英文句号 `.` = 0；控制字符 = 0；句数 ≥10（4-6句=4帧，7-9句=5帧，10+句=6帧） |
@@ -88,11 +88,14 @@ metadata:
 | **字幕六禁止** | [rules/SUBTITLES.md](rules/SUBTITLES.md) | Fontsize=72/Outline=2/MarginV=50/\\N换行/10字段 |
 | **音频规范** | [rules/VOICE.md](rules/VOICE.md) | 男声优先（YunjianNeural 默认）、禁止女声 |
 | **质量检查** | [rules/QUALITY.md](rules/QUALITY.md) · [rules/CHECKLIST.md](rules/CHECKLIST.md) | 11个文档门禁、三封面尺寸 |
+| **前置门禁** | [scripts/pre-flight-check.js](scripts/pre-flight-check.js) | 12文档+封面+音频+字幕+配置，batch/渲染前强制执行 |
 | **Session 追踪** | [rules/SESSION_LOG.md](rules/SESSION_LOG.md) | session_status 是工具不是命令、7个关键节点 |
 | **Git 隔离** | [references/G-WORKFLOW/git-workflow.md](references/G-WORKFLOW/git-workflow.md) | `{repo}-repo/` 隔离、launch.sh init 自动隔离 |
 | **Feishu Base** | [references/G-WORKFLOW/feishu-base-batch.md](references/G-WORKFLOW/feishu-base-batch.md) | 11个受影响项目、Base 记录更新语法 |
 | **内容文档** | [references/C-CONTENT/content-document-generation.md](references/C-CONTENT/content-document-generation.md) | Step 0-3 完整流程 |
 | **Subagent 超时** | [references/D-SUBAGENT/subagent-takeover.md](references/D-SUBAGENT/subagent-takeover.md)（附录 D 超时恢复指南） | launch.sh 路径陷阱、超时策略 |
+| **文档生成错误** | [references/G-WORKFLOW/subagent-docs-generation-errors.md](references/G-WORKFLOW/subagent-docs-generation-errors.md) | subagent 生成 Step 0 文档时的扩展名错误和修复 |
+| **Subagent docs 生成错误** | [references/G-WORKFLOW/subagent-docs-generation-errors.md](references/G-WORKFLOW/subagent-docs-generation-errors.md) | HTML扩展名/.md/无扩展名/session-log修复 |
 | **预检流程** | [references/G-WORKFLOW/video-optimization.md](references/G-WORKFLOW/video-optimization.md) | 4项预检（narration质量/英文句点/叠速/CaptionOverlay） |
 | **Workspace 还原预检** | [references/G-WORKFLOW/workspace-restore-preflight.md](references/G-WORKFLOW/workspace-restore-preflight.md) | Git 还原后必查 6 项（帧数/音频/字幕/封面） |
 
@@ -264,6 +267,7 @@ for root, dirs, files in os.walk('docs'):
 | `lark-cli-base-record-update.md` | lark-cli record-update 命令实测语法（2026-05-28） |
 | `documentation-consistency.md` | 文档一致性维护指南 |
 | `node-execsync-bug.md` | Node.js execSync 返回值 bug（macOS arm64） |
+| `subagent-docs-generation-errors.md` | **【2026-06-01 新增】** subagent Step 0 文档生成错误（HTML扩展名/非必需文件/session-log无扩展名） |
 | `video-optimization.md` | 视频性能优化与质量门禁（含原 `video-optimization-pitfalls.md` 内容） |
 | `captions-endms-sync.md` | captions 末段 endMs 精确同步（批量检测脚本） |
 | `batch-duration-fix-20260527.md` | **【批量修复手册】** 141 项目四维同步（帧数/音频/字幕/config）实测修复全记录 |

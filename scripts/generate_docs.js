@@ -1005,54 +1005,307 @@ function extractTitle(content) {
   return m ? m[1].trim() : "视频标题";
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HTML 生成器（基于 rules/HTML.md 完整模板）
+// ─────────────────────────────────────────────────────────────────────────────
+function extractTitle(content) {
+  const m = content.match(/^#\s+(.+)/m);
+  return m ? m[1].trim() : "视频标题";
+}
+
+function extractKeywords(content) {
+  // 简单关键词提取：取正文高频词
+  const words = (content.match(/[\u4e00-\u9fa5]{2,4}/g) || []);
+  const freq = {};
+  words.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+  return Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([w]) => w);
+}
+
 function generateLandingPage(articleContent, config) {
   const title = extractTitle(articleContent);
-  const stripped = stripMarkdown(articleContent);
+  const subtitle = (config.cover?.subtitle || config.name || "");
+  const stripped = stripMarkdown(articleContent).slice(0, 500);
+  const installCmd = config.installCommand || "git clone https://github.com/example/repo";
+
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title}</title>
-<style>
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:720px;margin:0 auto;padding:20px;background:#0D0221;color:#E0E0E0}
-h1{color:#00FFFF;text-align:center;margin-bottom:2rem}
-video{max-width:100%;border-radius:12px;box-shadow:0 0 30px rgba(0,255,255,0.3)}
-.content{line-height:1.8;margin-top:2rem}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${subtitle}">
+  <meta property="og:type" content="website">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC',
+                   'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, #2563EB 0%, #7C3AED 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .install-box {
+      background: #111827;
+      color: #4ADE80;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      padding: 20px 28px;
+      border-radius: 12px;
+      font-size: 15px;
+      line-height: 1.8;
+    }
+  </style>
 </head>
-<body>
-<h1>${title}</h1>
-<div style="text-align:center">
-  <video controls src="../video-project/out/final.mp4"></video>
-</div>
-<div class="content"><p>${stripped.slice(0, 300)}...</p></div>
+<body class="bg-gray-900 text-white min-h-screen">
+
+  <!-- Hero Section -->
+  <section class="min-h-screen flex flex-col justify-center items-center text-center px-6 py-16">
+    <div class="mb-4 text-4xl">🎬</div>
+    <h1 class="text-4xl md:text-6xl font-bold mb-4 gradient-text">
+      ${title}
+    </h1>
+    <p class="text-xl text-gray-400 mb-8 max-w-2xl">${subtitle}</p>
+    <a href="#install"
+       class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-blue-600/30">
+      <i class="fas fa-download mr-2"></i>立即获取
+    </a>
+    <div class="mt-8 text-gray-500 text-sm">点击下方查看安装方式</div>
+    <div class="mt-2 animate-bounce text-gray-500">↓</div>
+  </section>
+
+  <!-- Install Section -->
+  <section id="install" class="py-20 px-6 bg-gray-800">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold mb-6 flex items-center">
+        <i class="fas fa-terminal mr-3 text-green-400"></i>快速安装
+      </h2>
+      <div class="install-box">${installCmd}</div>
+    </div>
+  </section>
+
+  <!-- Content Summary -->
+  <section class="py-16 px-6 bg-gray-900">
+    <div class="max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold mb-6 flex items-center">
+        <i class="fas fa-file-alt mr-3 text-blue-400"></i>内容概览
+      </h2>
+      <div class="bg-gray-800 rounded-xl p-6 text-gray-300 leading-relaxed">
+        ${stripped}...
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="py-8 text-center text-gray-600 text-sm border-t border-gray-800">
+    <p>由 video-creator 自动生成</p>
+  </footer>
+
 </body>
 </html>`;
 }
 
 function generateArticlePage(articleContent, config) {
   const title = extractTitle(articleContent);
+  const subtitle = (config.cover?.subtitle || config.name || "");
   const stripped = stripMarkdown(articleContent);
+  const keywords = extractKeywords(articleContent);
+
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<title>${title}</title>
-<style>
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:680px;margin:0 auto;padding:20px;line-height:1.8}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${subtitle}">
+  <meta property="og:type" content="article">
+  <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+      background: #0F172A;
+      color: #F8FAFC;
+    }
+    .article-card {
+      background: #1E293B;
+      border-radius: 16px;
+      padding: 32px;
+      margin: 24px 0;
+    }
+    .highlight-box {
+      background: linear-gradient(135deg, rgba(37,99,235,0.2) 0%, rgba(124,58,237,0.2) 100%);
+      border: 1px solid #2563EB;
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .content { line-height: 1.9; }
+    .content p { margin-bottom: 16px; }
+    .tag {
+      display: inline-block;
+      background: rgba(37,99,235,0.3);
+      border: 1px solid #3B82F6;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 13px;
+      color: #93C5FD;
+      margin: 4px 4px 4px 0;
+    }
+    .footer {
+      text-align: center;
+      padding: 24px 0;
+      color: #64748B;
+      font-size: 13px;
+      border-top: 1px solid #334155;
+      margin-top: 40px;
+    }
+  </style>
 </head>
-<body>
-<h1>${title}</h1>
-<div>${stripped}</div>
+<body class="min-vh-100">
+  <main class="container py-5" style="max-width: 800px;">
+    <article class="article-card">
+      <h1 class="mb-4" style="font-size: 2rem; font-weight: 700; color: #F8FAFC;">
+        ${title}
+      </h1>
+      ${subtitle ? `<p style="color: #94A3B8; margin-bottom: 24px;">${subtitle}</p>` : ""}
+      <div class="highlight-box text-center mb-4">
+        <div style="margin-bottom: 12px;">
+          ${keywords.slice(0, 4).map(k => `<span class="tag">${k}</span>`).join("")}
+        </div>
+      </div>
+      <div class="content">
+        ${stripped.split("\n\n").filter(p => p.trim()).map(p => `<p>${p.trim()}</p>`).join("\n")}
+      </div>
+      <div class="footer">
+        <p>由 video-creator 自动生成</p>
+      </div>
+    </article>
+  </main>
 </body>
 </html>`;
 }
 
 function generateWechatPage(articleContent, config) {
-  return generateArticlePage(articleContent, config)
-    .replace("<html lang=\"zh-CN\">", "<html lang=\"zh-CN\">\n<!-- 微信公众号适配版 -->");
+  const title = extractTitle(articleContent);
+  const subtitle = (config.cover?.subtitle || config.name || "");
+  const stripped = stripMarkdown(articleContent);
+  const lines = stripped.split("\n\n").filter(l => l.trim());
+  const hookText = lines[0] || subtitle || "本文带你深入了解这个工具的核心特性与使用方法。";
+  const bodyText = lines.slice(1).join("</p><p>");
+  const ctaText = config.ctaText || "如果你觉得有帮助，欢迎分享给更多需要的人";
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${subtitle}">
+  <meta property="og:type" content="article">
+  <meta name="author" content="video-creator">
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC',
+                   'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+      font-size: 17px;
+      line-height: 1.8;
+      color: #333333;
+      background: #FFFFFF;
+      margin: 0;
+      padding: 0;
+    }
+    .container { max-width: 677px; margin: 0 auto; padding: 20px; }
+    .header {
+      text-align: center;
+      padding: 30px 0 20px;
+      border-bottom: 1px solid #E5E5E5;
+    }
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin: 0 0 8px;
+    }
+    .header .meta {
+      font-size: 13px;
+      color: #999999;
+    }
+    .hook {
+      background: #EFF6FF;
+      border-left: 4px solid #3B82F6;
+      padding: 16px 20px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+      font-size: 15px;
+      color: #1E40AF;
+    }
+    .section { margin: 24px 0; }
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin: 0 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #3B82F6;
+      display: inline-block;
+    }
+    .content p {
+      margin: 0 0 16px;
+      color: #333333;
+    }
+    .cta {
+      background: linear-gradient(135deg, #3B82F6 0%, #6366F1 100%);
+      color: #FFFFFF;
+      text-align: center;
+      padding: 24px 20px;
+      border-radius: 12px;
+      margin: 30px 0;
+      font-size: 15px;
+    }
+    .footer {
+      text-align: center;
+      padding: 24px 0;
+      border-top: 1px solid #E5E5E5;
+      color: #999999;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>${title}</h1>
+      <div class="meta">视频号：video-creator</div>
+    </header>
+
+    <div class="hook">
+      <p>${hookText}</p>
+    </div>
+
+    <section class="section">
+      <h2 class="section-title">核心内容</h2>
+      <div class="content">
+        <p>${bodyText}</p>
+      </div>
+    </section>
+
+    <div class="cta">
+      <p>${ctaText}</p>
+    </div>
+
+    <footer class="footer">
+      <p>本文由 video-creator 自动生成</p>
+    </footer>
+  </div>
+</body>
+</html>`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

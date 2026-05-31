@@ -37,6 +37,7 @@ usage() {
 命令:
   init <项目名>   创建新项目目录结构
   docs           生成文档（Step 0，12个文档）
+  preflight      前置质量门禁检查（12文档+封面+音频+字幕+配置）
   gate [节点]     运行质量门禁检查
   audio          生成音频（Step 7）
   subtitle       生成字幕（Step 8）
@@ -224,6 +225,31 @@ EOF
   echo "  1. 编辑 video-config.json（设置平台、时长、主题等）"
   echo "  2. 粘贴内容到 docs/article.md"
   echo "  3. 运行 bash launch.sh all 开始生成"
+}
+
+# ── 子命令: preflight ────────────────────────────────────────────────────────
+cmd_preflight() {
+  local proj_dir="${1:-.}"
+  local SCRIPT="${SCRIPT_DIR}/pre-flight-check.js"
+
+  log "前置质量门禁检查: ${proj_dir}"
+  echo ""
+
+  if [ ! -f "$SCRIPT" ]; then
+    err "找不到 pre-flight-check.js: ${SCRIPT}"
+    exit 1
+  fi
+
+  node "$SCRIPT" "$proj_dir" "${2:-}"
+  local status=$?
+
+  if [ $status -eq 0 ]; then
+    ok "前置检查全部通过"
+    return 0
+  else
+    err "前置检查未通过，请修复上述问题后重试"
+    return 1
+  fi
 }
 
 # ── 子命令: gate ──────────────────────────────────────────────────────────────
@@ -422,6 +448,15 @@ cmd_all() {
 
   # ── Step 0: 生成文档（12个）───────────────────────────────────────────
   cmd_docs "$proj_dir"
+
+  # ── 前置质量门禁（12文档+封面+音频+字幕+配置）───────────────────────
+  # 所有文档生成后必须通过此门禁才可继续，确保 subagent 文件名错误可被及时发现
+  echo ""
+  log "执行前置质量门禁..."
+  node "${SCRIPT_DIR}/pre-flight-check.js" "$proj_dir" || {
+    err "前置检查未通过，请修复后重试，或使用 --fix 自动修复"
+    exit 1
+  }
 
   # ── 读取配置 ────────────────────────────────────────────────────────────────
   local config_file="${proj_dir}/video-config.json"
