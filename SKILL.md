@@ -52,178 +52,26 @@ metadata:
 
 ---
 
-## ⚠️ 限制（铁律，违者必败）
+## ⚠️ 铁律速查
 
-> ⚠️ **完整铁律内容已迁移至 `rules/UNIFIED_RULES.md`、`rules/CHECKLIST.md`、`rules/VOICE.md`**。以下为快速摘要索引。
+> ⚠️ **完整内容已迁移至 `rules/UNIFIED_RULES.md`、`rules/CHECKLIST.md`、`rules/VOICE.md`**。
+> 以下为快速索引，详情必读对应文件。
 
-### Step 0 铁律
+| 类别 | 快速索引 |
+|------|---------|
+| **Step 0** | `launch.sh init` 在项目目录内执行；article.md < 100 字或含 `"请在此处"` → 立即失败 |
+| **音频** | narration 必须手写（中文字符 175-337）；禁用 `generate_docs.js` 生成 narration |
+| **渲染** | `--props` 每条 scene 必须含 `startMs/endMs`；Root.tsx 帧数用 `round(秒×60)` 而非 `ceil()` |
+| **Workspace 还原** | Git 还原项目渲染前必查 Root.tsx `durationInFrames` 与当前音频时长是否同步 |
+| **narration** | 中文字符 ≥175；英文句号 `.` = 0；控制字符 = 0；句数 ≥10（4-6句=4帧，7-9句=5帧，10+句=6帧） |
+| **清理** | `rm -rf {repo}/{repo}-repo/`；video-config.json patch 每次只改一字段 |
+| **Feishu Base** | 每次调用带 `--base-token`；更新用 `--json '{"video-creator":"是"}'` |
+| **Subagent** | `status=completed` 不可信；主进程必须重新验证 Base 字段已写入 |
+| **Bug 索引** | 见 `references/G-WORKFLOW/video-creator-deep-lessons.md` 第 9 节（9.1–9.25，其中 9.25 已源码级修复） |
 
-- `launch.sh init` 必须在项目目录内执行（Git 仓库用完必须 `rm -rf {repo}/{repo}-repo/`）
-- `docs/article.md` 中文字数 < 100 或含 `"请在此处"` → 立即停止，断言失败
-- `launch.sh docs` 的 `check_step0_docs()` 门禁：12 个文档缺一不可执行音频 pipeline
+> ⚠️ `video-config.json` 必须含 `totalMs` 和 `scenes[]`（含 startMs/endMs）才可渲染，缺一拒绝。
+> ⚠️ `captions.json` 条数 < 10 → 拒绝渲染。
 
-### 音频铁律
-
-- `narration.txt` 必须手写（中文字符 175-337，无控制字符，无英文句号`.`）
-- **不依赖 `generate_docs.js` 生成 narration**（5 个确认 Bug，详见 `references/G-WORKFLOW/video-creator-deep-lessons.md` 9.1节）
-- edge-tts 音色：默认 `zh-CN-YunjianNeural`，科技类用 `zh-CN-YunxiNeural`
-- `atempo` 只能用于压缩长音频，**禁止**用于拉伸短音频
-- `launch.sh audio` 是空壳，必须手动执行 edge-tts 命令（详见 `rules/VOICE.md`）
-
-### 渲染铁律
-
-- Remotion `--props` JSON 中 `scenes` 数组每条必须含 `startMs/endMs`，缺一不可渲染
-- `Root.tsx` 帧数必须用 `round(实测秒数 × 60)` 而非 `ceil()`
-- `DynamicScene.tsx` 行数 < 50 或含 `literal \n` → 直接从 `references/B-REMOTION/dynamic-scene-template.md` 复制模板覆盖
-- 渲染后 captions.json 末段 endMs 必须用 `ffprobe` 视频实际时长校准
-
-### narration 门禁
-
-- 中文字符数 175-337；英文句号 `.` = 0；控制字符 = 0
-- 验证脚本（Step 0 后必做）：
-```python
-text = open('docs/narration.txt', encoding='utf-8').read()
-bad = sum(1 for c in text if ord(c) < 32 and c not in '\n\r\t')
-cn = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
-if bad > 0 or cn < 20: exit(1)
-```
-
-### 清理铁律
-
-- `rm -rf {repo}/{repo}-repo/` — Git 仓库内容用完即删
-- 渲染前 `video-project/out/` 必须存在
-- `video-config.json` patch 操作每次只改一个字段，改后必须 `python3 -c "import json; json.load(open('x.json'))"` 验证
-- `generate_docs.js` 生成的 11 个文件存在严重质量问题，**必须人工重写 narration**
-
-### Feishu Base 铁律
-
-- `lark-cli` 每次调用必须带完整 `--base-token` 和 `--table-id`（不跨调用持久化）
-- Base 更新：`--json '{"video-creator":"是"}'`（字段名是字符串，非变量）
-- `video-creator="是"` 的记录必须 totalMs/scenes 字段完整；Subagent status=completed 不可信（详见 `rules/UNIFIED_RULES.md`）
-
-### cover 字段检测
-
-- `video-config.json` 的 `cover.title` 为占位符（"视频标题"）时必须手动修复
-- `attrs` 数组是封面图底部属性标签数据源（详见 `references/E-VISUAL/pil-cover.md`）
-
-### ⚠️ 已确认致命 Bug（已迁移至 `references/G-WORKFLOW/video-creator-deep-lessons.md`）
-
-> SKILL.md 第 203-702 行 Confirmed Bugs 和失败模式段落已迁移至 `references/G-WORKFLOW/video-creator-deep-lessons.md` 第 9 节（9.1–9.24），实现零丢失集中管理。
->
-> 以下为快速索引：
->
-> | Bug | 文件 | 关键内容 |
-> |-----|------|---------|
-> | 占位符 + generate_docs.js 5 Bug | `video-creator-deep-lessons.md` 9.1 | 字节/字符边界混淆 / `\|` 是字面字符 |
-> | Root.tsx durationInFrames={0} | `video-creator-deep-lessons.md` 9.2 | 必须正数初始值 |
-> | CoverScene attrs 断连 | `video-creator-deep-lessons.md` 9.3 | 5环节修复链路 |
-> | DURATION_FRAMES 正则4模式 | `video-creator-deep-lessons.md` 9.6 | JSX/const/TOTAL_FRAMES/DURATION |
-> | captions endMs 缩放 | `video-creator-deep-lessons.md` 9.8 | `scale = video_ms / cap_endms` |
-> | h264x 误判 | `video-creator-deep-lessons.md` 9.9 | h264/h264x/libx264 三选一白名单 |
-> | Subagent completed≠完成 | `video-creator-deep-lessons.md` 9.10 | 主进程强制验证 |
-> | node_modules 失效 | `video-creator-deep-lessons.md` 9.11 | 不复制，直接 npm install |
-> | JSON trailing comma | `video-creator-deep-lessons.md` 9.12 | Python 3.9 RFC 8259 严格拒绝 |
-> | audio 不确定 | `video-creator-deep-lessons.md` 9.13 | 永远以 ffprobe 视频时长为准 |
-> | AbsoluteFill flex 失效 | `video-creator-deep-lessons.md` 9.15 | transform translate(-50%,-50%) |
-> | Step 0 Bypass | `video-creator-deep-lessons.md` 9.16 | 12 文档门禁 |
-> | atempo operator precedence | `video-creator-deep-lessons.md` 9.17 | 三元运算符优先级陷阱 |
-> | OpenClawDrive .m4a 覆写 | `video-creator-deep-lessons.md` 9.19 | ffmpeg → /tmp/ → cp |
-> | 三字段同步 | `video-creator-deep-lessons.md` 9.20 | totalMs / scenes[-1].endMs / scenes[-1].duration |
-> | patch 损坏 JSON | `video-creator-deep-lessons.md` 9.23 | 每次只改一字段 |
-
----
-
-### ✅ 冲突已解决（SKILL.md 内联保留索引）
-
-| 冲突 | 状态 | 详见 |
-|------|------|------|
-| 冲突 8：文档时长过期引用 | ✅ 2026-05-27 | `video-creator-deep-lessons.md` 9.14 |
-| 冲突 9：CoverScene attrs 断连 | ✅ 2026-05-27 | `video-creator-deep-lessons.md` 9.3 |
-| 冲突 10：voice.atempo 字段说明 | ✅ 2026-05-28 | `video-creator-deep-lessons.md` 9.4 |
-| 冲突 11：duration/scenes 近似值 | ✅ 2026-05-27 | `video-creator-deep-lessons.md` 9.5 |
-
-> **2026-05-30 更新**：铁律内容已迁移至 `rules/` 目录，Confirmed Bugs 已迁移至 `references/G-WORKFLOW/video-creator-deep-lessons.md` 第 9 节，SKILL.md 改为技能导航索引角色。
-
-> 渲染前先执行 `references/G-WORKFLOW/video-optimization.md` 中的 4 项预检。问题在起点修复，不是终点补救。
-> 用户明确要求：**每次生成视频必须一次到位**，不接受"渲染→发现问题→修复→重新渲染"的返工循环。
-
-### Step 0 铁律
-- **禁止跳过 Step 0**（文档生成）。11个文档必须在 Remotion 渲染前全部创建完毕
-- **禁止不生成封面图**。封面未生成，不得进入音频生成和视频渲染步骤
-- Step 0 完成后必须验证所有文件存在，包括 `session-log.md`（详见 `rules/CHECKLIST.md`）
-
-### 音频铁律
-- **禁止分段拼接配音**：必须整段连续生成
-- **禁止跳过音频后处理**：必须执行去静音 + atempo + AAC 256k
-- **禁止使用旧版 ffmpeg 混流**：Remotion Native 方案（`<Audio>` 直接内嵌 MP4）
-- **禁止 edge-tts rate=+20% + atempo=1.2x 叠加**：使用 `--rate +0%` + `VOICE_ATEMPO` 配置值（从 video-config.json `voice.atempo` 读取，默认 1.2）。音频 pipeline 流程：`edge-tts --rate +0%` 生成原始音频 → `ffmpeg atempo ${VOICE_ATEMPO}` 后处理。
-- **用户指定 atempo**：从 `video-config.json` 的 `voice.atempo` 字段读取（如 1.2），工作流直接使用该值。若字段不存在则使用默认值 1.2。
-- **atempo 仅在后处理生效**：atempo 在 ffmpeg 后处理阶段对音频文件操作，不影响 TTS 生成速率。Remotion 直接播放 `audioFile` 路径的文件，该文件已经过 atempo 处理。
-- **音频文件命名**：`audio/neural_full.mp3`（原始）→ `audio/neural_1_2x.m4a`（atempo后）
-- **目标时长从 video-config.json 获取**：从 `scenes[-1]['endMs']/1000` 动态计算，禁止硬编码（如 `TARGET_DUR=52`）
-- **ffmpeg pad/truncate 必须用 /tmp/ 中转**：直接 `ffmpeg ... output.m4a` 覆盖输入文件会触发 returncode=234（OpenClawDrive 挂载卷特有）；必须先写 `/tmp/` 再 `cp` 覆盖
-
-### 渲染铁律
-- **Root.tsx TOTAL_FRAMES**：必须用 `calculateMetadata` 动态计算（`getAudioDuration(staticFile("audio/neural_1_2x.m4a")) × fps`），禁止在 JSX 中硬编码帧数（硬编码值会覆盖 CLI 的 `--duration-in-frames` 参数）。若直接硬编码帧数，必须用 `round(实测秒数 × 60)` 而非 `ceil()`（Remotion 内部用 round()，ceil 会导致多 1 帧偏差）。帧数配置有 4 种形式（`durationInFrames={N}`、`durationInFrames={60*N}`、`TOTAL_FRAMES` const、`DURATION` const），正则必须全覆盖。详见 `references/B-REMOTION/frame-round-calculation.md`。
-- **caption.json 末段 endMs** 必须等于视频实际时长（毫秒），而非音频时长
-- **video-config.json 必须在项目根目录**（不是 `docs/`）
-- **所有 .json 配置文件**必须符合 JSON 语法，禁止重复键名
-- **⚠️ `video-config.json` 两项为 CRITICAL 失败条件**（缺少则拒绝渲染）：
-  - `totalMs`：数字字段，等于音频实际时长（毫秒），控制视频总帧数
-  - `scenes`：非空数组，每条含 `startMs/endMs`，控制场景时间边界
-  - 验证命令：`node video-quality-gate.js <project> render` 或 `node video-quality-gate.js <project> config`
-  - 若缺失，**必须先补全再渲染**，不得跳过或使用 DEFAULT_SCENES 硬编码蒙混过关
-- **⚠️ `captions.json` 条数 < 10 → 拒绝渲染**：条数不足会导致场景时间边界错误，必须扩充 narration.txt 后重新生成字幕
-- **⚠️ narration.txt 句数 <10 → 视频质量不达标**：4-6句=4帧，7-9句=5帧，10+句=6帧（最低要求）。低于6帧不符合最低规格。若句数不足，手动补充过渡句确保 ≥10 句。
-- **⚠️ `--props` 必须传入 scenes/title/subtitle/theme**：不传则 `scenes: []`，触发 `DEFAULT_SCENES` 回退，全部场景显示"视频标题/痛点场景/解决方案"等占位符。props 对象结构：
-  ```json
-  {"scenes":[{"id":1,"name":"Cover","duration":7.4,"title":...,...},...],"title":"...","subtitle":"...","theme":"..."}
-  ```
-  **⚠️ 每条 scene 必须含内容字段**（`painPoints`/`features`/`steps`/`url`/`license`），只传 title/subtitle 会导致场景内容为空（PainPoint 无痛点列表、Features 无功能卡片、Start 无命令步骤、Ending 无链接）。
-  ```
-  scenes 从 captions.json 的 N 句 narration 等比分配到动态数量的场景（规则见上）；title/subtitle 从 video-config.json 的 cover.title / cover.subtitle 读取
-
-**⚠️ narration.txt 句数不足触发 6 帧的致命后果**：
-- 若 narration 只有 7-9 句 → 5 帧场景（无 Start 场景）
-- 若 narration 只有 4-6 句 → 4 帧场景（无 Features + Start）
-- **低于 6 帧的视频不符合最低质量要求**
-- 防护：**手动补充过渡句到 narration.txt**，确保中文字数 ≥420（N ≥10 句）后再进入音频阶段
-
-**动态 N 场景规则（launch.sh Step 7 自动推断）：**
-- 2-3 句 → Cover + Ending（首尾）→ **2 帧**
-- 4-6 句 → Cover + PainPoint + Solution + Ending → **4 帧**
-- 7-9 句 → Cover + PainPoint + Solution + Features + Ending → **5 帧**
-- **10+ 句 → Cover + PainPoint + Solution + Features + Start + Ending → 6 帧（最低要求）**
-
-> ⚠️ **narration.txt 中文字数下限**：约 420 字（10 句 × 42 字/句），经 `⌊audio_dur × 3.37⌋` 门禁验证。若句数不足 10 句，视频将只有 4-5 帧，低于最低 6 帧要求。**必须确保 narration ≥10 句**。
-
-**场景类型（scene.name）决定 DynamicScene.tsx 渲染组件：**
-- `Cover` / `PainPoint` / `Solution` / `Features` / `Start` / `Ending` / `Generic`（兜底）
-
-**场景数量计算与音频同步（百分比等分，绝对正确公式）：**
-
-```javascript
-// captions.json 句数 N → types[] 推断
-const types = n<=3  ? ['Cover','Ending']
-             : n<=6  ? ['Cover','PainPoint','Solution','Ending']
-             : n<=9  ? ['Cover','PainPoint','Solution','Features','Ending']
-             :         ['Cover','PainPoint','Solution','Features','Start','Ending'];
-
-// 末 caption startMs = 视频总时长（毫秒），不是音频时长
-const totalMs = captions[n - 1].startMs;
-
-types.forEach((name, i) => {
-  const pctStart = i / types.length;         // 0/6, 1/6, ... 5/6
-  const pctEnd   = (i + 1) / types.length;    // 1/6, 2/6, ... 6/6
-  scenes.push({
-    id:       i + 1,
-    name:     name,
-    startMs:  Math.round(pctStart * totalMs),
-    endMs:    Math.round(pctEnd   * totalMs),
-    duration: (pctEnd - pctStart) * totalMs / 1000,  // 秒
-  });
-});
-// Σ scenes[].duration = totalMs / 1000（精确，无越界）
 ---
 
 ## 📋 规则索引
@@ -244,8 +92,9 @@ types.forEach((name, i) => {
 | **Git 隔离** | [references/G-WORKFLOW/git-workflow.md](references/G-WORKFLOW/git-workflow.md) | `{repo}-repo/` 隔离、launch.sh init 自动隔离 |
 | **Feishu Base** | [references/G-WORKFLOW/feishu-base-batch.md](references/G-WORKFLOW/feishu-base-batch.md) | 11个受影响项目、Base 记录更新语法 |
 | **内容文档** | [references/C-CONTENT/content-document-generation.md](references/C-CONTENT/content-document-generation.md) | Step 0-3 完整流程 |
-| **Subagent 超时** | [references/D-SUBAGENT/subagent-timeout.md](references/D-SUBAGENT/subagent-timeout.md) | launch.sh 路径陷阱、超时策略 |
+| **Subagent 超时** | [references/D-SUBAGENT/subagent-takeover.md](references/D-SUBAGENT/subagent-takeover.md)（附录 D 超时恢复指南） | launch.sh 路径陷阱、超时策略 |
 | **预检流程** | [references/G-WORKFLOW/video-optimization.md](references/G-WORKFLOW/video-optimization.md) | 4项预检（narration质量/英文句点/叠速/CaptionOverlay） |
+| **Workspace 还原预检** | [references/G-WORKFLOW/workspace-restore-preflight.md](references/G-WORKFLOW/workspace-restore-preflight.md) | Git 还原后必查 6 项（帧数/音频/字幕/封面） |
 
 ### rules/ 目录（技能规则）
 
@@ -258,18 +107,48 @@ types.forEach((name, i) => {
 
 | 目录 | 内容 | 文件数 |
 |------|------|--------|
-| **B-REMOTION/** | Remotion 渲染核心 | 9 |
-| **C-CONTENT/** | 内容获取与音频字幕 | 7 |
-| **D-SUBAGENT/** | Subagent 超时与上下文 | 2 |
-| **E-VISUAL/** | 视觉设计与封面图 | 8 |
-| **F-GENDOCS/** | generate_docs.js 分析 | 2 |
-| **G-WORKFLOW/** | 工作流与集成 | 13 |
+| **B-REMOTION/** | Remotion 渲染核心 | 15 |
+| **C-CONTENT/** | 内容获取与音频字幕 | 11 |
+| **D-SUBAGENT/** | Subagent 超时与上下文 | 3 |
+| **E-VISUAL/** | 视觉设计与封面图 | 9 |
+| **F-GENDOCS/** | generate_docs.js 分析 | 3 |
+| **G-WORKFLOW/** | 工作流与集成 | 16 |
 | **H-CONFIG/** | 配置文件 | 3 |
-| **A-ARCHIVED/** | 已废弃文档 | 3 |
+| **A-ARCHIVED/** | 已废弃文档 | 0 |
 
-> 2026-05-28 删除：`duration-zero-fix.md`、`remotion-tsx-bug.md`、`launch-sh.md`（内容已并入相关文件）
-> 2026-05-28 合并：`pil-cover-usage.md` → `pil-cover.md`；`video-optimization-pitfalls.md` → `video-optimization.md`
-> 2026-05-28 新增：各子目录 `README.md`（共 7 个）
+> 【历史 2026-05-28】删除：`duration-zero-fix.md`、`remotion-tsx-bug.md`、`launch-sh.md`（内容已并入相关文件）
+> 【历史 2026-05-28】合并：`pil-cover-usage.md` → `pil-cover.md`；`video-optimization-pitfalls.md` → `video-optimization.md`
+> 2026-05-30 重组：精简 `create-remotion-project-bugs.md` 重复章节；更新 `video-creator-deep-lessons.md` 9.25节状态；G-WORKFLOW 重命名 `frame-sync.md` → `frame-sync-workflow.md`
+> 2026-06-01 重组：删除 3 个 session artifact 文件；合并 session 记录 → `video-project-sessions.md`；删除 `one-pass.bak.md`；新增 `html-readme-parsing.md`（margelo-style README 解析）
+
+### ⚠️ create-remotion-project.js 验证清单（生成后必查）
+
+1. `wc -l video-project/src/scenes/DynamicScene.tsx` — 应 > 0
+2. `python3 -c "open('...','rb').read().count(b'\\x5c\\x6e')"` -- 应为 0（有输出说明含 literal `\\n`，用 Python 修复：`python3 -c "d=open('...','rb').read();open('...','wb').write(d.replace(b'\\x5c\\x6e',b'\\x0a'))"`）
+3. `grep 'return <>{{' video-project/src/scenes/DynamicScene.tsx` — 应无输出（无 JSX 双花括号）
+4. **⚠️ `captions.json` 会被覆盖！** `create-remotion-project.js` 会将 `video-project/public/audio/captions.json` 重写为 `[]`。如果已手动生成字幕，先备份：`cp video-project/public/audio/captions.json /tmp/captions_backup.json`，渲染后再恢复。
+5. **⚠️ captions.json 条数验证**：渲染前检查 `jq length video-project/public/audio/captions.json`，必须 ≥10 条，少于 10 条应拒绝渲染。
+
+### ⚠️ create-remotion-project.js 已知 Bug：literal `\n` 污染（2026-05-31 实测）
+
+**症状**：生成后的 `DynamicScene.tsx` 包含 382 处 literal `\\n` 字节序列（`0x5c 0x6e`），导致文件行数极少（1行）、Remotion 编译失败。
+
+**根因**：`create-remotion-project.js` 生成 TSX 时使用 `writeFileSync` 写入包含 `\n` 转义符的字符串内容，但写入后 `\n` 未被解析为真实换行符，变成两个字符 `\` + `n`。
+
+**检测命令**：
+```bash
+python3 -c "print(open('video-project/src/scenes/DynamicScene.tsx','rb').read().count(b'\\x5c\\x6e'))"
+# 输出 382 = 有污染；输出 0 = 正常
+```
+
+**修复命令**（必须立即执行，再继续渲染）：
+```bash
+python3 -c "
+d=open('video-project/src/scenes/DynamicScene.tsx','rb').read()
+open('video-project/src/scenes/DynamicScene.tsx','wb').write(d.replace(b'\\x5c\\x6e',b'\\x0a'))
+"
+wc -l video-project/src/scenes/DynamicScene.tsx  # 修复后应 > 200
+```
 
 ### B-REMOTION — Remotion 渲染核心（必读）
 
@@ -281,29 +160,33 @@ types.forEach((name, i) => {
 | `dynamic-scene-template.md` | DynamicScene.tsx 完整模板（CSS 渐变封面版） |
 | `dynamic-scene-vertical-center.md` | 垂直居中规范 + CSS 渐变封面 + 首帧亮度验证 |
 | `dynamic-scenes-architecture.md` | SCENE_TYPES 枚举 / 百分比等分 / name 路由（详见 remotion-props.md） |
-| `create-remotion-project-bugs.md` | create-remotion-project.js 三大 Bug 修复（含双花括号/literal `\n`/`key={'h'+i}` 单引号 JSX 属性） |
+| `create-remotion-project-bugs.md` | 项目创建 Bug 修复记录（双花括号✅已源码修复 / literal `\n` 污染 / launch.sh权限） |
+| `dynamic-scene-tsx-post-render.md` | **【2026-05-30 新增】** 渲染后 4 项验证 + 382 处 literal `\n` 修复实录 |
 | `remotion-dynamic-scene-debugging.md` | hive 项目 9 次渲染调试实录 |
+| `literal-n-bug-reproduction.md` | **【2026-05-31 新增】** termshot 382 处 literal `\n` 污染 Python 修复实录 |
 | `scenes-config-pattern.md` | 场景配置数据结构模式 |
-
-> ⚠️ `duration-zero-fix.md` 和 `remotion-tsx-bug.md` 已删除，内容并入 `remotion-render-gotchas.md` 和 `create-remotion-project-bugs.md`
+| `remotion-v4-api-changes.md` | Remotion v4 `getAudioDuration` 不存在，必须硬编码帧数 |
+| `remotion-props-json-generation.md` | `--props` JSON 文件预写 + cat 引用方案（解决 shell 引号嵌套） |
 
 ### C-CONTENT — 内容与音频字幕
 
 | 文件 | 用途 |
 |------|------|
+| `audio-short-fix.md` | **【2026-05-31 新增】** narration 音频过短修复（atempo 异常检测 + 重写策略） |
 | `audio-tts.md` | edge-tts 规范、atempo 动态计算、审计命令库 |
+| `edge-tts-inline-and-atempo-fix.md` | **【2026-05-31 新增】** edge-tts 大文本 inline 模式 + 固定 atempo=1.2 固定值模式 |
 | `subtitle-production.md` | captions.json 格式、TikTokCaptionOverlay、ASS 规范 |
+| `ass-vs-ms-format-trap.md` | **【2026-05-31 新增】** SubtitleGenerator ASS格式 vs CaptionOverlay毫秒格式陷阱（导致NaN渲染失败） |
 | `content-document-generation.md` | Step 0-3 完整流程（narration.txt 生成规范） |
 | `video-workflow-failures.md` | video-creator 系统性失败模式（按严重程度排序） |
 | `readme-location.md` | README 位置变体（monorepo / doc 子目录） |
 | `cloudflare-medium.md` | Medium.com Cloudflare blocking |
 
-### D-SUBAGENT — Subagent 管理
+### D-SUBAGENT — Subagent 超时与上下文
 
 | 文件 | 用途 |
 |------|------|
-| `subagent-timeout.md` | 超时恢复指南（launch.sh / Base 更新 / 清理） |
-| `subagent-takeover.md` | Subagent 超时后主进程接管流程（2026-05-28） |
+| `subagent-takeover.md` | 超时接管流程（附录 D 超时恢复指南 + 附录 C 7步恢复 checklist） |
 | `subagent-context-preservation.md` | 会话压缩上下文丢失 + narration.txt 损坏防护 |
 
 ### E-VISUAL — 视觉设计
@@ -373,8 +256,11 @@ for root, dirs, files in os.walk('docs'):
 | 文件 | 用途 |
 |------|------|
 | `git-workflow.md` | Git 隔离与目录分离规范 |
-| `subagent-takeover.md` | Subagent 超时后主进程接管流程（2026-05-28） |
+| `subagent-takeover.md` | Subagent 超时后主进程接管流程（含附录 B 主进程接管 + 附录 C 7步恢复 checklist） |
+| `main-process-takeover.md` | 主进程兜底渲染 | status=completed 不可信 / 批量 upsert 验证 |
+| `video-project-sessions.md` | **GitHub 仓库视频项目 Session 实战记录** | margelo/react-native-graph + shanselman/PeekDesktop 合并；含通用流程模板和验证命令库 |
 | `feishu-base-batch.md` | Feishu Base 批量处理（record_id 查询 / 更新） |
+| `html-readme-parsing.md` | **【2026-06-01 新增】** HTML 开头 README 解析规范（margelo-style，含 HTML 标签 stripping Python 方案） |
 | `lark-cli-base-record-update.md` | lark-cli record-update 命令实测语法（2026-05-28） |
 | `documentation-consistency.md` | 文档一致性维护指南 |
 | `node-execsync-bug.md` | Node.js execSync 返回值 bug（macOS arm64） |
@@ -382,7 +268,6 @@ for root, dirs, files in os.walk('docs'):
 | `captions-endms-sync.md` | captions 末段 endMs 精确同步（批量检测脚本） |
 | `batch-duration-fix-20260527.md` | **【批量修复手册】** 141 项目四维同步（帧数/音频/字幕/config）实测修复全记录 |
 | `audio-duration-mismatch.md` | **【核心修复手册】** atempo/audio/video 三元组不匹配根因 + atempo=1.0 恢复流程 |
-| `frame-sync-regex-patterns.md` | **【正则提取】** DURATION_FRAMES 正则提取 4 种模式（JSX硬编码/乘法表达式/TOTAL_FRAMES/DURATION别名） |
 
 ### H-CONFIG — 配置文件（无 .md 文件，无需 README）
 
@@ -391,11 +276,7 @@ for root, dirs, files in os.walk('docs'):
 
 | 文件 | 说明 |
 |------|------|
-| `feishu-base-completion.bak.md` | 旧版手动流程，已被 launch.sh all 替代 |
-| `one-pass.bak.md` | ⚠️ 已废弃 |
-| `remotion-render-output.md` | ⚠️ 已废弃 |
-
-> ⚠️ `launch-sh.md` 已删除，内容并入 `D-SUBAGENT/subagent-timeout.md`
+| _(已清空)_ | 该目录已无有效文件 |
 
 ---
 
@@ -441,15 +322,204 @@ Step 0  → Step 1  → Step 2  → Step 3  → Step 4  → Step 5
 
 | `audio/neural_1_2x.m4a` · `audio/captions.json` · `video-project/out/final.mp4`
 
-### ⚠️ narration.txt 字数上限公式（2026-05-28 修正）
+### ⚠️ narration.txt 字数上限公式（2026-05-28 修正；2026-06-01 再次确认）
 **旧公式**（已废弃）：`⌊TARGET_DURATION × 6.45⌋` — 对应 `rate=+20%`，导致字数严重不足
 **正确公式**：`⌊TARGET_DURATION × 3.37⌋` — 实测 `zh-CN-YunjianNeural --rate +0%`
 **检测**：
 ```bash
-grep -rn "6\.45" scripts/pre-subtitle-check.js rules/ references/
+grep -rn "6\.45" scripts/pre-subtitle-check.js scripts/generate_docs.js scripts/launch.sh rules/ references/
 # 应无输出（有输出说明未更新）
 ```
-**受影响文件**：`pre-subtitle-check.js:122` · `generate_docs.js:13` · `launch.sh:125,460`（均已修复）
+**受影响文件**：`pre-subtitle-check.js` · `generate_docs.js` · `launch.sh`（均已修复）
+
+### GitHub 仓库项目视频制作流程（2026-05-31 新增；2026-06-01 更新）
+
+当用户要求为 GitHub 仓库项目生成视频时（如 `为 shanselman/PeekDesktop 项目生成视频`），执行以下流程：
+
+**Step 1 — 克隆仓库（隔离模式）**
+```bash
+PROJECT_DIR=/Users/zhushuyan/.hermes/workspace/<repo-name>
+REPO_DIR="${PROJECT_DIR}/<repo-name>-repo"
+mkdir -p "${REPO_DIR}" && git clone --depth=1 https://github.com/<user>/<repo-name>.git "${REPO_DIR}"
+```
+
+**Step 2 — 从 README 提取内容**
+读取仓库根目录的 `README.md`，提取核心信息：
+- 项目名称与一句话描述
+- 核心特性（3-5条）
+- 应用场景
+- 技术亮点
+
+**Step 3 — 初始化 video-creator 项目**
+```bash
+# ⚠️ launch.sh init 在 /Users/zhushuyan 下执行，不是在 REPO_DIR 内
+cd /Users/zhushuyan && bash {SKILL_DIR}/scripts/launch.sh init <repo-name>
+```
+
+**Step 4 — 创建 Remotion 项目（必须单独执行）**
+```bash
+# ⚠️ 在 PROJECT_DIR 内执行（launch.sh init 已创建目录结构）
+cd {PROJECT_DIR} && node {SKILL_DIR}/scripts/create-remotion-project.js .
+```
+
+**⚠️ 必须两步走（缺一不可）：**
+
+```bash
+# Step 4a: 生成 Remotion 源码（create-remotion-project.js 只创建 package.json，不安装 node_modules）
+cd {PROJECT_DIR} && node {SKILL_DIR}/scripts/create-remotion-project.js .
+
+# Step 4b: 安装依赖（跳过此步 → 渲染时报 "No such file or directory: node_modules/.bin/remotion"）
+cd {PROJECT_DIR}/video-project && npm install
+```
+
+**Step 5 — 修复 literal `\n` 污染（立即执行！）**
+创建后立即验证：
+```bash
+python3 -c "print(open('{PROJECT_DIR}/video-project/src/scenes/DynamicScene.tsx','rb').read().count(b'\x5c\x6e'))"
+# 输出 382 = 有污染 → 执行修复
+python3 -c "d=open('{PROJECT_DIR}/video-project/src/scenes/DynamicScene.tsx','rb').read();open('{PROJECT_DIR}/video-project/src/scenes/DynamicScene.tsx','wb').write(d.replace(b'\x5c\x6e',b'\x0a'))"
+wc -l {PROJECT_DIR}/video-project/src/scenes/DynamicScene.tsx  # 修复后应 > 200
+```
+
+**Step 6 — 编写 narration 并生成 TTS**
+手动编写 narration（中文字符 ≥175，10句以上），用 `edge-tts --write-media` 生成音频。
+⚠️ narration 必须放在 `{PROJECT_DIR}/docs/narration.txt`，不是 `{PROJECT_DIR}/<repo-name>-repo/docs/`。
+⚠️ narration 写完后需要估算时长：如果 TTS 原速时长远超目标时长，需要用 atempo 压缩。请在 Step 7 中根据实际音频时长判断是否需要 atempo。
+⚠️ **大文本必须用 inline 模式**：`--text "$(cat file)"` 在文本 >1500 字符时会导致 edge-tts 超时（120s），生成 0 字节文件。
+
+```bash
+cd {PROJECT_DIR} && edge-tts --voice zh-CN-YunjianNeural --text "长文本内容直接内联到这里..." --write-media audio/neural_1_2x.m4a
+```
+
+**Step 7 — 复制音频到 Remotion public 目录（易遗漏！注意是 atempo 后的 Tempo 版本！）**
+```bash
+# ⚠️ 渲染必须用 atempo 调整后的音频！
+cp {PROJECT_DIR}/audio/neural_1_2xTempo.m4a {PROJECT_DIR}/video-project/public/audio/neural_1_2x.m4a
+```
+
+**Step 8 — 生成 captions.json**
+⚠️ **关键：captions 必须基于 atempo 调整后的音频生成**，否则时间轴错位。
+使用 Python 等比分段（注意使用 `neural_1_2xTempo.m4a` 的时长，不是原始 `neural_1_2x.m4a`）：
+```python
+cd {PROJECT_DIR} && python3 << 'PYEOF'
+import json, subprocess, re
+# ⚠️ 必须用 atempo 调整后的音频计算时长
+dur = float(subprocess.check_output(
+    ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0',
+     'audio/neural_1_2xTempo.m4a'], text=True).strip())
+with open('docs/narration.txt') as f:
+    text = f.read().strip()
+sentences = re.split(r'[。！？\n]', text)
+sentences = [s.strip() for s in sentences if s.strip()]
+ms_per_sentence = dur * 1000 / len(sentences)
+captions = []
+for i, s in enumerate(sentences):
+    start = int(i * ms_per_sentence)
+    end = int((i + 1) * ms_per_sentence)
+    captions.append({"startMs": start, "endMs": end, "text": s})
+captions[-1]["endMs"] = int(round(dur * 1000))  # 末段精确同步
+with open('audio/captions.json', 'w', encoding='utf-8') as f:
+    json.dump(captions, f, ensure_ascii=False, indent=2)
+print(f"Generated {len(captions)} captions from atempo audio ({dur:.2f}s)")
+PYEOF
+cp {PROJECT_DIR}/audio/captions.json {PROJECT_DIR}/video-project/public/audio/
+```
+
+**Step 9 — 更新 Root.tsx 帧数**
+```bash
+# round(音频时长秒数 × 60)
+patch {PROJECT_DIR}/video-project/src/Root.tsx << 'EOF'
+-      durationInFrames={3600}
++      durationInFrames={5236}  # 例：87.264s × 60
+EOF
+```
+
+**Step 10 — 生成 render-props.json**
+```bash
+cd {PROJECT_DIR} && node -e "
+const fs = require('fs');
+const captions = JSON.parse(fs.readFileSync('video-project/public/audio/captions.json'));
+const totalMs = captions[captions.length - 1].endMs;
+const types = ['Cover', 'PainPoint', 'Solution', 'Features', 'Ending'];
+const scenes = types.map((name, i) => ({
+  id: i + 1, name,
+  startMs: Math.round((i / types.length) * totalMs),
+  endMs: Math.round(((i + 1) / types.length) * totalMs)
+}));
+fs.writeFileSync('video-project/render-props.json', JSON.stringify({
+  scenes, title: 'PeekDesktop', subtitle: '让Windows拥有macOS Sonoma的桌面预览功能', theme: 'tech-blue'
+}, null, 2));
+"
+```
+
+**Step 11 — 渲染**
+```bash
+cd {PROJECT_DIR}/video-project && node_modules/.bin/remotion render VerticalVideo out/final.mp4 \
+  --concurrency=4 --fps=60 --disable-gpu --log=error --props-file ../render-props.json
+```
+
+**Step 12 — 清理**
+```bash
+rm -rf {PROJECT_DIR}/*-repo  # 清理克隆的仓库目录
+```
+
+> ⚠️ **launch.sh init 之后必须单独运行 create-remotion-project.js + npm install**
+> ⚠️ **workspace 项目还原后必查 Root.tsx 帧数**：从 Git 克隆的 workspace 项目，`Root.tsx` 的 `durationInFrames` 可能与当前 `audio/neural_full.mp3` 时长不同步（音频时长变了但帧数未更新）。渲染前必须用 `round(音频秒数×60)` 校验并修复，否则帧数错位。
+> ⚠️ **渲染前音频复制（易遗漏！）**
+`launch.sh init` 仅创建空目录骨架（`video-project/src/` 等），**不生成 Remotion 源码**。必须依次执行：
+
+```bash
+# 1. 生成 Remotion 源码
+node {SKILL_DIR}/scripts/create-remotion-project.js .
+
+# 2. 安装 node_modules（create-remotion-project.js 只创建 package.json，不执行 npm install）
+cd video-project && npm install
+```
+
+> ⚠️ 若跳过第 2 步，渲染时会报 `No such file or directory: node_modules/.bin/remotion`。
+
+### edge-tts 大文本 inline 优于 --text "$(cat file)"
+
+当 narration.txt 字符数较多（>1500 字符）时，`--text "$(cat file)"` 可能因 shell 参数超限导致 timeout（120s）。
+
+**修复**：将文本直接内联到命令行中：
+```bash
+# ✅ 大文本用 inline（stackprism 项目 2305 字符成功）
+edge-tts --voice zh-CN-YunjianNeural --text "StackPrism 栈棱镜是网页技术栈识别扩展..." --write-media audio/neural_1_2x.m4a
+
+# ⚠️ 小文本可用 --text "$(cat file)"，大文本会超时
+edge-tts --text "$(cat docs/narration.txt)" --write-media audio/neural_1_2x.m4a
+```
+
+> 实测 stackprism 项目 narration.txt 2305 字符，inline 方式成功；用 `--text "$(cat file)"` 超时（120s），文件生成 0 字节。
+
+### create-remotion-project.js 验证清单（生成后必查）
+
+创建后必须验证（4项，全通过才可继续）：
+
+```bash
+# 1. DynamicScene.tsx 有内容（> 0 行）
+wc -l video-project/src/scenes/DynamicScene.tsx
+
+# 2. 检测 literal \n 污染（0 = 正常，382 = 有bug）
+python3 -c "print(open('video-project/src/scenes/DynamicScene.tsx','rb').read().count(b'\x5c\x6e'))"
+
+# 3. 修复 literal \n 污染（如有）
+python3 -c "d=open('video-project/src/scenes/DynamicScene.tsx','rb').read();open('video-project/src/scenes/DynamicScene.tsx','wb').write(d.replace(b'\x5c\x6e',b'\x0a'))"
+wc -l video-project/src/scenes/DynamicScene.tsx  # 修复后应 > 200
+
+# 4. 检测 JSX 双花括号语法错误
+grep 'return <>{{' video-project/src/scenes/DynamicScene.tsx  # 无输出 = 正常
+```
+
+### 渲染前音频复制（易遗漏！）
+
+```bash
+# 音频文件必须复制到 Remotion 能找到的位置
+cp audio/neural_1_2x.m4a video-project/public/audio/
+```
+
+> ⚠️ 若不复制，Remotion 会在 `http://localhost:3000/public/audio/` 查找，导致 404 渲染失败。这个 404 表现为 `localhost:3000/... could not be found`，极易误判为服务器问题。
 
 ### launch.sh 使用（2026-05-23 重要修正）
 
@@ -462,26 +532,40 @@ bash {SKILL_DIR}/scripts/launch.sh all              # 完整流程（Step 0→10
 
 > ⚠️ **launch.sh 必须先 chmod +x**：若遇到 `Permission denied`，立即执行 `chmod +x /Users/zhushuyan/.hermes/skills/video-creator/scripts/launch.sh`
 
-> ⚠️ **create-remotion-project.js 生成后必须验证**：
+> ⚠️ **create-remotion-project.js 执行后必须立即验证（4 项）：**
 > 1. `wc -l video-project/src/scenes/DynamicScene.tsx` — 应 > 0；为 0 则文件为空，需手动从 `references/B-REMOTION/dynamic-scene-template.md` 复制模板
-> 2. `head -3 video-project/src/scenes/DynamicScene.tsx | xxd | grep 5c6e` — 应无输出；有输出说明含 literal `\n`，用 `node -e "...(Buffer替换)..."` 修复
-> 3. 修复后执行 `npm install && npx remotion render ...` 进行渲染
+> 2. `head -c 200 video-project/src/scenes/DynamicScene.tsx | xxd | grep 5c6e` — 应无输出；有输出说明含 **literal `\n`**（字节 `0x5c 0x6e`），运行 `node {SKILL_DIR}/scripts/fix-remotion-project.js <project-dir>` 修复（自动替换为真实换行符）
+> 3. `grep 'return <>{{' video-project/src/scenes/DynamicScene.tsx` — 应无输出；有输出说明含 **JSX 双花括号语法错误**（`return <>{{ hLines }}{{ vLines }}</>`），用 `patch` 修复为 `return <>{hLines}{vLines}</>`
+> 4. 执行 `npm install && node_modules/.bin/remotion render ...` 验证编译通过
 
-> ⚠️ 必须在**项目目录内**执行，且 `PROJECT_DIR` 必须指向项目根目录（不是 workspace 根目录）
-
-> ⚠️ **create-remotion-project.js 执行后必须立即验证（3 项）：**
-> 1. `wc -l video-project/src/scenes/DynamicScene.tsx` — 应 > 0；为 0 则文件为空，需手动从 `references/B-REMOTION/dynamic-scene-template.md` 复制模板
-> 2. `head -3 video-project/src/scenes/DynamicScene.tsx | xxd | grep 5c6e` — 应无输出；有输出说明含 **literal `\n`**（字节 `0x5c 0x6e`，共 383 处），用 `python3 -c "data.replace(b'\x5c\x6e',b'\x0a')"` 修复
-> 3. `grep 'return <>{{' video-project/src/scenes/DynamicScene.tsx` — 应无输出；有输出说明含 **JSX 双花括号语法错误**（`return <>{{ hLines }}`），用 `patch` 修复为 `return <>{hLines}{vLines}</>`
-> 4. 修复后执行 `npm install && npx remotion render ...` 进行渲染
-
-**质量门禁**：`node {SKILL_DIR}/scripts/video-quality-gate.js <project-dir> all`
+**⚠️ `npx remotion` 在某些环境下不可用**：必须使用 `node_modules/.bin/remotion` 直接调用。
+**⚠️ 渲染命令必须在 `video-project/` 子目录内执行**：`node_modules/.bin/remotion` 位于 `video-project/node_modules/.bin/`，**不是**父目录。cd 到 video-project 再执行。render-props.json 放在父目录时，使用 `$(cat ../render-props.json)` 引用。
+**⚠️ narration.txt 更新后必须重新生成音频和字幕**：narration 改变 → 重新 edge-tts → 重新 ffmpeg atempo → 重新生成 captions.json → 重新复制到 `public/audio/` → 更新 Root.tsx 帧数 → 重新生成 render-props.json → 渲染。
+**⚠️ Root.tsx 帧数须与实际音频同步**：每次音频重新生成后（atempo 处理），用 `round(新音频时长秒数 × 60)` 更新 Root.tsx 的 `durationInFrames`。不更新会导致渲染帧数与音频不匹配。
+**⚠️ DynamicScene.tsx 为空时的恢复顺序**（不要 re-run create-remotion-project.js，直接：
+1. 验证 `wc -l video-project/src/scenes/DynamicScene.tsx` → 0 或 1
+2. `head -c 200 video-project/src/scenes/DynamicScene.tsx | xxd | grep 5c6e` 查 literal \n
+3. 确认无 literal \n 后，直接将 `references/B-REMOTION/dynamic-scene-template.md` 的完整 TSX 模板写入 `video-project/src/scenes/DynamicScene.tsx`
+4. 验证写入后行数 > 200
+5. 继续渲染 — 不要重跑 create-remotion-project.js（会覆盖已修复的文件）
+**⚠️ launch.sh all 渲染失败后的恢复步骤**：
+1. 手动修复 DynamicScene.tsx literal \n（Python replace）
+2. 重新生成音频（edge-tts → ffmpeg atempo）
+3. 重新生成 captions.json（Python 等比分割 narration）
+4. 复制音频和字幕到 `public/audio/`
+5. 更新 Root.tsx 帧数
+6. 生成 render-props.json
+7. cd video-project && node_modules/.bin/remotion render ...
 
 ### 渲染命令
 
 ```bash
+# 预写 props JSON 文件（避免 shell 引号嵌套问题）
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('video-config.json'));const caps=JSON.parse(fs.readFileSync('video-project/public/audio/captions.json'));const dur=58.4;const ms=dur*1000;const types=['Cover','PainPoint','Solution','Features','Start','Ending'];const scenes=types.map((n,i)=>({id:i+1,name:n,startMs:Math.round(i/types.length*ms),endMs:Math.round((i+1)/types.length*ms),duration:(1/types.length*ms)/1000,title:n==='Cover'?c.cover.title:n==='Solution'?'程序化API访问':n==='Features'?'核心功能':n==='Start'?'pip install':n==='PainPoint'?'痛点场景':n==='Ending'?'立即开始':n,subtitle:n==='Cover'?c.cover.subtitle:'',painPoints:['Web UI 功能有限','批量操作繁琐','API 访问困难'],features:[{name:'Python API',icon:'🐍'},{name:'CLI 工具',icon:'💻'},{name:'AI Agent',icon:'🤖'},{name:'批量下载',icon:'📦'}],steps:[{cmd:'pip install notebooklm-py',desc:'安装库'},{cmd:'notebooklm login',desc:'认证'},{cmd:'notebooklm create',desc:'创建笔记本'}]}));fs.writeFileSync('video-project/render-props.json',JSON.stringify({scenes,title:c.cover.title,subtitle:c.cover.subtitle,theme:c.theme}));"
 # Remotion Native（音频内嵌 + 字幕同期烧录，无需 ffmpeg）
-npx remotion render VerticalVideo out/final.mp4
+# ⚠️ 必须使用 node_modules/.bin/remotion，npx remotion 在某些环境下不可用
+# 推荐使用 --props-file（避免 shell 引号嵌套问题）
+node_modules/.bin/remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=60 --disable-gpu --log=error --props-file ../render-props.json
 
 # 封面生成（必须先执行）
 python3 generate_cover.py   # 三平台：vertical/wechat/xhs
@@ -516,9 +600,17 @@ EOF
 
 > ⚠️ **archived/** 目录（5个废弃文件）：feishu-base-batch.md · one-pass.md · launch-sh.md（×2） · feishu-base-completion.md 已移入 A-ARCHIVED/
 
-> ⚠️ **文档一致性陷阱**：references/ 文档间存在交叉引用。创建新文档或重命名文件后，必须检查：
+> ⚠️ **workspace 项目补封面义务**（2026-06-01 新增）：
+> - 每次 video-creator 处理完成的 workspace 项目，**必须**生成 `docs/assets/cover.png`（竖屏 1080×1920）
+> - generate_cover.py 位置：`/Users/zhushuyan/.hermes/skills/video-creator/scripts/generate_cover.py`
+> - 调用：`python3 /Users/zhushuyan/.hermes/skills/video-creator/scripts/generate_cover.py vertical "标题" "副标题"`
+> - 输出到 `docs/assets/cover.png`，同时生成 `cover-wechat.png`（900×383）和 `cover-xhs.png`（1440×2560）
+> - **禁止**跳过封面生成步骤，即使项目已"完成"视频渲染
+> - 旧路径（已废弃）：`/Volumes/OpenClawDrive/.hermes/workspace/9router/docs/assets/generate_cover.py`
+> - 新路径：`/Users/zhushuyan/.hermes/skills/video-creator/scripts/generate_cover.py`
+> - 调用方式：`cd {proj} && python3 /Users/zhushuyan/.hermes/skills/video-creator/scripts/generate_cover.py vertical "标题" "副标题"`
 > - `documentation-consistency.md`：检查所有对其他 references/ 文件的引用是否仍然有效
-> - `subagent-timeout.md`：launch.sh 命令引用路径是否正确
+> - `subagent-takeover.md` 附录 D：launch.sh 命令引用路径陷阱（`cd` 进入正确目录）
 
 ### 规则文档一致性维护（2026-05-28 新增）
 **症状**：更新 `references/` 子文档后，rules/ 目录下的规则文档未能同步更新，导致文档间引用不一致。经验证，以下内容最常遗漏：

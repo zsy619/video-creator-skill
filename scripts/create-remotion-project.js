@@ -365,7 +365,7 @@ function createProject(projectDir, config) {
     "    }\\n" +
     "    return arr;\\n" +
     "  }, [color, density]);\\n" +
-    "  return <>{{ hLines }}{{ vLines }}</>;\\n" +
+    "  return <>{hLines}{vLines}</>;\n" +
     "};\\n\\n" +
     "// ── 入场动画 ──────────────────────────────────────────────────────────\\n" +
     "const useSceneAnimation = (frame, theme) => {\\n" +

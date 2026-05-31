@@ -8,42 +8,126 @@
 
 ---
 
-## 垂直居中布局规范
+## 垂直居中布局规范（2026-05-30 修订）
 
 ### 原则
 
-Remotion 的 `<AbsoluteFill>` = `position: absolute; inset: 0`。内部 flex 容器的 `justifyContent: "center"` **只在父元素有高度时生效**。正确做法：
+Remotion 的 `<AbsoluteFill>` = `position: absolute; inset: 0`。内部 flex 容器的 `justifyContent: "center"` **只在父元素有高度时生效**。
+
+⚠️ **两种方案的对错已由 agenticSeek 项目实测验证**：
+
+| 方案 | 做法 | 实测结果 |
+|------|------|---------|
+| `transform: translate(-50%, -50%)` | 内层 div 用 transform | ❌ 内容偏底 888px（PainPoint y=1848） |
+| **外层 flex 居中** | 外层 div 用 `display:flex; justifyContent:center; alignItems:center` | ✅ 内容精确居中（所有场景 y=959，偏差 -0.1%） |
+
+### ✅ 正确方案：外层 flex 三层嵌套
 
 ```tsx
-// ❌ 错误：justifyContent center 对 AbsoluteFill 内部的 div 无效
-<AbsoluteFill style={{ backgroundColor: BG, justifyContent: "center", alignItems: "center", padding: 60 }}>
-  <div style={{ width: "100%", maxWidth: 900, textAlign: "center" }}>
-    {/* 内容偏底，无法居中 */}
-  </div>
-</AbsoluteFill>
+// 第1层：DynamicScene 根容器 — 用 flex 替代 AbsoluteFill
+<div style={{
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+}}>
+  <SceneWrapper ... />   {/* 第2层 */}
+</div>
 
-// ❌ 错误变体：inner div 添加 height:"100%"（CSS height:100% 无法获取 position:absolute 高度）
-<AbsoluteFill style={{ backgroundColor: BG, justifyContent: "center", alignItems: "center", padding: 60 }}>
-  <div style={{ width: "100%", height: "100%", maxWidth: 900, textAlign: "center" }}>
-    {/* 仍然偏底 */}
-  </div>
-</AbsoluteFill>
+// 第2层：SceneWrapper — 负责入场动画 + 垂直居中
+<div style={{
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  opacity: enter,
+  transform: `scale(${enter})`,
+}}>
+  <PainPointScene ... />  {/* 第3层，场景组件本身 */}
+</div>
 
-// ✅ 正确：transform translate(-50%, -50%) 绝对居中（经验证，6次渲染通过）
+// 第3层：场景组件 — 纯 flex column，由外层 flex 容器实现垂直居中
+<div style={{
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "100%",
+}}>
+  {/* 内容自然垂直居中 */}
+</div>
+```
+
+> ⚠️ **关键洞察**：`SceneWrapper` 的动画层（opacity + scale）必须用 `position:absolute; inset:0; display:flex; justifyContent:center; alignItems:center` 包裹场景组件，否则动画层会破坏垂直居中。
+
+### ❌ 错误方案（不要用）
+
+```tsx
+// ❌ transform translate(-50%, -50%) 在 Remotion 多行内容场景失效
 <div style={{
   position: "absolute",
   top: "50%",
   left: "50%",
   transform: "translate(-50%, -50%)",
-  width: "100%",
-  maxWidth: 900,
-  textAlign: "center",
 }}>
-  {/* 内容精确居中于画布中心 */}
+  {/* 内容偏底，无法真正居中，实测偏底 888px */}
 </div>
+
+// ❌ justifyContent center 对 AbsoluteFill 内部的 div 无效
+<AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
+  <div style={{ height: "100%" }}>
+    {/* 仍然偏底，因为 CSS height:100% 无法获取 position:absolute 高度 */}
+  </div>
+</AbsoluteFill>
 ```
 
-> ⚠️ **`justifyContent: center` 在 Remotion 多行内容场景已验证完全失效**。PainPoint/Features 等多行 flex 内容用 transform 居中替代方案。PainPoint 实测：内容中心 y=1848px（偏底 888px），transform 方案后内容中心 y=960px（精确居中）。
+### 实测数据（agenticSeek，11场景）
+
+修复后所有场景内容 Y 中心 = 959，相对画面中心 960 偏差 -0.1%，内容精确垂直居中：
+
+| 场景 | Y中心 | 状态 |
+|------|-------|------|
+| Cover | 959 | ✅居中 |
+| PainPoint ×4 | 959 | ✅居中 |
+| Solution ×5 | 959 | ✅居中 |
+| Features | 959 | ✅居中 |
+
+### 验证脚本
+
+```python
+# 提取场景中点帧并分析内容区域
+python3 << 'EOF'
+import subprocess, json
+from PIL import Image
+import numpy as np
+
+with open("video-config.json") as f:
+    cfg = json.load(f)
+
+times = []
+t = 0
+for scene in cfg["scenes"]:
+    mid = t + scene["duration"]/2
+    times.append((scene["name"], mid))
+    t += scene["duration"]
+
+for name, mid in times:
+    img = Image.open(f"/tmp/scene_{name}_{mid:.3f}.jpg")
+    arr = np.array(img)
+    bg = arr[0,0]
+    diff = np.abs(arr.astype(int) - bg.astype(int)).sum(axis=2)
+    bright = diff > 30
+    rows = np.where(bright.any(axis=1))[0]
+    if len(rows) > 0:
+        y_min, y_max = rows.min(), rows.max()
+        y_center = (y_min + y_max) // 2
+        deviation = y_center - 960
+        status = "✅居中" if abs(deviation) < 100 else ("⚠️轻微偏离" if abs(deviation) < 300 else "❌偏离")
+        print(f"{name:12s} y_center={y_center:4d} h={y_max-y_min:4d} {status}")
+EOF
+```
 
 ---
 

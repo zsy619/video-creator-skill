@@ -8,6 +8,7 @@
  * 修复内容：
  * 1. themes/index.ts — 连字符key加引号（esbuild 不支持 bare hyphenated keys）
  * 2. CaptionOverlay.tsx — 移除 useDelayRender（Remotion 4.x 返回值不是函数）
+ * 3. DynamicScene.tsx — 修复 literal \n 字节污染（0x5c 0x6e → 0x0a）
  *
  * 用法：
  *   node scripts/fix-remotion-project.js <project-dir>
@@ -123,6 +124,57 @@ function fixSceneScales(sceneDir) {
   }
 }
 
+/**
+ * 修复 DynamicScene.tsx 中的 literal \n 字节污染
+ * create-remotion-project.js 在某些情况下会将 JS 字符串 "\n"（换行符）写入为
+ * 字面量字节序列 0x5c 0x6e（反斜杠 + n），导致 esbuild 报 "Syntax error n"
+ * 诊断：xxd first 100 bytes 中可见 3b5c6e（分号 + 反斜杠 + n）
+ * 修复：替换 0x5c 0x6e → 0x0a（真实换行符）
+ */
+function fixLiteralNL(projectDir) {
+  const scenePath = path.join(projectDir, "video-project", "src", "scenes", "DynamicScene.tsx");
+  if (!fs.existsSync(scenePath)) {
+    console.log("ℹ️ DynamicScene.tsx 不存在，跳过 literal \\n 修复");
+    return;
+  }
+
+  const data = fs.readFileSync(scenePath); // 读取 binary
+  const count = data.reduce((acc, byte, i) => {
+    if (byte === 0x5c && i + 1 < data.length && data[i + 1] === 0x6e) {
+      return acc + 1;
+    }
+    return acc;
+  }, 0);
+
+  if (count === 0) {
+    console.log("ℹ️ DynamicScene.tsx 无 literal \\n 污染");
+    return;
+  }
+
+  const fixed = Buffer.from(data.filter((byte, i) => {
+    // 跳过 0x5c 0x6e 对，保留后续字节（不重复保留 0x6e）
+    if (byte === 0x5c && i + 1 < data.length && data[i + 1] === 0x6e) {
+      return false; // 跳过 0x5c
+    }
+    return true;
+  }).map((byte, i, arr) => {
+    // 将被跳过的 0x5c 之后的 0x6e 替换为 0x0a
+    if (i > 0 && arr[i - 1] === 0x5c && byte === 0x6e) {
+      return 0x0a;
+    }
+    return byte;
+  }));
+
+  // 简化：直接 replace
+  const fixed2 = data.replace(/\x5c\x6e/g, "\n");
+  if (fixed2.length !== data.length) {
+    fs.writeFileSync(scenePath, fixed2);
+    console.log(`✅ DynamicScene.tsx 已修复 literal \\n（${count}处）`);
+  } else {
+    console.log("ℹ️ DynamicScene.tsx 无 literal \\n 污染");
+  }
+}
+
 if (require.main === module) {
   const projectDir = process.argv[2];
   if (!projectDir) {
@@ -137,10 +189,11 @@ if (require.main === module) {
   if (fs.existsSync(themesPath)) fixThemesIndex(themesPath);
   if (fs.existsSync(captionPath)) fixCaptionOverlay(captionPath);
   if (fs.existsSync(scenesDir)) fixSceneScales(scenesDir);
+  fixLiteralNL(projectDir);
 
   console.log("\n✅ 修复完成。下一步:");
   console.log("  cd video-project && npm install");
   console.log("  npx remotion render VerticalVideo out/final.mp4 --concurrency=4 --fps=60 --disable-gpu");
 }
 
-module.exports = { fixThemesIndex, fixCaptionOverlay, fixSceneScales };
+module.exports = { fixThemesIndex, fixCaptionOverlay, fixSceneScales, fixLiteralNL };

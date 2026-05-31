@@ -1,11 +1,11 @@
 # G-WORKFLOW — 工作流与集成
 
-> **最后更新**：2026-05-28
-> **辅助 · Git / Base / 优化 / 已合并 edge-tts-ffprobe-params.md 到 C-CONTENT/audio-tts.md**
+> **最后更新**：2026-06-01
+> **辅助 · Git / Base / 优化 / 已合并 session 实录 + launch-sh-post-mortem.md 到 subagent-takeover.md 附录 C**
 
 ## 文件索引
 
-|| 文件 | 用途 | 关键内容 |
+| 文件 | 用途 | 关键内容 |
 |------|------|---------|
 | `git-workflow.md` | **Git 工作流与目录分离** | `{repo}/` vs `{repo}/{repo}-repo/` 隔离规范 / launch.sh init 自动隔离 |
 | `feishu-base-batch.md` | **Feishu Base 批量处理** | record_id 查询 / 批量更新 / 受影响项目列表 |
@@ -15,12 +15,14 @@
 | `video-optimization.md` | **视频优化与质量门禁** | 首帧亮度验证 / 码率检查 / **已合并 video-optimization-pitfalls.md** |
 | `video-creator-deep-lessons.md` | video-creator 深度教训 | 关键经验总结 |
 | `documentation-consistency.md` | 文档一致性维护指南 | copy.md / article.md / narration.txt 一致性规范 |
-| `frame-sync.md` | 帧同步 | 音频/字幕/视频帧同步；含原 `frame-sync-regex-patterns.md` 内容（第 6 节） |
+| `frame-sync-workflow.md` | 帧同步 | 音频/字幕/视频帧同步；含原 `frame-sync-regex-patterns.md` 内容（第 6 节） |
 | `audio-duration-mismatch.md` | 音画同步 | atempo 与音频时长匹配 |
 | `captions-endms-sync.md` | 字幕末端 ms 同步 | captions.json 末段 endMs 用视频实际时长校准 |
 | `batch-duration-fix-20260527.md` | 批量时长修复记录 | 7 个项目的修复记录 |
 | `video-config-cover-attrs.md` | video-config.json cover.attrs | attrs 字段规范 |
-
+| `main-process-takeover.md` | 主进程兜底渲染 | status=completed 不可信 / 批量 upsert 验证 |
+| `video-project-sessions.md` | **GitHub 仓库视频项目 Session 实战记录** | margelo/react-native-graph + shanselman/PeekDesktop 合并；含通用流程模板和验证命令库 |
+| `main-process-takeover.md` | 主进程兜底渲染 | status=completed 不可信 / 批量 upsert 验证 |
 > **已合并**：`edge-tts-ffprobe-params.md` → `C-CONTENT/audio-tts.md` 附录 E；`subagent-handover.md` → `D-SUBAGENT/subagent-takeover.md` 附录 B；`frame-sync-regex-patterns.md` → `frame-sync.md` 第 6 节
 
 ## 关键约束

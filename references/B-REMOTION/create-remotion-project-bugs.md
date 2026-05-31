@@ -1,209 +1,153 @@
-# create-remotion-project.js Bug 修复 + 主进程接管手册
+# create-remotion-project.js Bug 修复记录
 
-> **最后更新**：2026-05-29
-
-> 本文件收录 `create-remotion-project.js` 的已知 Bug（双花括号/literal `\n`）及主进程在 subagent 失败时的标准接管流程。
+> **最后更新**：2026-05-31
 
 ## 目录
-1. [DynamicScene.tsx 双花括号 Bug](#dynamicscenetsx-双花括号-bug)
-2. [DynamicScene.tsx 含 literal `\n` 损坏](#场景-bdynamicscenetsx-含-literal-n-或完全损坏)
-3. [launch.sh Permission Denied](#launchsh-permission-denied-bug)
-4. [Subagent 失败时主进程接管](#subagent-api-失败时主进程接管)
-5. [Root.tsx durationInFrames 硬编码 Bug](#roottsx-durationinframes-硬编码-bug)
 
-## DynamicScene.tsx 双花括号 Bug
+1. [GridBackground 双花括号 Bug](#gridbackground-双花括号-bug)（✅ 已源码级修复）
+2. [字节级 `\n` 污染 Bug](#字节级-n-污染-bug)
+3. [launch.sh Permission Denied](#launchsh-permission-denied)（✅ 已解决）
+4. [Root.tsx 帧数方案](#roottsx-帧数方案）
+5. [captions.json 覆盖 Bug](#captionsjson-覆盖-bug)（⚠️ 尚未源码修复）
+
+---
+
+## ✅ GridBackground 双花括号 Bug（已源码级修复）
 
 **问题**：`create-remotion-project.js` 生成的 `DynamicScene.tsx` 中，`hLines` 和 `vLines` 使用了双花括号 `{{ hLines }}` 而非单花括号 `{hLines}`。
+**错误表现**：编译阶段 React error #31 — object with keys `{hLines}`（被解析为对象字面量而非数组 children）。
 
-**错误表现**：
-- 编译阶段：React error #31 — object with keys `{hLines}`（被解析为对象字面量而非数组 children）
-- 症状：`{{ hLines }}` 在 JSX children 位置是语法错误
-
-**修复**（项目生成后立即执行）：
-
+**修复（2026-05-30）**：在 `scripts/create-remotion-project.js` 第 368 行：
 ```javascript
-// 修复 DynamicScene.tsx 中的双花括号问题
-const fs = require('fs');
-const path = require('path');
-const dScene = path.join(__dirname, 'src/scenes/DynamicScene.tsx');
-let content = fs.readFileSync(dScene, 'utf8');
-content = content.replace(/\{\{\s*hLines\s*\}\}/g, '{hLines}');
-content = content.replace(/\{\{\s*vLines\s*\}\}/g, '{vLines}');
-fs.writeFileSync(dScene, content);
+// 修复前（BUG）：
+"  return <>{{ hLines }}{{ vLines }}</>;\n" +
+// 修复后（正确）：
+"  return <>{hLines}{vLines}</>;\n" +
 ```
 
 **验证**：
 ```bash
-# 确认不存在双花括号包裹的 hLines/vLines
-grep -c '\{\{ hLines \}\}' src/scenes/DynamicScene.tsx  # 应为 0
-grep -c '\{\{ vLines \}\}' src/scenes/DynamicScene.tsx  # 应为 0
-# 确认存在单花括号形式
-grep -c '{hLines}' src/scenes/DynamicScene.tsx  # 应 > 0
+node /Users/zhushuyan/.hermes/skills/video-creator/scripts/create-remotion-project.js /tmp/test
+grep -c '{{ hLines }}' /tmp/test/video-project/src/scenes/DynamicScene.tsx  # 应为 0
+grep -c '{hLines}' /tmp/test/video-project/src/scenes/DynamicScene.tsx       # 应 > 0
 ```
 
-**注意**：`{{ ... }}` 在其他场景（如 inline style）是合法语法 `{{ property: value }}`，不能全局替换。必须精确匹配 `{{ hLines }}` 和 `{{ vLines }}`。
+> ⚠️ `{{ ... }}` 在 inline style（如 `style={{ property: value }}`）是合法语法，不能全局替换。
 
 ---
 
-## 字节级 \\n 污染 Bug
+## 字节级 `\n` 污染 Bug（2026-05-31 根因升级）
 
-**问题**：`create-remotion-project.js` 生成的 TSX 文件中，换行符被写成字面反斜杠+n（字节 `5c 6e`）而非真实换行符（`0a`），导致 esbuild 报 Syntax error `"n"`。
+**现象**：`create-remotion-project.js` 生成的 `DynamicScene.tsx` 只有 1 行，`wc -l` 返回 1。esbuild 报 `Syntax error "n"`。实测 liaohch3/claude-tap 项目 382 处 literal `\n`，Python 修复后文件从 1 行变为 383 行。
 
-**根因**：旧版 `fix-all-tsx.js` 使用 `Buffer.replace(b'\x5c\x6e', b'\x0a')` — 但 JS 源码中的字符串字面量 `\n` 在内存中恰好也是字节 `5c 6e`，导致 JS 文件本身被破坏（字符串值被篡改），而不是 TSX 产出文件被修复）。
+**两种独立触发路径**：
 
-**损坏链路**：
-1. `fix-all-tsx.js` 处理了 `create-remotion-project.js` 自身（.js 文件）
-2. JS 文件中的所有 `\\n` 转义字符串被替换为真实换行，破坏拼接逻辑
-3. 下次运行 `node create-remotion-project.js` 产出的 TSX 仍然有 literal `\n`
-4. 即使对 TSX 跑 `fix-all-tsx.js`，JS 已经被破坏，整个修复循环失效
+**路径 A（已知）**：`fix-all-tsx.js` 意外处理了 `create-remotion-project.js` 自身，将 JS 文件中的合法 `\\n` 转义序列破坏为真实换行符，导致拼接逻辑失效。损坏链路：fix-all-tsx.js → JS 文件的 `\\n` 被替换 → 拼接逻辑破坏 → TSX 仍含 literal `\n` → 修复循环失效。
 
-**三种损坏场景的修复策略**：
+**路径 B（新版，2026-05-31）**：`create-remotion-project.js` 的 heredoc 模板自身包含 `\\n` 字面量（来自 JS 字符串中的换行转义），经构建环境差异直接透传到 TSX 输出。**此路径无需 fix-all-tsx.js 参与，每次运行都可能触发。**
 
-### 场景 A：DynamicScene.tsx 有内容但含 literal `\n`
-**症状**：`head -1 src/scenes/DynamicScene.tsx | xxd` 显示 `5c6e` 字节
-**修复**（只对 TSX 文件）：
+**检测**：
 ```bash
-node -e "
-const fs = require('fs');
-const p = 'src/scenes/DynamicScene.tsx';
-let c = fs.readFileSync(p, 'binary');
-c = c.replace(/\x5c\x6e/g, '\n');
-fs.writeFileSync(p, c);
-"
+# xxd（最可靠）
+head -c 200 video-project/src/scenes/DynamicScene.tsx | xxd | grep 5c6e
+# wc -l（正常 TSX 应多行，若返回 1 → 全是 literal \n）
+wc -l video-project/src/scenes/DynamicScene.tsx
 ```
-**验证**：`head -1 src/scenes/DynamicScene.tsx | xxd | grep 5c6e`（应无输出）
 
-### 场景 B：DynamicScene.tsx 含 literal `\\n` 或完全损坏
-
-**症状**：`wc -l src/scenes/DynamicScene.tsx` 可能仍 >0，但文件第一行字节长度 20544（含大量 `\\n` 字面字符）。
-
-**修复**：
-
-1. **先检测**：
+**Python 一键修复**（每次 create-remotion-project.js 后强制执行）：
 ```bash
 python3 -c "
-with open('video-project/src/scenes/DynamicScene.tsx','rb') as f:
+data = open('video-project/src/scenes/DynamicScene.tsx', 'rb').read()
+fixed = data.replace(b'\x5c\x6e', b'\x0a')
+open('video-project/src/scenes/DynamicScene.tsx', 'wb').write(fixed)
+print(f'Fixed {data.count(b\"\x5c\x6e\")} literal \\\\n, lines now: {fixed.count(b\"\x0a\")}')
+"
+```
+
+**routine fix 原则**：Python 修复应作为 `create-remotion-project.js` 后的**常规步骤**，不等 esbuild 报错。更新 muscle memory：
+```
+node create-remotion-project.js <dir>  →  immediately Python \n fix  →  verify wc -l > 1
+```
+
+**检测 JS 文件是否损坏**：
+```bash
+python3 -c "
+with open('/Users/zhushuyan/.hermes/skills/video-creator/scripts/create-remotion-project.js','rb') as f:
     d = f.read()
-print('size:', len(d), 'bytes')
-if b'\\\\n' in d:
-    print('PROBLEM: literal backslash-n found')
+if b'\x0a' in d[:200]: print('PROBLEM: JS has real newlines in heredoc area')
 "
 ```
-
-2. **修复命令**：
-```bash
-# 备份
-cp video-project/src/scenes/DynamicScene.tsx /tmp/DynamicScene_bak.tsx
-
-# 用 python3 字节替换（只替换行末的 5c6e，不碰 JS 字符串中的合法 \n）
-python3 -c "
-with open('video-project/src/scenes/DynamicScene.tsx', 'rb') as f:
-    data = f.read()
-# 将连续的 literal \\n 序列转为真实换行
-# 但更可靠：直接用 dynamic-scene-template.md 模板覆盖
-import sys
-print('File has', data.count(b'\\\\n'), 'literal backslash-n occurrences')
-print('First line length:', data.split(b'\\n')[0).__len__() if b'\\n' in data else len(data))
-print('Use template from references/B-REMOTION/dynamic-scene-template.md')
-"
-```
-
-3. **直接用模板覆盖**（最可靠）：使用 `write_file` 将 `dynamic-scene-template.md` 中的模板作为起点，根据当前 `video-config.json` 替换 theme/title/subtitle 后写入。详见 `dynamic-scene-template.md`。
-
-**防护**：不要对 `create-remotion-project.js` 自身执行 Buffer 替换。若 JS 文件被意外破坏：`git checkout scripts/create-remotion-project.js`
 
 ---
 
-### launch.sh Permission Denied Bug
+## captions.json 覆盖 Bug（⚠️ 尚未源码修复）
 
-**症状**：`bash launch.sh init` 报错 `Permission denied`。
+**问题**：`create-remotion-project.js` 在执行时会将 `video-project/public/audio/captions.json` 重写为 `[]`（空数组），覆盖掉之前通过 `launch.sh audio` 或手动生成的字幕文件。
 
-**根因**：`launch.sh` 未设置执行权限。
+**影响**：如果在 `create-remotion-project.js` 之后、`launch.sh audio` 之前检查 captions.json，会发现内容被清空。
 
-**修复**：
+**防护步骤**：
+1. **先备份**：`cp video-project/public/audio/captions.json /tmp/captions_backup.json`
+2. 执行 `create-remotion-project.js`
+3. **后恢复**：`cp /tmp/captions_backup.json video-project/public/audio/captions.json`
+4. 渲染完成后再次确认 captions.json 内容未丢失
+
+**检测**：
+```bash
+cat video-project/public/audio/captions.json
+# 应显示有效 JSON 数组；若显示 [] 说明被覆盖
+```
+
+**⚠️ 根本修复方向**：`create-remotion-project.js` 应跳过 `public/audio/` 目录，只在 `src/` 目录生成源码文件。可考虑修改 JS 在写入 captions.json 前检查文件是否已存在且非空，若存在则跳过。
+
+---
+
+## launch.sh Permission Denied
+
+**状态**：✅ 已解决（`chmod +x` 已执行）
+`launch.sh` 需执行权限。执行一次即可：
 ```bash
 chmod +x /Users/zhushuyan/.hermes/skills/video-creator/scripts/launch.sh
 ```
 
 ---
 
-### Subagent API 失败时主进程接管
+## Root.tsx 帧数方案
 
-**症状**：`delegate_task` 返回 `status: failed`（401）或 `status: timeout`（600s）。
+`create-remotion-project.js` 通过 ffprobe 动态计算帧数写入 `Root.tsx`，无需 `calculateMetadata`：
 
-**主进程接管流程**：
-```bash
-# 1. 检查目录
-ls ~/.hermes/workspace/<repo>/
-
-# 2. 音频已生成 → 跳过 TTS
-# 3. video-project/src/ 为空或损坏 → 重建
-rm -rf video-project/
-node /Users/zhushuyan/.hermes/skills/video-creator/scripts/create-remotion-project.js .
-# 检测并修复 DynamicScene.tsx（含 \\n 则模板覆盖）
-
-# 4. 恢复 captions.json
-cp /tmp/<repo>_captions.json video-project/public/audio/captions.json
-
-# 5. npm install && 渲染
-cd video-project && npm install
-npx remotion render VerticalVideo out/final.mp4 --quality 0 --fps 60 --public-dir public
-
-# 6. 更新 Base → 清理 Git
+```javascript
+// 从音频时长计算帧数
+const dur = execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${audioPath}"`, { encoding: "utf8" });
+totalFrames = Math.round(parseFloat(dur.trim()) * fps);
 ```
 
----
-
-| **修复**（正确版——不依赖 calculateMetadata）：|
-
-```bash
-# 1. 用 ffprobe 获取音频实际帧数
-python3 -c "
-import subprocess
-a = float(subprocess.check_output(['ffprobe', '-v', 'error',
-    '-show_entries', 'format=duration', '-of', 'csv=p=0',
-    'audio/neural_1_2x.m4a']).strip())
-print(f'音频: {a:.3f}s = {int(a*60)}帧 @ 60fps')
-"
-
-# 2. 手动写入 Root.tsx（准确值，非 calculateMetadata）
-# 直接写入 durationInFrames={计算值} 而不是依赖 getAudioDuration
-```
-
+**✅ 正确写法**（直接写入准确帧数）：
 ```tsx
-// ✅ 正确写法（在 calculateMetadata 不可用时，直接写入准确帧数）
 <Composition
   id="VerticalVideo"
   component={VerticalVideo}
-  durationInFrames={5107}   // ← 用 ffprobe 音频时长 × 60fps 的准确值
+  durationInFrames={5107}   // ffprobe 音频时长 × 60fps 的准确值
   fps={60}
   width={1080}
   height={1920}
   defaultProps={{ ... }}
 />
-
-// ❌ 错误写法（硬编码错误值）
-<Composition ... durationInFrames={3606} ... />
-
-// ⚠️ calculateMetadata 方案（仅在 Remotion 版本支持 getAudioDuration 时使用）
-calculateMetadata={async ({ props }) => {
-  const audioDur = await getAudioDuration(staticFile(props.audioFile || "audio/neural_1_2x.m4a"));
-  return { durationInFrames: Math.round(audioDur * 60), props };
-}}
 ```
 
-**验证命令：**
-```bash
-# 检查 Root.tsx 是否硬编码（不应有 durationInFrames={数字}）
-grep "durationInFrames={[0-9]}" video-project/src/Root.tsx && echo "❌ 硬编码" || echo "✅"
+**❌ 错误写法**（硬编码错误值）：
+```tsx
+<Composition ... durationInFrames={3606} ... />
+```
 
-# 检查视频实际帧数与音频帧数匹配
+**⚠️ `calculateMetadata` 方案不适用**：Remotion v4 无 `getAudioDuration` API，不可依赖。
+**验证**：
+```bash
 python3 -c "
-import subprocess, json
+import subprocess
 v = float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0','video-project/out/final.mp4']).strip())
 a = float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0','audio/neural_1_2x.m4a']).strip())
 print(f'视频:{v:.3f}s 音频:{a:.3f}s 差异:{abs(v-a):.3f}s')
-if abs(v-a) < 1: print('✅ 同步')
-else: print('❌ 不同步')
+print('✅ 同步' if abs(v-a) < 1 else '❌ 不同步')
 "
 ```

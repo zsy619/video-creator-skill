@@ -1,7 +1,7 @@
 # Feishu Base 批量视频处理知识库
 
 > **最后更新**：2026-05-28
-> **配套文档**：`D-SUBAGENT/subagent-timeout.md`（超时恢复）、`C-CONTENT/audio-tts.md`（atempo 计算）
+> **配套文档**：`D-SUBAGENT/subagent-takeover.md`（超时恢复 / 附录D）/ `C-CONTENT/audio-tts.md`（atempo 计算）
 
 ---
 

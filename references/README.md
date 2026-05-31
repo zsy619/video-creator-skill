@@ -47,7 +47,7 @@
 → `C-CONTENT/video-workflow-failures.md`
 
 **Subagent 超时恢复 / Base 更新 / 清理**
-→ `D-SUBAGENT/subagent-timeout.md`
+→ `D-SUBAGENT/subagent-takeover.md`（含附录 B 主进程接管 + 附录 C 7步恢复 checklist + 附录 D 超时恢复指南）
 
 **会话压缩上下文丢失 / narration.txt 损坏**
 → `D-SUBAGENT/subagent-context-preservation.md`
@@ -104,8 +104,7 @@
 
 | 文件 | 用途 | 关键内容 |
 |------|------|---------|
-| `subagent-timeout.md` | **超时恢复指南** | delegate_task 600s 超时 / launch.sh 整体耗时 / SIGBUS / 主进程接管流程 |
-| `subagent-takeover.md` | **超时接管 + 主进程接管流程** | 强制验证步骤 / Root.tsx 修复 / 接管命令 |
+| `subagent-takeover.md` | **Subagent 超时接管流程** | 强制验证步骤 / Root.tsx 修复 / 接管命令 / 附录 B~D（主进程接管 + launch.sh 7步恢复 + 超时恢复指南） |
 | `subagent-context-preservation.md` | **会话压缩防护** | context compaction 后上下文丢失 / narration.txt 损坏 / references 文件写入规则 |
 
 ### E-VISUAL — 视觉设计
@@ -160,7 +159,7 @@
 
 | 文件 | 说明 |
 |------|------|
-| `one-pass.bak.md` | ⚠️ 已废弃 |
+| _(已清空)_ | 该目录已无有效文件 |
 
 ---
 
@@ -170,7 +169,8 @@
 |------|------|------|
 | 2026-05-30 | 合并 / 规范化 | 合并 `index.md` 到 `README.md`；H-CONFIG/ 新增 README；所有子目录 README 补全元数据 |
 | 2026-05-29 | 合并优化 | `G-WORKFLOW/edge-tts-ffprobe-params.md` → `C-CONTENT/audio-tts.md` 附录E；`G-WORKFLOW/subagent-handover.md` → `D-SUBAGENT/subagent-takeover.md` 附录B |
-| 2026-05-28 | 去重删除 | 删除 `duration-zero-fix.md`（并入 `remotion-render-gotchas.md`）、`remotion-tsx-bug.md`（并入 `create-remotion-project-bugs.md`）、`launch-sh.md`（内容并入 `subagent-timeout.md`） |
-| 2026-05-28 | 内容合并 | `pil-cover-usage.md` → `pil-cover.md`；`video-optimization-pitfalls.md` → `video-optimization.md` |
+| 2026-06-01 | 合并删除 | 删除 `subagent-timeout.md`（内容并入 `subagent-takeover.md` 附录D）；`subagent-takeover.md` 新增附录D（超时恢复详细指南） |
+| 2026-06-01 | 合并 / session整理 | 合并两个 session 实录 → `video-project-sessions.md`；删除 `launch-sh-post-mortem.md`（附录C）；删除 `one-pass.bak.md` |
+| 【历史 2026-05-28】 | 内容合并 | `pil-cover-usage.md` → `pil-cover.md`；`video-optimization-pitfalls.md` → `video-optimization.md` |
 | 2026-05-28 | 目录重组 | 7 个子目录各新增 `README.md`，主 `index.md` 精简为快速索引 |
 | 2026-05-24 | 目录重组 | 建立 8 分类结构，废弃文档移入 A-ARCHIVED |
