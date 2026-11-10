@@ -1,5 +1,6 @@
 ---
 name: video-creator
+version: "1.2.0"
 description: 自动化视频创作技能：从文章/URL/主题生成竖屏社交媒体视频（小红书/视频号/抖音）。整合宝玉技能生态进行内容获取、图片生成、HTML构建和Remotion视频渲染。集成字幕生成、质量检查、自动修复功能，支持批量处理多个视频项目。
 display_name: "视频创作器"
 display_name_en: "Video Creator"
