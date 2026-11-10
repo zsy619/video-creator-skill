@@ -70,6 +70,12 @@
 **视频优化 / 性能 / 质量门禁**
 → `G-WORKFLOW/video-optimization.md`
 
+**GitHub 仓库项目视频制作通用步骤**
+→ `G-WORKFLOW/github-repo-video-workflow.md`
+
+**SKILL.md 外置索引与检查细则**
+→ `G-WORKFLOW/skill-index-details.md`
+
 ---
 
 ## 分类文件清单

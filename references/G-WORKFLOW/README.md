@@ -22,6 +22,8 @@
 | `video-config-cover-attrs.md` | video-config.json cover.attrs | attrs 字段规范 |
 | `main-process-takeover.md` | 主进程兜底渲染 | status=completed 不可信 / 批量 upsert 验证 |
 | `video-project-sessions.md` | **GitHub 仓库视频项目 Session 实战记录** | margelo/react-native-graph + shanselman/PeekDesktop 合并；含通用流程模板和验证命令库 |
+| `github-repo-video-workflow.md` | GitHub 仓库项目视频制作通用步骤 | 从 SKILL.md 原文搬迁的克隆 / init / 渲染流程 |
+| `skill-index-details.md` | SKILL.md 外置索引与检查细则 | 规则必读表、验证清单、HTML / 占位符检查、维护规范 |
 | `main-process-takeover.md` | 主进程兜底渲染 | status=completed 不可信 / 批量 upsert 验证 |
 > **已合并**：`edge-tts-ffprobe-params.md` → `C-CONTENT/audio-tts.md` 附录 E；`subagent-handover.md` → `D-SUBAGENT/subagent-takeover.md` 附录 B；`frame-sync-regex-patterns.md` → `frame-sync.md` 第 6 节
 
